@@ -5,7 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,9 +27,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, InterviewType, FaangLevel, INTERVIEW_STYLES, InterviewStyle } from "@/lib/constants";
 import type { InterviewSetupData } from "@/lib/types";
-import { useState } from "react";
+import { summarizeResume } from "@/ai/flows/summarize-resume";
+import type { SummarizeResumeOutput } from "@/ai/flows/summarize-resume";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   interviewType: z.custom<InterviewType>((val) => INTERVIEW_TYPES.some(it => it.value === val), {
@@ -46,18 +50,88 @@ const formSchema = z.object({
 
 export default function InterviewSetupForm() {
   const router = useRouter();
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [resumeSummary, setResumeSummary] = useState<string | null>(null);
+  const [isSummarizingResume, setIsSummarizingResume] = useState(false);
+  const [resumeSummaryError, setResumeSummaryError] = useState<string | null>(null);
+  const [summarizedForResumeText, setSummarizedForResumeText] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       interviewType: INTERVIEW_TYPES[0].value,
-      interviewStyle: INTERVIEW_STYLES[0].value, // Default to Simple Q&A
+      interviewStyle: INTERVIEW_STYLES[0].value,
       faangLevel: FAANG_LEVELS[1].value,
       jobDescription: "",
       resume: "",
     },
   });
+
+  const handleResumeAnalysis = async () => {
+    const currentResumeText = form.getValues('resume');
+    if (!currentResumeText || currentResumeText.trim() === "") {
+      setResumeSummary(null);
+      setResumeSummaryError(null);
+      setSummarizedForResumeText(null);
+      setIsSummarizingResume(false); // Ensure loading is stopped if text is cleared
+      return;
+    }
+
+    if (currentResumeText === summarizedForResumeText && !resumeSummaryError) {
+      // No change in resume text and no previous error, or summary already exists
+      return;
+    }
+
+    setIsSummarizingResume(true);
+    setResumeSummary(null); // Clear previous summary
+    setResumeSummaryError(null);
+
+    try {
+      const result: SummarizeResumeOutput = await summarizeResume({ resume: currentResumeText });
+      setResumeSummary(result.summary);
+      setSummarizedForResumeText(currentResumeText);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to analyze resume.";
+      setResumeSummaryError(errorMessage);
+      toast({
+        title: "Resume Analysis Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSummarizingResume(false);
+    }
+  };
+  
+  // Effect to load existing setup from localStorage
+  useEffect(() => {
+    const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
+    if (storedSetup) {
+      try {
+        const parsedSetup = JSON.parse(storedSetup) as InterviewSetupData;
+        form.reset({
+          interviewType: parsedSetup.interviewType,
+          interviewStyle: parsedSetup.interviewStyle,
+          faangLevel: parsedSetup.faangLevel,
+          jobDescription: parsedSetup.jobDescription || "",
+          resume: parsedSetup.resume || "",
+        });
+        // Optionally, trigger analysis if resume was present
+        if (parsedSetup.resume && parsedSetup.resume.trim() !== "") {
+           // Set summarizedForResumeText to avoid initial auto-analysis if resume is unchanged
+           setSummarizedForResumeText(parsedSetup.resume); 
+           // No, don't auto-analyze on load. Let user blur or click.
+           // handleResumeAnalysis(); 
+        }
+      } catch (e) {
+        console.error("Failed to parse stored interview setup:", e);
+        localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
+      }
+    }
+  }, [form]);
+
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -69,7 +143,8 @@ export default function InterviewSetupForm() {
       resume: values.resume,
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
-    localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+    // Clear any existing session data to ensure a fresh start for the new setup
+    localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
     router.push("/interview");
   }
 
@@ -102,7 +177,7 @@ export default function InterviewSetupForm() {
                     <Brain className="mr-2 h-5 w-5 text-primary" />
                     Interview Type
                   </FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} defaultValue={INTERVIEW_TYPES[0].value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select an interview type" />
@@ -136,7 +211,7 @@ export default function InterviewSetupForm() {
                     <MessagesSquare className="mr-2 h-5 w-5 text-primary" />
                     Interview Style
                   </FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} defaultValue={INTERVIEW_STYLES[0].value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select an interview style" />
@@ -170,7 +245,7 @@ export default function InterviewSetupForm() {
                     <Star className="mr-2 h-5 w-5 text-primary" />
                     Target FAANG Level
                   </FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} defaultValue={FAANG_LEVELS[1].value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a FAANG level" />
@@ -230,16 +305,51 @@ export default function InterviewSetupForm() {
                       placeholder="Paste your resume content here for further personalization..."
                       className="resize-y min-h-[120px]"
                       {...field}
+                      onBlur={handleResumeAnalysis} // Analyze on blur
                     />
                   </FormControl>
                   <FormDescription>
-                    Your resume can help the AI ask more relevant questions.
+                    Your resume can help the AI ask more relevant questions and provide key insights below.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting}>
+
+            {(isSummarizingResume || resumeSummaryError || resumeSummary) && (
+              <div className="space-y-2">
+                {isSummarizingResume && (
+                  <Alert>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <AlertTitle>Analyzing Resume...</AlertTitle>
+                    <AlertDescription>
+                      Please wait while we extract key points from your resume.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {resumeSummaryError && !isSummarizingResume && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-5 w-5" />
+                    <AlertTitle>Resume Analysis Error</AlertTitle>
+                    <AlertDescription>
+                      {resumeSummaryError}
+                      <Button variant="link" size="sm" onClick={handleResumeAnalysis} className="p-0 h-auto ml-1">Try again</Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {resumeSummary && !isSummarizingResume && !resumeSummaryError && (
+                  <Alert variant="default" className="bg-accent/10 border-accent/30">
+                    <Lightbulb className="h-5 w-5 text-accent" />
+                    <AlertTitle className="text-accent">Resume Highlights</AlertTitle>
+                    <AlertDescription className="whitespace-pre-wrap text-foreground/80">
+                      {resumeSummary}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+            
+            <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting || isSummarizingResume}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -255,3 +365,4 @@ export default function InterviewSetupForm() {
     </Card>
   );
 }
+

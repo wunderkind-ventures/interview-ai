@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -10,11 +11,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare } from "lucide-react";
-import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
-import type { InterviewSetupData, InterviewSessionData, InterviewQuestion } from "@/lib/types";
+import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
+import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -22,6 +23,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   error: null,
   interviewStarted: false,
   interviewFinished: false,
+  interviewStyle: "simple-qa", // Default, will be overridden by setup or stored session
 };
 
 export default function InterviewSession() {
@@ -32,9 +34,9 @@ export default function InterviewSession() {
 
   const loadInterview = useCallback(async (setupData: InterviewSetupData) => {
     setSessionData(prev => ({
-      ...(prev || setupData),
-      ...setupData, // ensure setupData overwrites if prev existed but was partial
-      ...initialSessionState,
+      ...(prev || setupData), // Start with previous or new setup data
+      ...setupData,           // Ensure current setupData overwrites
+      ...initialSessionState, // Apply initial session state (resets questions, index, etc.)
       isLoading: true,
       interviewStarted: true,
     }));
@@ -44,6 +46,7 @@ export default function InterviewSession() {
         jobDescription: setupData.jobDescription || "",
         resume: setupData.resume || "",
         interviewType: setupData.interviewType,
+        interviewStyle: setupData.interviewStyle,
         faangLevel: setupData.faangLevel,
       };
       const response = await customizeInterviewQuestions(aiInput);
@@ -58,7 +61,7 @@ export default function InterviewSession() {
       }));
 
       setSessionData(prev => {
-        if (!prev) return null; // Should not happen if interviewStarted
+        if (!prev) return null; 
         const newSession = { ...prev, questions: questionsWithIds, isLoading: false, error: null };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSession));
         return newSession;
@@ -84,17 +87,15 @@ export default function InterviewSession() {
     const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
     if (storedSession) {
       const parsedSession: InterviewSessionData = JSON.parse(storedSession);
-      // If interview was finished, redirect to feedback
       if (parsedSession.interviewFinished) {
         router.replace("/feedback");
         return;
       }
       setSessionData(parsedSession);
-      // If questions are there but loading is true (e.g. browser refresh during load), retry loading.
-      // Or if interviewStarted is false but session exists, means it's a stale session - restart.
       if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
+          interviewStyle: parsedSession.interviewStyle,
           faangLevel: parsedSession.faangLevel,
           jobDescription: parsedSession.jobDescription,
           resume: parsedSession.resume,
@@ -107,7 +108,6 @@ export default function InterviewSession() {
         const setupData: InterviewSetupData = JSON.parse(storedSetup);
         loadInterview(setupData);
       } else {
-        // No setup data, redirect to home
         toast({ title: "Setup required", description: "Please configure your interview first.", variant: "destructive"});
         router.replace("/");
       }
@@ -123,7 +123,6 @@ export default function InterviewSession() {
     let newSessionData: InterviewSessionData;
 
     if (sessionData.currentQuestionIndex === sessionData.questions.length - 1) {
-      // Last question answered
       newSessionData = {
         ...sessionData,
         answers: updatedAnswers,
@@ -139,7 +138,7 @@ export default function InterviewSession() {
         ...sessionData,
         answers: updatedAnswers,
         currentQuestionIndex: sessionData.currentQuestionIndex + 1,
-        isLoading: false, // ensure loading is false
+        isLoading: false, 
       };
       localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
       setSessionData(newSessionData);
@@ -152,7 +151,6 @@ export default function InterviewSession() {
     const currentQuestionId = sessionData.questions.length > 0 ? sessionData.questions[sessionData.currentQuestionIndex]?.id : undefined;
     let updatedAnswers = sessionData.answers;
 
-    // If there's a current question and some answer typed, save it
     if (currentQuestionId && currentAnswer.trim() !== "") {
        updatedAnswers = [...sessionData.answers, { questionId: currentQuestionId, answerText: currentAnswer }];
     }
@@ -191,7 +189,6 @@ export default function InterviewSession() {
   }
   
   if (sessionData.interviewFinished) {
-     // This case should be handled by the useEffect redirect, but as a fallback:
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
@@ -202,13 +199,14 @@ export default function InterviewSession() {
 
   const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
   const progress = sessionData.questions.length > 0 ? ((sessionData.currentQuestionIndex + 1) / sessionData.questions.length) * 100 : 0;
+  const styleLabel = INTERVIEW_STYLES.find(s => s.value === sessionData.interviewStyle)?.label || sessionData.interviewStyle;
 
   return (
     <Card className="w-full max-w-3xl mx-auto shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl flex items-center">
           <MessageSquare className="mr-3 h-7 w-7 text-primary" />
-          Interview In Progress: {sessionData.interviewType}
+          Interview: {sessionData.interviewType} ({styleLabel})
         </CardTitle>
         <CardDescription>
           Level: {sessionData.faangLevel} - Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}
@@ -238,7 +236,7 @@ export default function InterviewSession() {
           End Interview
         </Button>
         <Button onClick={handleNextQuestion} disabled={sessionData.isLoading || !currentAnswer.trim()} className="bg-accent hover:bg-accent/90">
-          {sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish & View Feedback" : "Next Question"}
+          {sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish &amp; View Feedback" : "Next Question"}
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </CardFooter>

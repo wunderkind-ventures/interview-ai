@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, Layers } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,13 +26,16 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, InterviewType, FaangLevel } from "@/lib/constants";
+import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, InterviewType, FaangLevel, INTERVIEW_STYLES, InterviewStyle } from "@/lib/constants";
 import type { InterviewSetupData } from "@/lib/types";
 import { useState } from "react";
 
 const formSchema = z.object({
   interviewType: z.custom<InterviewType>((val) => INTERVIEW_TYPES.some(it => it.value === val), {
     message: "Please select an interview type.",
+  }),
+  interviewStyle: z.custom<InterviewStyle>((val) => INTERVIEW_STYLES.some(is => is.value === val), {
+    message: "Please select an interview style.",
   }),
   faangLevel: z.custom<FaangLevel>((val) => FAANG_LEVELS.some(fl => fl.value === val), {
     message: "Please select a FAANG level.",
@@ -49,6 +52,7 @@ export default function InterviewSetupForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       interviewType: INTERVIEW_TYPES[0].value,
+      interviewStyle: INTERVIEW_STYLES[0].value, // Default to Simple Q&A
       faangLevel: FAANG_LEVELS[1].value,
       jobDescription: "",
       resume: "",
@@ -59,12 +63,12 @@ export default function InterviewSetupForm() {
     setIsSubmitting(true);
     const setupData: InterviewSetupData = {
       interviewType: values.interviewType,
+      interviewStyle: values.interviewStyle,
       faangLevel: values.faangLevel,
       jobDescription: values.jobDescription,
       resume: values.resume,
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
-    // Clear previous session data if any
     localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
     router.push("/interview");
   }
@@ -74,7 +78,6 @@ export default function InterviewSetupForm() {
       case "product sense": return <Brain className="mr-2 h-4 w-4" />;
       case "technical system design": return <Workflow className="mr-2 h-4 w-4" />;
       case "behavioral": return <Users className="mr-2 h-4 w-4" />;
-      case "case study": return <Layers className="mr-2 h-4 w-4" />;
       default: return null;
     }
   };
@@ -118,6 +121,40 @@ export default function InterviewSetupForm() {
                   </Select>
                   <FormDescription>
                     Choose the category for your mock interview.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="interviewStyle"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center text-lg">
+                    <MessagesSquare className="mr-2 h-5 w-5 text-primary" />
+                    Interview Style
+                  </FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an interview style" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {INTERVIEW_STYLES.map((style) => (
+                        <SelectItem key={style.value} value={style.value}>
+                          <div className="flex items-center">
+                            {style.value === 'simple-qa' ? <ListChecks className="mr-2 h-4 w-4" /> : <MessagesSquare className="mr-2 h-4 w-4" />}
+                            {style.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Choose question delivery: direct Q&amp;A or multi-turn case studies.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

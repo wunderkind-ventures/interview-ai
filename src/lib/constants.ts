@@ -3,10 +3,17 @@ export const INTERVIEW_TYPES = [
   { value: "product sense", label: "Product Sense" },
   { value: "technical system design", label: "Technical System Design" },
   { value: "behavioral", label: "Behavioral" },
-  { value: "case study", label: "Case Study" },
+  // "Case Study" removed as a type, will be an interview style
 ] as const;
 
 export type InterviewType = typeof INTERVIEW_TYPES[number]['value'];
+
+export const INTERVIEW_STYLES = [
+  { value: "simple-qa", label: "Simple Q&A" },
+  { value: "case-study", label: "Case Study (Multi-turn)" },
+] as const;
+
+export type InterviewStyle = typeof INTERVIEW_STYLES[number]['value'];
 
 export const FAANG_LEVELS = [
   { value: "L3", label: "L3 (Entry-Level/New Grad)" },

@@ -1,12 +1,10 @@
 
-// src/ai/flows/customize-interview-questions.ts
-
 'use server';
 
 /**
- * @fileOverview Customizes interview questions based on a provided job description.
+ * @fileOverview Customizes interview questions based on a provided job description, interview type, style, and other factors.
  *
- * - customizeInterviewQuestions - A function that customizes interview questions based on a job description.
+ * - customizeInterviewQuestions - A function that customizes interview questions.
  * - CustomizeInterviewQuestionsInput - The input type for the customizeInterviewQuestions function.
  * - CustomizeInterviewQuestionsOutput - The return type for the customizeInterviewQuestions function.
  */
@@ -23,8 +21,11 @@ const CustomizeInterviewQuestionsInputSchema = z.object({
     .optional()
     .describe('The user resume to further customize the interview questions for.'),
   interviewType: z
-    .enum(['product sense', 'technical system design', 'behavioral', 'case study'])
+    .enum(['product sense', 'technical system design', 'behavioral'])
     .describe('The type of interview to generate questions for.'),
+  interviewStyle: z
+    .enum(['simple-qa', 'case-study'])
+    .describe('The style of the interview: simple Q&A or multi-turn case study.'),
   faangLevel: z
     .string()
     .optional()
@@ -61,21 +62,25 @@ const prompt = ai.definePrompt({
   },
   prompt: `You are an expert interviewer specializing in FAANG interviews.
 
-You will generate customized interview questions based on the provided job description, resume, interview type, and FAANG level.
-If the interview type is "case study", the questions should be suitable for a multi-turn conversation, often starting with a broad scenario and allowing for follow-up questions based on the candidate's responses.
+You will generate customized interview questions based on the provided job description, resume, interview type, interview style, and FAANG level.
+
+{{#if (eq interviewStyle "case-study")}}
+The questions should be suitable for a multi-turn conversation. They should often start with a broad scenario related to the interview type (e.g., a product design challenge for "product sense", a system scaling problem for "technical system design"). The initial question should be open-ended, encouraging a detailed response. You can also suggest potential areas for deeper dives or follow-up questions that an interviewer might ask, if appropriate within the 5-10 question limit for the initial set. The goal is to simulate the beginning of a case study.
+{{else}}
+The questions should be direct and suitable for a simple question and answer format, tailored to the interview type.
+{{/if}}
 
 Job Description: {{{jobDescription}}}
 {{~#if resume}}
 Resume: {{{resume}}}
 {{~/if}}
 Interview Type: {{{interviewType}}}
+Interview Style: {{{interviewStyle}}}
 {{~#if faangLevel}}
 FAANG Level: {{{faangLevel}}}
 {{~/if}}
 
-Generate 5-10 interview questions tailored to the job description, resume, interview type, and FAANG level. Ensure the questions are relevant and challenging.
-For "case study" questions, the initial question might be more open-ended, and you can suggest potential areas for deeper dives or follow-ups if appropriate within the 5-10 question limit.
-
+Generate 5-10 interview questions tailored to the inputs. Ensure the questions are relevant and challenging for the specified FAANG level and interview type.
 Output the questions as a JSON array of strings.
 `,
 });

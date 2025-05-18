@@ -1,7 +1,9 @@
-import type { InterviewType, FaangLevel } from './constants';
+
+import type { InterviewType, FaangLevel, InterviewStyle } from './constants';
 
 export interface InterviewSetupData {
   interviewType: InterviewType;
+  interviewStyle: InterviewStyle;
   faangLevel: FaangLevel;
   jobDescription?: string;
   resume?: string;

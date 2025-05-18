@@ -1,10 +1,11 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2 } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, Layers } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -73,6 +74,7 @@ export default function InterviewSetupForm() {
       case "product sense": return <Brain className="mr-2 h-4 w-4" />;
       case "technical system design": return <Workflow className="mr-2 h-4 w-4" />;
       case "behavioral": return <Users className="mr-2 h-4 w-4" />;
+      case "case study": return <Layers className="mr-2 h-4 w-4" />;
       default: return null;
     }
   };

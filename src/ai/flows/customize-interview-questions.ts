@@ -1,3 +1,4 @@
+
 // src/ai/flows/customize-interview-questions.ts
 
 'use server';
@@ -22,7 +23,7 @@ const CustomizeInterviewQuestionsInputSchema = z.object({
     .optional()
     .describe('The user resume to further customize the interview questions for.'),
   interviewType: z
-    .enum(['product sense', 'technical system design', 'behavioral'])
+    .enum(['product sense', 'technical system design', 'behavioral', 'case study'])
     .describe('The type of interview to generate questions for.'),
   faangLevel: z
     .string()
@@ -61,6 +62,7 @@ const prompt = ai.definePrompt({
   prompt: `You are an expert interviewer specializing in FAANG interviews.
 
 You will generate customized interview questions based on the provided job description, resume, interview type, and FAANG level.
+If the interview type is "case study", the questions should be suitable for a multi-turn conversation, often starting with a broad scenario and allowing for follow-up questions based on the candidate's responses.
 
 Job Description: {{{jobDescription}}}
 {{~#if resume}}
@@ -72,6 +74,7 @@ FAANG Level: {{{faangLevel}}}
 {{~/if}}
 
 Generate 5-10 interview questions tailored to the job description, resume, interview type, and FAANG level. Ensure the questions are relevant and challenging.
+For "case study" questions, the initial question might be more open-ended, and you can suggest potential areas for deeper dives or follow-ups if appropriate within the 5-10 question limit.
 
 Output the questions as a JSON array of strings.
 `,

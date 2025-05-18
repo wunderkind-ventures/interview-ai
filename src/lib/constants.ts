@@ -1,7 +1,9 @@
+
 export const INTERVIEW_TYPES = [
   { value: "product sense", label: "Product Sense" },
   { value: "technical system design", label: "Technical System Design" },
   { value: "behavioral", label: "Behavioral" },
+  { value: "case study", label: "Case Study" },
 ] as const;
 
 export type InterviewType = typeof INTERVIEW_TYPES[number]['value'];

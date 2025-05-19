@@ -16,11 +16,11 @@ import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { generateTakeHomeAssignment } from './generate-take-home-assignment';
-import type { GenerateTakeHomeAssignmentInput } from './generate-take-home-assignment';
-import { generateCaseStudyQuestions } from './generate-case-study-questions'; 
-import type { CustomizeInterviewQuestionsInput as CaseStudyInputType } from './generate-case-study-questions'; // Renamed to avoid conflict
+import type { GenerateTakeHomeAssignmentInput, GenerateTakeHomeAssignmentOutput } from './generate-take-home-assignment';
+import { generateCaseStudyQuestions } from './generate-case-study-questions';
+import type { CustomizeInterviewQuestionsInput as CaseStudyInputType, GenerateCaseStudyQuestionsOutput } from './generate-case-study-questions';
 
-// Exporting the schema for use by specialized flows
+// Input schema remains the same
 export const CustomizeInterviewQuestionsInputSchema = z.object({
   jobTitle: z
     .string()
@@ -33,7 +33,7 @@ export const CustomizeInterviewQuestionsInputSchema = z.object({
   resume: z
     .string()
     .optional()
-    .describe('The user resume to provide context about the candidate\'s background. Use this to subtly angle questions, but do not ask questions directly *about* the resume unless it\'s a behavioral question about past experiences.'),
+    .describe("The user resume to provide context about the candidate's background. Use this to subtly angle questions, but do not ask questions directly *about* the resume unless it's a behavioral question about past experiences."),
   interviewType: z
     .enum(['product sense', 'technical system design', 'behavioral', 'machine learning', 'data structures & algorithms'])
     .describe('The type of interview to generate questions for.'),
@@ -62,11 +62,16 @@ export type CustomizeInterviewQuestionsInput = z.infer<
   typeof CustomizeInterviewQuestionsInputSchema
 >;
 
-// Output schema remains the same for the orchestrator
-const CustomizeInterviewQuestionsOutputSchema = z.object({
+// Output schema for the orchestrator - includes idealAnswerCharacteristics
+const OrchestratorQuestionOutputSchema = z.object({
+    questionText: z.string(),
+    idealAnswerCharacteristics: z.array(z.string()).optional().describe("Brief key characteristics or elements a strong answer to this specific question/assignment would demonstrate."),
+});
+
+export const CustomizeInterviewQuestionsOutputSchema = z.object({
   customizedQuestions: z
-    .array(z.string())
-    .describe('An array of customized interview questions. For "take-home" this will be one item. For "case-study" 5-7 items. For "simple-qa" 5-10 items.'),
+    .array(OrchestratorQuestionOutputSchema)
+    .describe('An array of customized interview questions/assignments, each with text and ideal answer characteristics.'),
 });
 
 export type CustomizeInterviewQuestionsOutput = z.infer<
@@ -82,44 +87,64 @@ export async function customizeInterviewQuestions(
       interviewType: input.interviewType,
       jobTitle: input.jobTitle,
       jobDescription: input.jobDescription,
-      faangLevel: input.faangLevel || 'L5', // Default if not provided
+      faangLevel: input.faangLevel || 'L5',
       targetedSkills: input.targetedSkills,
       targetCompany: input.targetCompany,
       interviewFocus: input.interviewFocus,
     };
     try {
-      const takeHomeOutput = await generateTakeHomeAssignment(takeHomeInput);
-      return { customizedQuestions: [takeHomeOutput.assignmentText] };
+      const takeHomeOutput: GenerateTakeHomeAssignmentOutput = await generateTakeHomeAssignment(takeHomeInput);
+      return { 
+        customizedQuestions: [{
+          questionText: takeHomeOutput.assignmentText,
+          idealAnswerCharacteristics: takeHomeOutput.idealSubmissionCharacteristics,
+        }]
+      };
     } catch (error) {
       console.error("Error generating take-home assignment:", error);
-      return { customizedQuestions: ["Failed to generate take-home assignment. The detailed problem statement could not be created. Please ensure all relevant fields like 'Job Title', 'Job Description', and 'Interview Focus' are as specific as possible. You can try configuring a simpler interview style or contact support."] };
+      return { customizedQuestions: [{ questionText: "Failed to generate take-home assignment. The detailed problem statement could not be created. Please ensure all relevant fields like 'Job Title', 'Job Description', and 'Interview Focus' are as specific as possible. You can try configuring a simpler interview style or contact support." }] };
     }
   } else if (input.interviewStyle === 'case-study') {
     try {
-        // Ensure the input matches what generateCaseStudyQuestions expects
         const caseStudyInput: CaseStudyInputType = { ...input };
-        const caseStudyOutput = await generateCaseStudyQuestions(caseStudyInput);
-        return { customizedQuestions: caseStudyOutput.customizedQuestions };
+        const caseStudyOutput: GenerateCaseStudyQuestionsOutput = await generateCaseStudyQuestions(caseStudyInput);
+        return { customizedQuestions: caseStudyOutput.customizedQuestions }; // Already in the correct format Array<{questionText, idealAnswerCharacteristics}>
     } catch (error) {
         console.error("Error generating case study questions:", error);
         const fallbackScenario = `Considering your role as a ${input.jobTitle || 'professional'} and the interview focus on ${input.interviewFocus || input.interviewType}, describe a complex project or challenge you've faced. What was the situation, your approach, and the outcome?`;
         const fallbackFollowUp = "What were the key trade-offs you had to make, and how did you decide?";
-        return { customizedQuestions: [fallbackScenario, fallbackFollowUp, "What would you do differently if you faced a similar situation again?"] };
+        return { customizedQuestions: [
+            { questionText: fallbackScenario, idealAnswerCharacteristics: ["Clarity of situation", "Logical approach", "Measurable outcome"] },
+            { questionText: fallbackFollowUp, idealAnswerCharacteristics: ["Identification of key trade-offs", "Sound decision-making rationale"] },
+            { questionText: "What would you do differently if you faced a similar situation again?", idealAnswerCharacteristics: ["Self-reflection", "Actionable learnings"] }
+        ]};
     }
   }
   // Default to the main flow for 'simple-qa'
   return customizeSimpleQAInterviewQuestionsFlow(input);
 }
 
+
+// Output schema for Simple Q&A - includes idealAnswerCharacteristics
+const SimpleQAQuestionsOutputSchema = z.object({
+  customizedQuestions: z.array(
+    z.object({
+      questionText: z.string(),
+      idealAnswerCharacteristics: z.array(z.string()).optional().describe("Brief key characteristics or elements a strong answer to this specific question would demonstrate."),
+    })
+  ).describe('An array of 5-10 customized Q&A questions, each with text and ideal answer characteristics.'),
+});
+
+
 // This prompt is now specifically for 'simple-qa'
 const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
-  name: 'customizeSimpleQAInterviewQuestionsPrompt', 
+  name: 'customizeSimpleQAInterviewQuestionsPrompt',
   tools: [getTechnologyBriefTool],
   input: {
     schema: CustomizeInterviewQuestionsInputSchema,
   },
   output: {
-    schema: CustomizeInterviewQuestionsOutputSchema 
+    schema: SimpleQAQuestionsOutputSchema // Updated output schema
   },
   prompt: `You are an **Expert Interview Architect AI**, embodying the persona of a **seasoned hiring manager and curriculum designer from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate tailored interview content for the 'simple-qa' style ONLY, based on the detailed specifications provided.
@@ -127,23 +152,30 @@ You must meticulously consider all inputs to create relevant, challenging, and i
 DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; those are handled by specialized processes. If for some reason you are asked to generate those styles here, state that they are handled separately.
 
 **Core Instructions & Persona Nuances:**
-- Your goal is to craft questions that not only test skills but also make the candidate think critically and reveal their problem-solving process. You want them to leave the mock interview feeling challenged yet enlightened.
+- Your persona is that of a seasoned hiring manager from a top-tier tech company. Your goal is to craft questions that not only test skills but also make the candidate think critically and reveal their problem-solving process. You want them to leave the mock interview feeling challenged yet enlightened.
 - You are creating questions for a mock interview, designed to help candidates prepare effectively.
 - Ensure every question directly reflects the provided inputs.
+- AVOID asking questions that can be answered with a simple 'yes' or 'no', especially for L4+ roles.
+
+**Input Utilization & Context:**
+- **Job Title & Description:** Use 'jobTitle' and 'jobDescription' (if provided) to deeply tailor the questions to the responsibilities, technologies, and domain mentioned. The technical depth required should be directly influenced by these.
+- **FAANG Level:** All content must be precisely calibrated to the 'faangLevel'. This means considering the expected dimensions for that level: Ambiguity, Complexity, Scope, and Execution.
+- **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding to subtly angle questions or understand the candidate's likely exposure to certain topics. Do not generate questions *directly about* the resume content itself unless the 'interviewType' is "behavioral" and the question explicitly asks for past experiences.
+- **Targeted Skills & Focus:** If 'targetedSkills' or 'interviewFocus' are provided, questions MUST actively assess or revolve around these.
 
 **General Principles for All Questions (for 'simple-qa'):**
-1.  **Relevance & Specificity:** Questions must be directly pertinent to the specified 'interviewType'. If 'jobTitle' and 'jobDescription' are provided, questions must be deeply tailored to the responsibilities, technologies, and domain mentioned.
-2.  **Difficulty Calibration (FAANG Level):** All content must be precisely calibrated to the 'faangLevel'. This means considering the expected dimensions for that level, such as:
-    *   **Ambiguity:** (e.g., L3/L4 get well-defined problems, L5/L6 more ambiguous. For L5+, avoid overly prescriptive questions; allow room for the candidate to define scope.)
-    *   **Complexity:** (e.g., L4 handles 'straightforward' problems, L6 handles 'complex' multi-faceted problems. For L6+, questions should touch on interdependencies or require synthesis of multiple concepts.)
-    *   **Scope & Impact:** (e.g., L4 might focus on a component, L6 on a system or feature with broader impact. Ensure the scale of the problem is appropriate.)
-    *   **Execution:** (e.g., L4 tactical, L6 defines strategy. Questions should probe for strategic thinking in higher levels.)
-3.  **Clarity & Conciseness:** Questions must be unambiguous, clear, and easy to understand.
-4.  **Skill Assessment:** Design questions to effectively evaluate 'targetedSkills' (if provided) or core competencies expected for the 'interviewType' and 'faangLevel'. If an 'interviewFocus' is provided, this should be a primary theme.
-5.  **Open-Ended (Crucial for L4+):** AVOID asking questions that can be answered with a simple 'yes' or 'no', or that only require factual recall, especially for L4 and above. Questions should encourage detailed, reasoned responses and discussion.
-6.  **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding to subtly angle questions or understand the candidate's likely exposure to certain topics. Do not generate questions *directly about* the resume content itself unless the 'interviewType' is "behavioral" and the question explicitly asks for past experiences.
-7.  **Tool Usage for Clarity:** If technologies are crucial, you may use the \`getTechnologyBriefTool\`. Integrate insights to make questions more specific; don't just repeat tool output.
-8.  **Internal Reflection on Ideal Answer Characteristics:** Before finalizing each question, briefly consider the key characteristics or elements a strong answer would demonstrate. This internal reflection will help ensure the question is well-posed and effectively tests the intended skills. You do not need to output these characteristics, just use them to refine the question itself.
+1.  **Relevance & Specificity:** Questions must be directly pertinent to 'interviewType'.
+2.  **Difficulty Calibration (FAANG Level):** Calibrate to 'faangLevel' considering Ambiguity, Complexity, Scope, Execution. (e.g., L3/L4: well-defined problems; L5/L6: more ambiguous, complex, strategic).
+3.  **Clarity & Conciseness:** Questions must be unambiguous.
+4.  **Skill Assessment:** Design questions to effectively evaluate 'targetedSkills' or core competencies. 'interviewFocus' should be a primary theme.
+5.  **Open-Ended (Crucial for L4+):** Questions should encourage detailed, reasoned responses.
+6.  **Tool Usage for Clarity:** If technologies are crucial, you may use the \`getTechnologyBriefTool\`. Integrate insights to make questions more specific.
+
+**Output Requirement - Ideal Answer Characteristics:**
+For each question generated, you MUST also provide a brief list (2-4 bullet points) of 'idealAnswerCharacteristics'. These are key elements or qualities a strong answer to THAT SPECIFIC question would typically exhibit, considering the 'interviewType', 'faangLevel', and 'interviewFocus'.
+- Example for a Product Sense L5 question "How would you improve discovery for podcasts?": Ideal characteristics might include "User-centric problem definition", "Data-driven approach for identifying opportunities", "Creative but feasible solutions", "Clear success metrics".
+- Example for a DSA L4 question "Find the median of two sorted arrays": Ideal characteristics might include "Clarification of constraints and edge cases", "Efficient algorithmic approach (e.g., binary search based)", "Correct time/space complexity analysis", "Verbal walkthrough of logic".
+These characteristics will help in later feedback stages.
 
 **Interview Context & Inputs to Consider:**
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
@@ -164,28 +196,18 @@ Targeted Skills:
 **Style-Specific Question Generation Logic (for 'simple-qa' ONLY):**
 
 {{#if (eq interviewStyle "simple-qa")}}
-**Simple Q&A - Generate 5-10 questions:**
+**Simple Q&A - Generate 5-10 questions, each with 'questionText' and 'idealAnswerCharacteristics':**
 1.  For the 'simple-qa' style, questions should be direct, standalone, and suitable for a straightforward question-and-answer format, yet promote in-depth responses.
-2.  Ensure questions are tailored to 'interviewType', 'jobTitle', 'jobDescription', 'faangLevel' (calibrating for ambiguity, complexity, scope, execution), any 'targetedSkills', and particularly the 'interviewFocus' if provided. The 'interviewFocus' should guide the selection or framing of at least some questions.
-3.  Generate 5-10 diverse questions that cover different facets of the 'interviewType'. 
-    {{#if (eq interviewType "product sense")}}For "Product Sense," include questions on strategy, execution, metrics, and user understanding, all potentially colored by the 'interviewFocus'. Ensure questions require more than superficial answers, probing "why" and "how."{{/if}}
-    {{#if (eq interviewType "technical system design")}}For "Technical System Design," ask about designing specific systems or components, focusing on architecture, trade-offs, scalability, etc., influenced by 'interviewFocus'. Avoid questions with a single, well-known "correct" design; focus on the candidate's reasoning for their choices.{{/if}}
-    {{#if (eq interviewType "behavioral")}}For "Behavioral," generate situational questions or prompts for examples (e.g., STAR method), potentially aligned with 'targetedSkills' or company values if 'targetCompany' is 'Amazon'. Focus on situations requiring judgment and handling complexity.{{/if}}
+2.  Ensure questions are tailored to 'interviewType', 'jobTitle', 'jobDescription', 'faangLevel', any 'targetedSkills', and particularly the 'interviewFocus'.
+3.  Generate 5-10 diverse questions.
+    {{#if (eq interviewType "product sense")}}For "Product Sense," include questions on strategy, execution, metrics, and user understanding.{{/if}}
+    {{#if (eq interviewType "technical system design")}}For "Technical System Design," ask about designing specific systems or components, focusing on architecture, trade-offs, scalability.{{/if}}
+    {{#if (eq interviewType "behavioral")}}For "Behavioral," generate situational questions or prompts for examples (e.g., STAR method).{{/if}}
     {{#if (eq interviewType "machine learning")}}
-    For "Machine Learning," generate a mix of:
-    *   Conceptual questions that require explanation and justification, not just definition (e.g., "Explain the bias-variance tradeoff and how it might influence model selection in a project focused on {{{interviewFocus}}}.").
-    *   High-level ML system design prompts (e.g., "Outline the key components and design considerations for a model to predict {{{interviewFocus}}}. What are the primary challenges you anticipate?").
-    If 'interviewFocus' is provided, lean towards questions related to that specific sub-domain. Ensure questions are calibrated to the 'faangLevel' in terms of expected depth and complexity. For L5+, expect discussion of trade-offs and alternative approaches.
+    For "Machine Learning," generate a mix of conceptual questions and high-level ML system design prompts.
     {{/if}}
     {{#if (eq interviewType "data structures & algorithms")}}
-    For "Data Structures & Algorithms," generate 5-7 problem statements. These questions should prompt the candidate to:
-    *   Clarify the problem and constraints (encourage them to ask questions).
-    *   Describe their approach and algorithm in detail.
-    *   Discuss the choice of data structures and justify them.
-    *   Analyze time and space complexity thoroughly.
-    *   Consider edge cases and how they would test their solution.
-    Example: "You're given a stream of incoming stock prices. Design a data structure and algorithm to efficiently find the median price at any point in time. Explain your reasoning, data structures, and complexity."
-    Focus on problems that assess 'targetedSkills' and are appropriate for 'faangLevel'. Avoid simple recall of textbook algorithms without application or analysis.
+    For "Data Structures & Algorithms," generate 5-7 problem statements. These questions should prompt the candidate to clarify, describe approach/algorithm, justify data structures, analyze complexity, and consider edge cases.
     {{/if}}
 {{else}}
 This interview style ({{{interviewStyle}}}) is not directly handled by this prompt. Case studies and Take-home assignments are generated by specialized processes.
@@ -193,9 +215,9 @@ This interview style ({{{interviewStyle}}}) is not directly handled by this prom
 
 {{#if (eq (toLowerCase targetCompany) "amazon")}}
 **Amazon-Specific Considerations (if 'targetCompany' is Amazon):**
-Pay special attention to Amazon's Leadership Principles. Your role-play as an Amazon interviewer should subtly reflect these.
-1.  **Behavioral:** Many questions MUST provide an opportunity to demonstrate these principles. Frame questions using situations or ask for examples (e.g., "Tell me about a time you had to 'Dive Deep' to solve a complex problem related to {{{interviewFocus}}}, even when initial data was misleading. What was the outcome?").
-2.  **Product Sense / Technical System Design / Machine Learning / Data Structures & Algorithms:** Frame questions to subtly align with principles like Customer Obsession (e.g., "How would you design this system with {{{interviewFocus}}} to ensure the best possible customer experience, even under failure conditions? What metrics would reflect this?"), Ownership, or Invent and Simplify (e.g., "Propose a significantly simpler approach to solve X problem related to {{{interviewFocus}}}, and discuss the trade-offs.").
+Pay special attention to Amazon's Leadership Principles.
+1.  **Behavioral:** Many questions MUST provide an opportunity to demonstrate these principles.
+2.  **Other Types:** Frame questions to subtly align with principles like Customer Obsession, Ownership, or Invent and Simplify.
 Amazon's Leadership Principles for your reference:
 {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}
 - {{{this}}}
@@ -203,8 +225,9 @@ Amazon's Leadership Principles for your reference:
 {{/if}}
 
 **Final Output Format:**
-Output the questions as a JSON object with a 'customizedQuestions' key, which is an array of strings.
-- For 'simple-qa', this will be an array of 5-10 strings.
+Output a JSON object with a 'customizedQuestions' key. This key holds an array of objects, where each object has:
+- 'questionText': The question itself (string).
+- 'idealAnswerCharacteristics': An array of 2-4 strings describing elements of a strong answer.
 `,
   customize: (prompt, input) => {
     return {
@@ -220,26 +243,25 @@ Output the questions as a JSON object with a 'customizedQuestions' key, which is
 // This flow is now specifically for 'simple-qa'
 const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
   {
-    name: 'customizeSimpleQAInterviewQuestionsFlow', 
+    name: 'customizeSimpleQAInterviewQuestionsFlow',
     inputSchema: CustomizeInterviewQuestionsInputSchema,
-    outputSchema: CustomizeInterviewQuestionsOutputSchema,
+    outputSchema: SimpleQAQuestionsOutputSchema, // Updated output schema
   },
-  async input => {
+  async (input): Promise<z.infer<typeof SimpleQAQuestionsOutputSchema>> => { // Ensure return type matches
     if (input.interviewStyle !== 'simple-qa') {
-        return { customizedQuestions: [`This flow is for 'simple-qa' only. Style '${input.interviewStyle}' should be handled by a specialist.`] };
+        return { customizedQuestions: [{ questionText: `This flow is for 'simple-qa' only. Style '${input.interviewStyle}' should be handled by a specialist.`, idealAnswerCharacteristics: [] }] };
     }
 
     const {output} = await customizeSimpleQAInterviewQuestionsPrompt(input);
     if (!output || !output.customizedQuestions || output.customizedQuestions.length === 0) {
-        // Fallback specific to simple-qa, ensuring a reasonable number of questions
         const fallbackQuestions = [
-            "Can you describe a challenging project you've worked on and your role in it?",
-            "What are your biggest strengths and how do they apply to this type of role?",
-            "How do you approach learning new technologies or concepts?",
-            `Tell me about a time you had to solve a difficult problem related to ${input.interviewFocus || input.interviewType}.`,
-            "Where do you see yourself in 5 years in terms of technical growth or career path?",
-            "How do you handle ambiguity in requirements or project goals?",
-            "Describe a situation where you had to make a difficult trade-off in a project."
+            { questionText: "Can you describe a challenging project you've worked on and your role in it?", idealAnswerCharacteristics: ["Clear context", "Specific personal contribution", "Quantifiable impact if possible"] },
+            { questionText: "What are your biggest strengths and how do they apply to this type of role?", idealAnswerCharacteristics: ["Relevant strengths", "Concrete examples", "Connection to role requirements"] },
+            { questionText: "How do you approach learning new technologies or concepts?", idealAnswerCharacteristics: ["Proactive learning strategies", "Examples of quick learning", "Adaptability"] },
+            { questionText: `Tell me about a time you had to solve a difficult problem related to ${input.interviewFocus || input.interviewType}.`, idealAnswerCharacteristics: ["Problem definition", "Analytical approach", "Solution and outcome"] },
+            { questionText: "Where do you see yourself in 5 years in terms of technical growth or career path?", idealAnswerCharacteristics: ["Realistic ambitions", "Alignment with potential career paths", "Desire for growth"] },
+            { questionText: "How do you handle ambiguity in requirements or project goals?", idealAnswerCharacteristics: ["Strategies for clarification", "Proactive communication", "Decision making under uncertainty"] },
+            { questionText: "Describe a situation where you had to make a difficult trade-off in a project.", idealAnswerCharacteristics: ["Context of trade-off", "Rationale for decision", "Impact of the decision"] }
         ];
         const numQuestions = input.interviewType === 'data structures & algorithms' ? 5 : 7;
         const selectedFallback = fallbackQuestions.slice(0, Math.min(numQuestions, fallbackQuestions.length));
@@ -248,4 +270,3 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
     return output!;
   }
 );
-

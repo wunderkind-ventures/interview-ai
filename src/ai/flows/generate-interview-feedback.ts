@@ -31,6 +31,7 @@ const DraftPromptInputSchema = z.object({
       answerText: z.string(),
       timeTakenMs: z.number().optional().describe('Time taken for the answer in milliseconds.'),
       indexPlusOne: z.number(),
+      idealAnswerCharacteristics: z.array(z.string()).optional().describe("Pre-defined characteristics of a strong answer to this question."),
     })
   ),
 });
@@ -56,10 +57,10 @@ const AIDraftFeedbackItemSchema = z.object({
     .string()
     .optional()
     .describe('A concise overall critique of the answer to this specific question, considering its alignment with the faangLevel expectations for ambiguity, complexity, scope, and execution.'),
-  idealAnswerPointers: z
+  idealAnswerPointers: z // This was already here from a previous step, now it can be informed by idealAnswerCharacteristics
     .array(z.string())
     .optional()
-    .describe('A list of key points or elements that would typically be found in a strong answer to this specific question, reflecting the faangLevel. Focus on general best practices for this type of question rather than just rephrasing the candidate\'s answer.'),
+    .describe('A list of key points or elements that would typically be found in a strong answer to this specific question, reflecting the faangLevel. Consider the provided Ideal Answer Characteristics if available.'),
 });
 
 // Schema for the overall AI model output (draft stage)
@@ -77,8 +78,12 @@ const AIDraftOutputSchema = z.object({
 // Input schema for the exported flow function
 export const GenerateInterviewFeedbackInputSchema = z.object({
   questions: z.array(
-    z.object({id: z.string(), text: z.string()})
-  ).describe("The list of questions asked during the interview."),
+    z.object({
+      id: z.string(), 
+      text: z.string(),
+      idealAnswerCharacteristics: z.array(z.string()).optional(), // Added characteristics
+    })
+  ).describe("The list of questions asked during the interview, including ideal answer characteristics."),
   answers: z.array(
     z.object({questionId: z.string(), answerText: z.string(), timeTakenMs: z.number().optional() })
   ).describe("The list of answers provided by the user, including time taken for each."),
@@ -103,7 +108,6 @@ export type GenerateInterviewFeedbackInput = z.infer<
 >;
 
 // Output schema for the exported flow function (matches lib/types.ts)
-// This remains the same, as the refinement flow also outputs this structure.
 export const FeedbackItemSchema = z.object({
   questionId: z.string(),
   questionText: z.string(),
@@ -114,6 +118,8 @@ export const FeedbackItemSchema = z.object({
   critique: z.string().optional(),
   idealAnswerPointers: z.array(z.string()).optional(),
   timeTakenMs: z.number().optional(),
+  // idealAnswerCharacteristics from the original question are not part of the final feedback item to the user,
+  // but are used internally by the AI.
 });
 
 export const GenerateInterviewFeedbackOutputSchema = z.object({
@@ -132,10 +138,10 @@ export async function generateInterviewFeedback(
 }
 
 const draftPrompt = ai.definePrompt({
-  name: 'generateDraftInterviewFeedbackPrompt', 
+  name: 'generateDraftInterviewFeedbackPrompt',
   tools: [getTechnologyBriefTool],
   input: {schema: DraftPromptInputSchema},
-  output: {schema: AIDraftOutputSchema}, 
+  output: {schema: AIDraftOutputSchema},
   prompt: `You are an expert career coach and interviewer, providing detailed, structured DRAFT feedback for a mock interview session.
 This is the first pass; the feedback will be polished by another specialized AI agent later. Focus on getting comprehensive content and analysis down.
 
@@ -163,29 +169,39 @@ The specific focus for this interview was: {{{interviewFocus}}}
 {{/if}}
 
 **Tool Usage Guidance:**
-If the candidate's answer mentions specific technologies and you need a quick, factual summary to help you evaluate their understanding or suggest alternatives, you may use the \`getTechnologyBriefTool\`. Use the tool's output to enrich your feedback, for example, by validating the candidate's usage of the technology or by pointing out common considerations for that tech. Do not simply repeat the tool's output in your feedback. Ensure your critique remains focused on the candidate's response.
+If the candidate's answer mentions specific technologies and you need a quick, factual summary to help you evaluate their understanding or suggest alternatives, you may use the \`getTechnologyBriefTool\`. Use the tool's output to enrich your feedback.
 
 {{#if (eq interviewStyle "take-home")}}
 This was a take-home assignment. The "question" is the assignment description, and the "answer" is the candidate's submission.
 Question (Assignment Description): {{{questionsAndAnswers.0.questionText}}}
+{{#if questionsAndAnswers.0.idealAnswerCharacteristics.length}}
+Ideal Submission Characteristics for this Assignment:
+{{#each questionsAndAnswers.0.idealAnswerCharacteristics}}
+- {{{this}}}
+{{/each}}
+{{/if}}
 Candidate's Submission: {{{questionsAndAnswers.0.answerText}}}
 {{#if questionsAndAnswers.0.timeTakenMs}}
 (Time spent on submission (if tracked): {{questionsAndAnswers.0.timeTakenMs}} ms)
 {{/if}}
 
 Your task is to provide a DRAFT of:
-1.  An 'overallSummary' evaluating the candidate's submission against the assignment's requirements and goals. Consider clarity, structure, completeness, adherence to instructions, the quality of the solution/analysis presented, and how well it met the expectations for '{{faangLevel}}' (ambiguity, complexity, scope, execution). Reference the job title/description and 'interviewFocus' if provided. For 'machine learning' or 'data structures & algorithms' assignments, assess the technical rigor and justification of choices.
-2.  The 'feedbackItems' array should contain a single item. For this item, related to questionId '{{questionsAndAnswers.0.questionId}}':
-    *   Provide a 'critique': A comprehensive critique of the submission, focusing on how well it addressed the assignment, the 'interviewFocus', and the expectations for '{{faangLevel}}'. If it's a 'machine learning' assignment, comment on the soundness of the ML approach. If 'data structures & algorithms', comment on algorithmic choices, complexity, and correctness.
-    *   Optionally, list 'strengths': Specific positive aspects of the submission.
-    *   Optionally, list 'areasForImprovement': Specific areas where the submission could be improved.
-    *   Optionally, list 'specificSuggestions': Actionable advice related to the submission content or presentation.
-    *   Optionally, list 'idealAnswerPointers': Key elements or considerations that would typically be part of a strong submission for this type of take-home assignment, considering the job title/description, interview type, 'interviewFocus', and '{{faangLevel}}'. For 'machine learning', this might include typical sections of an ML design document. For 'data structures & algorithms', this might include clear problem decomposition, algorithm explanation, complexity analysis, and edge case handling.
+1.  An 'overallSummary' evaluating the candidate's submission. Consider clarity, structure, completeness, adherence to instructions, quality of the solution/analysis, and how well it met '{{faangLevel}}' expectations and the provided 'Ideal Submission Characteristics'.
+2.  The 'feedbackItems' array should contain a single item for questionId '{{questionsAndAnswers.0.questionId}}':
+    *   'critique': Comprehensive critique, referencing 'Ideal Submission Characteristics'.
+    *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional).
+    *   'idealAnswerPointers': Key elements of a strong submission, potentially expanding on or reinforcing the 'Ideal Submission Characteristics'.
 
 {{else}}
-Below are the questions asked and the answers provided by the user. For each answer, the time taken in milliseconds is also provided if available.
+Below are the questions asked, the answers provided, and potentially ideal answer characteristics for each question.
 {{#each questionsAndAnswers}}
 Question {{this.indexPlusOne}} (ID: {{this.questionId}}): {{{this.questionText}}}
+{{#if this.idealAnswerCharacteristics.length}}
+Ideal Answer Characteristics for this Question:
+{{#each this.idealAnswerCharacteristics}}
+- {{{this}}}
+{{/each}}
+{{/if}}
 Answer: {{{this.answerText}}}
 {{#if this.timeTakenMs}}
 (Time taken: {{this.timeTakenMs}} ms)
@@ -194,27 +210,25 @@ Answer: {{{this.answerText}}}
 {{/each}}
 
 Your task is to provide a DRAFT of:
-1.  For each question and answer pair (identified by questionId), provide structured feedback in the 'feedbackItems' array. Each item should include:
-    *   'questionId': The ID of the question.
-    *   'strengths': (Optional) An array of 1-3 strings listing specific positive aspects of the answer, especially how it relates to the 'interviewFocus' if applicable.
-    *   'areasForImprovement': (Optional) An array of 1-3 strings listing specific areas where the answer could be improved, considering the 'interviewFocus'.
-    *   'specificSuggestions': (Optional) An array of 1-3 strings offering actionable suggestions to enhance future answers to similar questions, keeping the 'interviewFocus' in mind.
-    *   'critique': (Optional) A concise (1-2 sentences) overall critique summarizing the quality of this specific answer, considering clarity, structure, relevance, completeness, demonstration of skills (including relation to 'interviewFocus'), use of examples, and alignment with '{{faangLevel}}' expectations (ambiguity, complexity, scope, execution). If 'interviewType' is 'machine learning', consider the technical accuracy and depth of the explanation or design. If 'interviewType' is 'data structures & algorithms', consider the correctness of the proposed algorithm, data structure choice, and complexity analysis. If time taken is provided, briefly comment if the answer seemed appropriate for the time.
-    *   'idealAnswerPointers': (Optional) An array of 2-4 strings listing key elements, frameworks (like STAR for behavioral), or critical points that a strong answer to this specific question would typically include, taking into account the 'interviewFocus' and '{{faangLevel}}'. For 'machine learning' conceptual questions, this could be key definitions or components. For ML system design, it might be key design phases. For 'data structures & algorithms', this might include clarifying questions, optimal algorithm, correct complexity.
+1.  For each question and answer pair, provide structured feedback in 'feedbackItems'. Each item should include:
+    *   'questionId'.
+    *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional arrays of 1-3 strings).
+    *   'critique': (Optional concise summary). Your critique should be informed by the 'Ideal Answer Characteristics' provided for the question, if any.
+    *   'idealAnswerPointers': (Optional array of 2-4 strings) Key elements of a strong answer, potentially expanding on or reinforcing the provided 'Ideal Answer Characteristics'.
     Focus on being constructive and specific.
-2.  Provide an 'overallSummary' of the candidate's performance. This summary should synthesize the feedback from individual questions, identify recurring themes (both positive and negative), and offer actionable advice for improvement. If an 'interviewFocus' was set, comment on how well the candidate addressed this focus throughout the interview. Critically, evaluate how the overall performance aligns with the expectations for '{{faangLevel}}' regarding handling ambiguity, complexity of thought, and scope of solutions. If 'interviewType' is 'machine learning', comment on the overall grasp of ML concepts or design principles demonstrated. If 'interviewType' is 'data structures & algorithms', comment on the overall algorithmic thinking and problem-solving skills.
-    *   Specifically comment on the candidate's pacing and time management based on the time taken for answers, if this information was generally available. For example, were answers generally well-paced, too brief, or too verbose for the time spent?
+2.  Provide an 'overallSummary' of performance. Synthesize feedback, identify themes, offer advice. Comment on 'interviewFocus' and how performance aligns with '{{faangLevel}}' expectations (ambiguity, complexity, scope, execution), referencing 'Ideal Answer Characteristics' in general terms if they were commonly met or missed.
+    *   Comment on pacing based on 'timeTakenMs' if available.
 {{/if}}
-Output the DRAFT feedback in the specified JSON format. Ensure all fields in 'feedbackItems' are correctly populated as described.
+Output the DRAFT feedback in the specified JSON format.
 Make sure each item in 'feedbackItems' includes the 'questionId' it refers to.
 `,
 });
 
 const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
   {
-    name: 'generateInterviewFeedbackOrchestrationFlow', 
+    name: 'generateInterviewFeedbackOrchestrationFlow',
     inputSchema: GenerateInterviewFeedbackInputSchema,
-    outputSchema: GenerateInterviewFeedbackOutputSchema, 
+    outputSchema: GenerateInterviewFeedbackOutputSchema,
   },
   async (input: GenerateInterviewFeedbackInput): Promise<GenerateInterviewFeedbackOutput> => {
     const questionsAndAnswers = input.questions.map((q, index) => {
@@ -225,6 +239,7 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
         answerText: answer ? answer.answerText : "No answer provided.",
         timeTakenMs: answer ? answer.timeTakenMs : undefined,
         indexPlusOne: index + 1,
+        idealAnswerCharacteristics: q.idealAnswerCharacteristics, // Pass characteristics
       };
     });
 

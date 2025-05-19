@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-questions";
-import type { CustomizeInterviewQuestionsInput } from "@/ai/flows/customize-interview-questions";
+import type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions"; // Updated import
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +25,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   error: null,
   interviewStarted: false,
   interviewFinished: false,
-  interviewStyle: "simple-qa", 
+  interviewStyle: "simple-qa",
   targetedSkills: [],
   targetCompany: undefined,
   jobTitle: undefined,
@@ -55,12 +55,12 @@ export default function InterviewSession() {
 
   const loadInterview = useCallback(async (setupData: InterviewSetupData) => {
     setSessionData(prev => ({
-      ...(prev || setupData), 
-      ...setupData,          
-      ...initialSessionState, 
+      ...(prev || setupData),
+      ...setupData,
+      ...initialSessionState,
       isLoading: true,
       interviewStarted: true,
-      currentQuestionStartTime: Date.now(), 
+      currentQuestionStartTime: Date.now(),
     }));
 
     try {
@@ -73,9 +73,9 @@ export default function InterviewSession() {
         faangLevel: setupData.faangLevel,
         targetedSkills: setupData.targetedSkills || [],
         targetCompany: setupData.targetCompany,
-        interviewFocus: setupData.interviewFocus, // Added
+        interviewFocus: setupData.interviewFocus,
       };
-      const response = await customizeInterviewQuestions(aiInput);
+      const response: CustomizeInterviewQuestionsOutput = await customizeInterviewQuestions(aiInput); // Expect new output type
       
       if (!response.customizedQuestions || response.customizedQuestions.length === 0) {
         throw new Error("AI did not return any questions. Please try again.");
@@ -83,17 +83,18 @@ export default function InterviewSession() {
 
       const questionsWithIds: InterviewQuestion[] = response.customizedQuestions.map((q, i) => ({
         id: `q-${Date.now()}-${i}`,
-        text: q,
+        text: q.questionText,
+        idealAnswerCharacteristics: q.idealAnswerCharacteristics, // Store characteristics
       }));
 
       setSessionData(prev => {
-        if (!prev) return null; 
-        const newSession = { 
-          ...prev, 
-          questions: questionsWithIds, 
-          isLoading: false, 
+        if (!prev) return null;
+        const newSession = {
+          ...prev,
+          questions: questionsWithIds,
+          isLoading: false,
           error: null,
-          currentQuestionStartTime: Date.now(), 
+          currentQuestionStartTime: Date.now(),
         };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSession));
         return newSession;
@@ -133,7 +134,9 @@ export default function InterviewSession() {
         });
       }
 
-      if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
+      // Ensure questions are loaded if they are missing (e.g., after a bad save or version update)
+      // but only if the interview has started and is not in an error state.
+      if (parsedSession.interviewStarted && parsedSession.questions.length === 0 && !parsedSession.error && !parsedSession.isLoading) {
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
           interviewStyle: parsedSession.interviewStyle,
@@ -143,10 +146,26 @@ export default function InterviewSession() {
           resume: parsedSession.resume,
           targetedSkills: parsedSession.targetedSkills,
           targetCompany: parsedSession.targetCompany,
-          interviewFocus: parsedSession.interviewFocus, // Added
+          interviewFocus: parsedSession.interviewFocus,
+        };
+        loadInterview(setupData);
+      } else if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
+         // This covers the initial loadInterview call when setup is done
+         const setupData: InterviewSetupData = {
+          interviewType: parsedSession.interviewType,
+          interviewStyle: parsedSession.interviewStyle,
+          faangLevel: parsedSession.faangLevel,
+          jobTitle: parsedSession.jobTitle,
+          jobDescription: parsedSession.jobDescription,
+          resume: parsedSession.resume,
+          targetedSkills: parsedSession.targetedSkills,
+          targetCompany: parsedSession.targetCompany,
+          interviewFocus: parsedSession.interviewFocus,
         };
         loadInterview(setupData);
       }
+
+
     } else {
       const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
       if (storedSetup) {
@@ -177,7 +196,7 @@ export default function InterviewSession() {
         answers: updatedAnswers,
         isLoading: false,
         interviewFinished: true,
-        currentQuestionStartTime: undefined, 
+        currentQuestionStartTime: undefined,
       };
       toast({ title: "Interview Complete!", description: "Redirecting to feedback page." });
       localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
@@ -188,14 +207,14 @@ export default function InterviewSession() {
         ...sessionData,
         answers: updatedAnswers,
         currentQuestionIndex: sessionData.currentQuestionIndex + 1,
-        isLoading: false, 
-        currentQuestionStartTime: Date.now(), 
+        isLoading: false,
+        currentQuestionStartTime: Date.now(),
       };
       localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
       setSessionData(newSessionData);
     }
     setCurrentAnswer("");
-    setCurrentTime(0); 
+    setCurrentTime(0);
   };
 
   const handleEndInterview = () => {
@@ -204,8 +223,8 @@ export default function InterviewSession() {
     const endTime = Date.now();
     const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
     
-    const currentQuestionId = sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length 
-                              ? sessionData.questions[sessionData.currentQuestionIndex]?.id 
+    const currentQuestionId = sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length
+                              ? sessionData.questions[sessionData.currentQuestionIndex]?.id
                               : undefined;
     let updatedAnswers = sessionData.answers;
 
@@ -219,7 +238,7 @@ export default function InterviewSession() {
       answers: updatedAnswers,
       isLoading: false,
       interviewFinished: true,
-      currentQuestionStartTime: undefined, 
+      currentQuestionStartTime: undefined,
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
     setSessionData(newSessionData);
@@ -322,9 +341,9 @@ export default function InterviewSession() {
         <Button variant="outline" onClick={handleEndInterview} disabled={sessionData.isLoading}>
           End Interview
         </Button>
-        <Button 
-          onClick={handleNextQuestion} 
-          disabled={sessionData.isLoading || !currentAnswer.trim()} 
+        <Button
+          onClick={handleNextQuestion}
+          disabled={sessionData.isLoading || !currentAnswer.trim()}
           className="bg-accent hover:bg-accent/90"
         >
           {sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish & View Feedback" : "Next Question"}
@@ -334,4 +353,3 @@ export default function InterviewSession() {
     </Card>
   );
 }
-

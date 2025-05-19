@@ -69,7 +69,12 @@ const prompt = ai.definePrompt({
 You will generate customized interview questions based on the provided job description, resume, interview type, interview style, FAANG level, and targeted skills.
 
 {{#if (eq interviewStyle "case-study")}}
-The questions should be suitable for a multi-turn conversation. They should often start with a broad scenario related to the interview type (e.g., a product design challenge for "product sense", a system scaling problem for "technical system design"). The initial question should be open-ended, encouraging a detailed response. You can also suggest potential areas for deeper dives or follow-up questions that an interviewer might ask, if appropriate within the 5-10 question limit for the initial set. The goal is to simulate the beginning of a case study.
+For the 'case-study' style, structure the output to simulate a multi-turn conversation.
+Start with 1 or 2 broad, open-ended scenario questions suitable for the interview type (e.g., a product design challenge for "product sense", a system scaling problem for "technical system design", or a complex past experience for "behavioral").
+The subsequent questions should be probing follow-ups that delve deeper into different facets of the initial scenario(s). These follow-ups should encourage detailed, structured responses and allow for a conversational exploration of the candidate's thought process.
+For example, an initial product sense question might be "Design a new product for X market." Follow-up questions could then explore user segments, monetization, MVP features, metrics, and trade-offs.
+The total number of questions (initial scenarios + follow-ups) should still be between 5 and 10.
+The goal is to create a set of questions that naturally flow like a real case study interview, starting broad and then exploring specifics.
 {{else}}
 The questions should be direct and suitable for a simple question and answer format, tailored to the interview type.
 {{/if}}

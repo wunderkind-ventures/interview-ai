@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle } from "lucide-react"; // Added Star, HelpCircle
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info } from "lucide-react"; // Added Info, Star, HelpCircle
 import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
 import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -280,6 +280,12 @@ export default function InterviewSummary() {
               Specific Focus: {sessionData.interviewFocus}
             </div>
           )}
+           {sessionData.targetedSkills && sessionData.targetedSkills.length > 0 && (
+            <div className="flex items-center justify-center text-xs">
+              <CheckSquare className="h-3.5 w-3.5 mr-1.5 text-primary" />
+              Targeted Skills: {sessionData.targetedSkills.join(', ')}
+            </div>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -298,6 +304,16 @@ export default function InterviewSummary() {
                             <div>
                                 <h4 className="font-semibold text-muted-foreground mb-1">Assignment Description:</h4>
                                 <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{question.text}</p>
+                                {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
+                                  <div className="mt-2 p-2 rounded-md bg-blue-50 border border-blue-200">
+                                    <h5 className="text-xs font-semibold text-blue-700 mb-1 flex items-center"><Info className="h-3.5 w-3.5 mr-1.5"/>AI's Ideal Submission Characteristics (for Assignment Design):</h5>
+                                    <ul className="list-disc list-inside pl-1 space-y-0.5">
+                                      {question.idealAnswerCharacteristics.map((char, idx) => (
+                                        <li key={idx} className="text-xs text-blue-600">{char}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                             </div>
                             <div>
                                 <h4 className="font-semibold text-muted-foreground mb-1">Your Submission:</h4>
@@ -352,6 +368,16 @@ export default function InterviewSummary() {
                         </div>
                         </AccordionTrigger>
                         <AccordionContent className="text-base pl-8 space-y-4">
+                            {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
+                              <div className="mb-2 p-2 rounded-md bg-blue-50 border border-blue-200">
+                                <h5 className="text-xs font-semibold text-blue-700 mb-1 flex items-center"><Info className="h-3.5 w-3.5 mr-1.5"/>AI's Ideal Answer Characteristics (for Question Design):</h5>
+                                <ul className="list-disc list-inside pl-1 space-y-0.5">
+                                  {question.idealAnswerCharacteristics.map((char, idx) => (
+                                    <li key={idx} className="text-xs text-blue-600">{char}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                             <div>
                                 <div className="flex justify-between items-center mb-1">
                                     <p className="font-semibold text-muted-foreground">Your Answer:</p>
@@ -523,3 +549,5 @@ export default function InterviewSummary() {
     </Card>
   );
 }
+
+    

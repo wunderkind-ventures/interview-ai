@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +49,7 @@ const formSchema = z.object({
   jobDescription: z.string().optional(),
   resume: z.string().optional(),
   targetedSkills: z.array(z.string()).optional(),
+  targetCompany: z.string().optional(),
 });
 
 export default function InterviewSetupForm() {
@@ -69,6 +71,7 @@ export default function InterviewSetupForm() {
       jobDescription: "",
       resume: "",
       targetedSkills: [],
+      targetCompany: "",
     },
   });
 
@@ -127,6 +130,7 @@ export default function InterviewSetupForm() {
           jobDescription: parsedSetup.jobDescription || "",
           resume: parsedSetup.resume || "",
           targetedSkills: parsedSetup.targetedSkills || [],
+          targetCompany: parsedSetup.targetCompany || "",
         });
         if (parsedSetup.resume && parsedSetup.resume.trim() !== "") {
            setSummarizedForResumeText(parsedSetup.resume); 
@@ -148,6 +152,7 @@ export default function InterviewSetupForm() {
       jobDescription: values.jobDescription,
       resume: values.resume,
       targetedSkills: values.targetedSkills,
+      targetCompany: values.targetCompany,
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
     localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
@@ -326,6 +331,29 @@ export default function InterviewSetupForm() {
                 </FormItem>
               )}
             />
+            
+            <FormField
+              control={form.control}
+              name="targetCompany"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center text-lg">
+                    <Building className="mr-2 h-5 w-5 text-primary" />
+                    Target Company (Optional)
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., Amazon, Google, Meta"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Specifying a company (especially 'Amazon') can help tailor questions to their values (e.g., Leadership Principles).
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
@@ -425,3 +453,4 @@ export default function InterviewSetupForm() {
     </Card>
   );
 }
+

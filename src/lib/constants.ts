@@ -57,3 +57,23 @@ export const SKILLS_BY_INTERVIEW_TYPE: Record<InterviewType, Skill[]> = {
     { value: "communication-skills", label: "Communication Skills" },
   ],
 };
+
+export const AMAZON_LEADERSHIP_PRINCIPLES = [
+  "Customer Obsession",
+  "Ownership",
+  "Invent and Simplify",
+  "Are Right, A Lot",
+  "Learn and Be Curious",
+  "Hire and Develop the Best",
+  "Insist on the Highest Standards",
+  "Think Big",
+  "Bias for Action",
+  "Frugality",
+  "Earn Trust",
+  "Dive Deep",
+  "Have Backbone; Disagree and Commit",
+  "Deliver Results",
+  "Strive to be Earth’s Best Employer",
+  "Success and Scale Bring Broad Responsibility",
+] as const;
+

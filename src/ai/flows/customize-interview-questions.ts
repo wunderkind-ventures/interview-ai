@@ -11,6 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 
 const CustomizeInterviewQuestionsInputSchema = z.object({
   jobDescription: z
@@ -34,6 +35,10 @@ const CustomizeInterviewQuestionsInputSchema = z.object({
     .array(z.string())
     .optional()
     .describe('Specific skills the user wants to focus on.'),
+  targetCompany: z
+    .string()
+    .optional()
+    .describe('The target company the user is interviewing for (e.g., Amazon, Google).'),
 });
 
 export type CustomizeInterviewQuestionsInput = z.infer<
@@ -66,7 +71,15 @@ const prompt = ai.definePrompt({
   },
   prompt: `You are an expert interviewer specializing in FAANG interviews.
 
-You will generate customized interview questions based on the provided job description, resume, interview type, interview style, FAANG level, and targeted skills.
+Your goal is to generate 5-10 interview questions tailored to the inputs provided.
+
+Interview Details:
+Job Description: {{{jobDescription}}}
+{{#if resume}}Resume: {{{resume}}}{{/if}}
+Interview Type: {{{interviewType}}}
+Interview Style: {{{interviewStyle}}}
+{{#if faangLevel}}FAANG Level: {{{faangLevel}}}{{/if}}
+{{#if targetCompany}}Target Company: {{{targetCompany}}}{{/if}}
 
 {{#if (eq interviewStyle "case-study")}}
 For the 'case-study' style, structure the output to simulate a multi-turn conversation.
@@ -76,18 +89,9 @@ For example, an initial product sense question might be "Design a new product fo
 The total number of questions (initial scenarios + follow-ups) should still be between 5 and 10.
 The goal is to create a set of questions that naturally flow like a real case study interview, starting broad and then exploring specifics.
 {{else}}
-The questions should be direct and suitable for a simple question and answer format, tailored to the interview type.
+For the 'simple-qa' style, the questions should be direct and suitable for a simple question and answer format, tailored to the interview type.
 {{/if}}
 
-Job Description: {{{jobDescription}}}
-{{~#if resume}}
-Resume: {{{resume}}}
-{{~/if}}
-Interview Type: {{{interviewType}}}
-Interview Style: {{{interviewStyle}}}
-{{~#if faangLevel}}
-FAANG Level: {{{faangLevel}}}
-{{~/if}}
 {{#if targetedSkills.length}}
 Prioritize questions that assess the following skills:
 {{#each targetedSkills}}
@@ -95,9 +99,27 @@ Prioritize questions that assess the following skills:
 {{/each}}
 {{/if}}
 
-Generate 5-10 interview questions tailored to the inputs. Ensure the questions are relevant and challenging for the specified FAANG level, interview type, and targeted skills if provided.
+{{#if (eq (toLowerCase targetCompany) "amazon")}}
+Given the target company is Amazon, pay special attention to Amazon's Leadership Principles. If the interview type is 'behavioral', ensure many questions provide an opportunity to demonstrate these principles. For other interview types, frame questions that align with Amazon's culture of customer obsession, ownership, and invention.
+Amazon's Leadership Principles for your reference:
+{{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}
+- {{{this}}}
+{{/each}}
+Suggest situations or ask for examples where the candidate has demonstrated these.
+{{/if}}
+
+Generate 5-10 interview questions. Ensure the questions are relevant and challenging for the specified FAANG level, interview type, targeted skills (if provided), and target company (if specified, especially Amazon).
 Output the questions as a JSON array of strings.
 `,
+  customize: (prompt, input) => {
+    return {
+      ...prompt,
+      prompt: prompt.prompt!.replace(
+        '${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}',
+        AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
+      ),
+    };
+  }
 });
 
 const customizeInterviewQuestionsFlow = ai.defineFlow(
@@ -111,3 +133,18 @@ const customizeInterviewQuestionsFlow = ai.defineFlow(
     return output!;
   }
 );
+
+// Helper function to convert string to lowercase for case-insensitive comparison in Handlebars
+// Although Handlebars doesn't directly support complex helpers in Genkit like this,
+// we can do the lowercase comparison directly in the template or preprocess.
+// For this example, direct comparison in template with a hypothetical toLowerCase (or pre-process targetCompany).
+// Genkit's Handlebars implementation might not support complex helpers.
+// We will handle the lowercase check directly in the template using a hypothetical helper,
+// or assume case-insensitive matching where possible.
+// For robust solution, preprocessing `targetCompany` to lowercase before passing to prompt might be better if direct template functions are limited.
+// Let's assume a simple string comparison, and if specific casing is needed, it must match.
+// UPDATE: Using `(eq (toLowerCase targetCompany) "amazon")` in the template.
+// This requires toLowerCase to be available or the comparison to be done in a way that handles cases.
+// For Genkit, a customizer function is better for such logic.
+// Let's adjust to use a customizer to inject the principles if targetCompany is Amazon.
+

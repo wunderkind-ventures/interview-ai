@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon } from "lucide-react";
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building } from "lucide-react";
 import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
-import type { InterviewSessionData, Answer, FeedbackItem } from "@/lib/types"; // Updated imports
+import type { InterviewSessionData, Answer, FeedbackItem } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
 import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
@@ -32,7 +32,6 @@ export default function InterviewSummary() {
     setFeedbackError(null);
 
     try {
-      // Ensure questions and answers are correctly typed for the input
       const questionsForFeedback = currentSession.questions.map(q => ({ id: q.id, text: q.text }));
       const answersForFeedback = currentSession.answers.map(a => ({ 
         questionId: a.questionId, 
@@ -48,19 +47,19 @@ export default function InterviewSummary() {
         faangLevel: currentSession.faangLevel,
         jobDescription: currentSession.jobDescription,
         resume: currentSession.resume,
+        // Note: targetCompany is implicitly part of currentSession which might be used by the feedback flow if it's designed to.
+        // The generate-interview-feedback flow currently doesn't explicitly use targetCompany in its prompt, but it could be added.
       };
 
       const feedbackResult = await generateInterviewFeedback(feedbackInput);
       
       setSessionData(prev => {
         if (!prev) return null;
-        // Ensure feedbackItems from AI also get timeTakenMs mapped back if needed,
-        // or rely on the mapping in generateInterviewFeedbackFlow to already include it.
         const updatedFeedbackItems = feedbackResult.feedbackItems.map(item => {
             const originalAnswer = currentSession.answers.find(ans => ans.questionId === item.questionId);
             return {
                 ...item,
-                timeTakenMs: originalAnswer?.timeTakenMs // Ensure timeTakenMs is on the feedback item for display
+                timeTakenMs: originalAnswer?.timeTakenMs
             };
         });
 
@@ -152,6 +151,12 @@ export default function InterviewSummary() {
         <CardTitle className="text-3xl font-bold text-primary">Interview Completed!</CardTitle>
         <CardDescription className="text-muted-foreground pt-1">
           Summary for your {sessionData.interviewType} ({sessionData.interviewStyle}) interview. Level: {sessionData.faangLevel}.
+          {sessionData.targetCompany && (
+            <span className="block mt-1">
+              <Building className="h-4 w-4 mr-1 inline-block text-primary" />
+              Target Company: {sessionData.targetCompany}
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -250,3 +255,4 @@ export default function InterviewSummary() {
     </Card>
   );
 }
+

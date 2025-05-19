@@ -10,13 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[] } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -27,6 +27,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   interviewFinished: false,
   interviewStyle: "simple-qa", 
   targetedSkills: [],
+  targetCompany: undefined,
 };
 
 export default function InterviewSession() {
@@ -68,6 +69,7 @@ export default function InterviewSession() {
         interviewStyle: setupData.interviewStyle,
         faangLevel: setupData.faangLevel,
         targetedSkills: setupData.targetedSkills || [],
+        targetCompany: setupData.targetCompany,
       };
       const response = await customizeInterviewQuestions(aiInput);
       
@@ -135,6 +137,7 @@ export default function InterviewSession() {
           jobDescription: parsedSession.jobDescription,
           resume: parsedSession.resume,
           targetedSkills: parsedSession.targetedSkills,
+          targetCompany: parsedSession.targetCompany,
         };
         loadInterview(setupData);
       }
@@ -259,10 +262,15 @@ export default function InterviewSession() {
           <MessageSquare className="mr-3 h-7 w-7 text-primary" />
           Interview: {sessionData.interviewType} ({styleLabel})
         </CardTitle>
-        <div className="flex justify-between items-center">
-          <CardDescription>
+        <div className="flex justify-between items-center text-sm text-muted-foreground">
+          <div>
             Level: {sessionData.faangLevel} - Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}
-          </CardDescription>
+            {sessionData.targetCompany && (
+              <span className="ml-2 flex items-center">
+                <Building className="h-4 w-4 mr-1 text-primary" /> Target: {sessionData.targetCompany}
+              </span>
+            )}
+          </div>
           {sessionData.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime && (
             <div className="flex items-center text-sm text-muted-foreground">
               <TimerIcon className="h-4 w-4 mr-1" />
@@ -302,3 +310,4 @@ export default function InterviewSession() {
     </Card>
   );
 }
+

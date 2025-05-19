@@ -7,7 +7,8 @@ export interface InterviewSetupData {
   faangLevel: FaangLevel;
   jobDescription?: string;
   resume?: string;
-  targetedSkills?: string[]; // Added targetedSkills
+  targetedSkills?: string[];
+  targetCompany?: string; // Added targetCompany
 }
 
 export interface InterviewQuestion {
@@ -44,5 +45,6 @@ export interface InterviewSessionData extends InterviewSetupData {
   interviewStarted: boolean;
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
-  // targetedSkills is already part of InterviewSetupData, so it's inherited
+  // targetedSkills and targetCompany are inherited from InterviewSetupData
 }
+

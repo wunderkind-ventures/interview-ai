@@ -27,7 +27,11 @@ export interface ThemedInterviewPack {
 export interface InterviewQuestion {
   id: string;
   text: string;
-  idealAnswerCharacteristics?: string[]; // Added
+  idealAnswerCharacteristics?: string[];
+  // Fields for dynamic case studies
+  isInitialCaseQuestion?: boolean;
+  fullScenarioDescription?: string; // The full descriptive text of the case scenario
+  internalNotesForFollowUpGenerator?: string; // Context for the AI to generate next follow-up
 }
 
 export interface Answer {
@@ -61,7 +65,7 @@ export interface DeepDiveFeedback {
 }
 
 export interface InterviewSessionData extends InterviewSetupData {
-  questions: InterviewQuestion[]; // Will now store characteristics
+  questions: InterviewQuestion[];
   answers: Answer[];
   currentQuestionIndex: number;
   currentQuestionStartTime?: number;
@@ -71,4 +75,8 @@ export interface InterviewSessionData extends InterviewSetupData {
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
   deepDives?: Record<string, DeepDiveFeedback>;
+  // For dynamic case studies
+  currentCaseTurnNumber?: number;
+  caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
 }
+

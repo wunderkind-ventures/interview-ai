@@ -17,6 +17,7 @@ export interface InterviewQuestion {
 export interface Answer {
   questionId: string;
   answerText: string;
+  timeTakenMs?: number; // Added to store time taken for the answer
 }
 
 export interface FeedbackItem {
@@ -24,6 +25,7 @@ export interface FeedbackItem {
   questionText: string;
   answerText: string;
   feedbackText: string;
+  timeTakenMs?: number; // Added to display time taken alongside feedback
 }
 
 export interface InterviewFeedback {
@@ -35,9 +37,10 @@ export interface InterviewSessionData extends InterviewSetupData {
   questions: InterviewQuestion[];
   answers: Answer[];
   currentQuestionIndex: number;
+  currentQuestionStartTime?: number; // Added to track start time of current question
   isLoading: boolean;
   error?: string | null;
   interviewStarted: boolean;
   interviewFinished: boolean;
-  feedback?: InterviewFeedback | null; // Added to store generated feedback
+  feedback?: InterviewFeedback | null;
 }

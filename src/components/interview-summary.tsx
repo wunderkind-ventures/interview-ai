@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText } from "lucide-react";
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon } from "lucide-react";
 import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
-import type { InterviewSessionData, InterviewFeedback, FeedbackItem, Answer, InterviewQuestion } from "@/lib/types";
+import type { InterviewSessionData, Answer, FeedbackItem } from "@/lib/types"; // Updated imports
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
 import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
+import { formatMilliseconds } from "@/lib/utils";
 
 export default function InterviewSummary() {
   const router = useRouter();
@@ -31,9 +32,17 @@ export default function InterviewSummary() {
     setFeedbackError(null);
 
     try {
+      // Ensure questions and answers are correctly typed for the input
+      const questionsForFeedback = currentSession.questions.map(q => ({ id: q.id, text: q.text }));
+      const answersForFeedback = currentSession.answers.map(a => ({ 
+        questionId: a.questionId, 
+        answerText: a.answerText,
+        timeTakenMs: a.timeTakenMs 
+      }));
+
       const feedbackInput: GenerateInterviewFeedbackInput = {
-        questions: currentSession.questions as { id: string; text: string; }[], // Type assertion
-        answers: currentSession.answers as Answer[], // Type assertion
+        questions: questionsForFeedback,
+        answers: answersForFeedback,
         interviewType: currentSession.interviewType,
         interviewStyle: currentSession.interviewStyle,
         faangLevel: currentSession.faangLevel,
@@ -45,7 +54,17 @@ export default function InterviewSummary() {
       
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, feedback: feedbackResult };
+        // Ensure feedbackItems from AI also get timeTakenMs mapped back if needed,
+        // or rely on the mapping in generateInterviewFeedbackFlow to already include it.
+        const updatedFeedbackItems = feedbackResult.feedbackItems.map(item => {
+            const originalAnswer = currentSession.answers.find(ans => ans.questionId === item.questionId);
+            return {
+                ...item,
+                timeTakenMs: originalAnswer?.timeTakenMs // Ensure timeTakenMs is on the feedback item for display
+            };
+        });
+
+        const updatedSession = { ...prev, feedback: {...feedbackResult, feedbackItems: updatedFeedbackItems} };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -114,12 +133,15 @@ export default function InterviewSummary() {
     );
   }
   
-  const getAnswerForQuestion = (questionId: string) => {
+  const getAnswerInfoForQuestion = (questionId: string): { answerText: string; timeTakenMs?: number } => {
     const answerObj = sessionData.answers.find(ans => ans.questionId === questionId);
-    return answerObj ? answerObj.answerText : "No answer provided.";
+    return {
+      answerText: answerObj ? answerObj.answerText : "No answer provided.",
+      timeTakenMs: answerObj?.timeTakenMs
+    };
   };
 
-  const getFeedbackForQuestion = (questionId: string) => {
+  const getFeedbackItemForQuestion = (questionId: string): FeedbackItem | undefined => {
     return sessionData.feedback?.feedbackItems.find(item => item.questionId === questionId);
   }
 
@@ -136,24 +158,34 @@ export default function InterviewSummary() {
         <div>
           <h3 className="text-xl font-semibold mb-3 flex items-center text-foreground">
             <FileText className="mr-2 h-6 w-6 text-accent" />
-            Questions & Answers
+            Questions, Answers & Pacing
           </h3>
           {sessionData.questions.length > 0 ? (
             <Accordion type="single" collapsible className="w-full">
               {sessionData.questions.map((question, index) => {
-                const feedbackItem = getFeedbackForQuestion(question.id);
+                const answerInfo = getAnswerInfoForQuestion(question.id);
+                const feedbackItem = getFeedbackItemForQuestion(question.id);
+                const displayTime = formatMilliseconds(answerInfo.timeTakenMs);
+
                 return (
                   <AccordionItem value={`item-${index}`} key={question.id}>
                     <AccordionTrigger className="text-lg hover:no-underline">
-                      <div className="flex items-start text-left">
+                      <div className="flex items-start text-left w-full">
                         <MessageSquare className="h-5 w-5 mr-3 mt-1 shrink-0 text-primary" />
-                        Question {index + 1}: {question.text}
+                        <span className="flex-1">Question {index + 1}: {question.text}</span>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="text-base pl-8 space-y-4">
                       <div>
-                        <p className="font-semibold text-muted-foreground mb-1">Your Answer:</p>
-                        <p className="whitespace-pre-wrap bg-secondary/50 p-3 rounded-md">{getAnswerForQuestion(question.id)}</p>
+                        <div className="flex justify-between items-center mb-1">
+                            <p className="font-semibold text-muted-foreground">Your Answer:</p>
+                            {answerInfo.timeTakenMs !== undefined && (
+                                <p className="text-xs text-muted-foreground flex items-center">
+                                    <TimerIcon className="h-3 w-3 mr-1" /> {displayTime}
+                                </p>
+                            )}
+                        </div>
+                        <p className="whitespace-pre-wrap bg-secondary/50 p-3 rounded-md">{answerInfo.answerText}</p>
                       </div>
                       {feedbackItem && (
                         <div>
@@ -186,7 +218,7 @@ export default function InterviewSummary() {
             <Edit className="h-5 w-5" />
             <AlertTitle>Feedback Generation Error</AlertTitle>
             <AlertDescription>{feedbackError}</AlertDescription>
-            <Button onClick={() => fetchAndSetFeedback(sessionData)} className="mt-3" variant="outline" size="sm">
+            <Button onClick={() => sessionData && fetchAndSetFeedback(sessionData)} className="mt-3" variant="outline" size="sm" disabled={!sessionData}>
               Retry Feedback Generation
             </Button>
           </Alert>
@@ -206,7 +238,7 @@ export default function InterviewSummary() {
       </CardContent>
       <CardFooter>
         <Button onClick={() => {
-            localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); // Clear session before starting new
+            localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
             router.push("/");
           }} 
           className="w-full text-lg py-6"

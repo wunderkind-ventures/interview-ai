@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { InterviewQuestion, Answer } from '@/lib/types';
+import type { InterviewQuestion, Answer } from '@/lib/types'; // Keep original Answer type for internal use.
 
 // Input schema for the data needed by the prompt template
 const PromptInputSchema = z.object({
@@ -24,6 +24,7 @@ const PromptInputSchema = z.object({
       questionId: z.string(),
       questionText: z.string(),
       answerText: z.string(),
+      timeTakenMs: z.number().optional().describe('Time taken for the answer in milliseconds.'),
       indexPlusOne: z.number(),
     })
   ),
@@ -49,7 +50,7 @@ const AIOutputSchema = z.object({
   overallSummary: z
     .string()
     .describe(
-      'A comprehensive overall summary of the candidate performance, including strengths, weaknesses, and actionable advice.'
+      'A comprehensive overall summary of the candidate performance, including strengths, weaknesses, actionable advice, and comments on pacing if applicable.'
     ),
 });
 
@@ -58,9 +59,9 @@ export const GenerateInterviewFeedbackInputSchema = z.object({
   questions: z.array(
     z.object({id: z.string(), text: z.string()})
   ).describe("The list of questions asked during the interview."),
-  answers: z.array(
-    z.object({questionId: z.string(), answerText: z.string()})
-  ).describe("The list of answers provided by the user."),
+  answers: z.array( // This Answer now includes timeTakenMs
+    z.object({questionId: z.string(), answerText: z.string(), timeTakenMs: z.number().optional() })
+  ).describe("The list of answers provided by the user, including time taken for each."),
   interviewType: z.nativeEnum(
     ['product sense', 'technical system design', 'behavioral']
   ).describe("The type of the interview."),
@@ -85,6 +86,7 @@ export const FeedbackItemSchema = z.object({
   questionText: z.string(),
   answerText: z.string(),
   feedbackText: z.string(),
+  timeTakenMs: z.number().optional(), // Added timeTakenMs to output
 });
 
 export const GenerateInterviewFeedbackOutputSchema = z.object({
@@ -117,10 +119,13 @@ The candidate's resume is as follows:
 {{{resume}}}
 {{/if}}
 
-Below are the questions asked and the answers provided by the user:
+Below are the questions asked and the answers provided by the user. For each answer, the time taken in milliseconds is also provided if available.
 {{#each questionsAndAnswers}}
 Question (ID: {{this.questionId}}): {{{this.questionText}}}
 Answer: {{{this.answerText}}}
+{{#if this.timeTakenMs}}
+(Time taken: {{this.timeTakenMs}} ms)
+{{/if}}
 
 {{/each}}
 
@@ -133,7 +138,9 @@ Your task is to:
     *   Demonstration of required skills or knowledge (based on interview type, JD, and resume).
     *   Use of examples (if applicable and appropriate for the interview style).
     *   Communication style.
+    *   If time taken is provided, briefly consider if the length of the answer seems appropriate for the time spent.
 2.  Provide an 'overallSummary' of the candidate's performance. This summary should synthesize the feedback from individual questions, identify recurring themes (both positive and negative), and offer actionable advice for improvement.
+    *   Specifically comment on the candidate's pacing and time management based on the time taken for answers, if this information was generally available. For example, were answers generally well-paced, too brief, or too verbose for the time spent?
 
 Output the feedback in the specified JSON format. Ensure 'feedbackText' for each item is a detailed critique of the corresponding answer. The 'overallSummary' should be a comprehensive paragraph.
 Make sure each item in 'feedbackItems' includes the 'questionId' it refers to.
@@ -154,6 +161,7 @@ const generateInterviewFeedbackFlow = ai.defineFlow(
         questionId: q.id,
         questionText: q.text,
         answerText: answer ? answer.answerText : "No answer provided.",
+        timeTakenMs: answer ? answer.timeTakenMs : undefined,
         indexPlusOne: index + 1,
       };
     });
@@ -182,6 +190,7 @@ const generateInterviewFeedbackFlow = ai.defineFlow(
         questionText: originalQuestion ? originalQuestion.text : "Question text not found.",
         answerText: originalAnswer ? originalAnswer.answerText : "Answer text not found.",
         feedbackText: aiItem.feedbackText,
+        timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined, // Include timeTakenMs in the final feedback item
       };
     });
 

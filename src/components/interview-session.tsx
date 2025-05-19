@@ -10,20 +10,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
-import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle } from "@/lib/types";
+import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { formatMilliseconds } from "@/lib/utils";
 
 const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
+  currentQuestionStartTime: undefined,
   isLoading: true,
   error: null,
   interviewStarted: false,
   interviewFinished: false,
-  interviewStyle: "simple-qa", // Default, will be overridden by setup or stored session
+  interviewStyle: "simple-qa", 
 };
 
 export default function InterviewSession() {
@@ -31,14 +33,30 @@ export default function InterviewSession() {
   const { toast } = useToast();
   const [sessionData, setSessionData] = useState<InterviewSessionData | null>(null);
   const [currentAnswer, setCurrentAnswer] = useState("");
+  const [currentTime, setCurrentTime] = useState(0);
+
+  useEffect(() => {
+    let timerInterval: NodeJS.Timeout | undefined;
+    if (sessionData?.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime) {
+      setCurrentTime(Date.now() - sessionData.currentQuestionStartTime);
+      timerInterval = setInterval(() => {
+        if (sessionData.currentQuestionStartTime) {
+          setCurrentTime(Date.now() - sessionData.currentQuestionStartTime);
+        }
+      }, 1000);
+    }
+    return () => clearInterval(timerInterval);
+  }, [sessionData?.interviewStarted, sessionData?.interviewFinished, sessionData?.currentQuestionStartTime]);
+
 
   const loadInterview = useCallback(async (setupData: InterviewSetupData) => {
     setSessionData(prev => ({
-      ...(prev || setupData), // Start with previous or new setup data
-      ...setupData,           // Ensure current setupData overwrites
-      ...initialSessionState, // Apply initial session state (resets questions, index, etc.)
+      ...(prev || setupData), 
+      ...setupData,          
+      ...initialSessionState, 
       isLoading: true,
       interviewStarted: true,
+      currentQuestionStartTime: Date.now(), // Set start time for the first question
     }));
 
     try {
@@ -62,7 +80,13 @@ export default function InterviewSession() {
 
       setSessionData(prev => {
         if (!prev) return null; 
-        const newSession = { ...prev, questions: questionsWithIds, isLoading: false, error: null };
+        const newSession = { 
+          ...prev, 
+          questions: questionsWithIds, 
+          isLoading: false, 
+          error: null,
+          currentQuestionStartTime: Date.now(), // Reset start time as questions are now loaded
+        };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSession));
         return newSession;
       });
@@ -92,6 +116,16 @@ export default function InterviewSession() {
         return;
       }
       setSessionData(parsedSession);
+       // If session is active but currentQuestionStartTime is missing (e.g., older session or reload issue), set it.
+      if (parsedSession.interviewStarted && !parsedSession.interviewFinished && !parsedSession.currentQuestionStartTime && parsedSession.questions.length > 0) {
+        setSessionData(prev => {
+          if (!prev) return null;
+          const updatedSession = {...prev, currentQuestionStartTime: Date.now()};
+          localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+          return updatedSession;
+        });
+      }
+
       if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
@@ -117,8 +151,12 @@ export default function InterviewSession() {
   const handleNextQuestion = () => {
     if (!sessionData || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
 
+    const endTime = Date.now();
+    const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
+
     const currentQuestionId = sessionData.questions[sessionData.currentQuestionIndex].id;
-    const updatedAnswers = [...sessionData.answers, { questionId: currentQuestionId, answerText: currentAnswer }];
+    const newAnswer: Answer = { questionId: currentQuestionId, answerText: currentAnswer, timeTakenMs };
+    const updatedAnswers = [...sessionData.answers, newAnswer];
     
     let newSessionData: InterviewSessionData;
 
@@ -128,6 +166,7 @@ export default function InterviewSession() {
         answers: updatedAnswers,
         isLoading: false,
         interviewFinished: true,
+        currentQuestionStartTime: undefined, // Clear start time as interview is finished
       };
       toast({ title: "Interview Complete!", description: "Redirecting to feedback page." });
       localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
@@ -139,20 +178,29 @@ export default function InterviewSession() {
         answers: updatedAnswers,
         currentQuestionIndex: sessionData.currentQuestionIndex + 1,
         isLoading: false, 
+        currentQuestionStartTime: Date.now(), // Set start time for the next question
       };
       localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
       setSessionData(newSessionData);
     }
     setCurrentAnswer("");
+    setCurrentTime(0); // Reset timer display for next question
   };
 
   const handleEndInterview = () => {
     if (!sessionData) return;
-    const currentQuestionId = sessionData.questions.length > 0 ? sessionData.questions[sessionData.currentQuestionIndex]?.id : undefined;
+    
+    const endTime = Date.now();
+    const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
+    
+    const currentQuestionId = sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length 
+                              ? sessionData.questions[sessionData.currentQuestionIndex]?.id 
+                              : undefined;
     let updatedAnswers = sessionData.answers;
 
     if (currentQuestionId && currentAnswer.trim() !== "") {
-       updatedAnswers = [...sessionData.answers, { questionId: currentQuestionId, answerText: currentAnswer }];
+       const newAnswer: Answer = { questionId: currentQuestionId, answerText: currentAnswer, timeTakenMs };
+       updatedAnswers = [...sessionData.answers, newAnswer];
     }
     
     const newSessionData: InterviewSessionData = {
@@ -160,6 +208,7 @@ export default function InterviewSession() {
       answers: updatedAnswers,
       isLoading: false,
       interviewFinished: true,
+      currentQuestionStartTime: undefined, // Clear start time
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
     setSessionData(newSessionData);
@@ -189,6 +238,7 @@ export default function InterviewSession() {
   }
   
   if (sessionData.interviewFinished) {
+    // This state should ideally be caught by the useEffect redirecting to /feedback
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
@@ -208,9 +258,17 @@ export default function InterviewSession() {
           <MessageSquare className="mr-3 h-7 w-7 text-primary" />
           Interview: {sessionData.interviewType} ({styleLabel})
         </CardTitle>
-        <CardDescription>
-          Level: {sessionData.faangLevel} - Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}
-        </CardDescription>
+        <div className="flex justify-between items-center">
+          <CardDescription>
+            Level: {sessionData.faangLevel} - Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}
+          </CardDescription>
+          {sessionData.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime && (
+            <div className="flex items-center text-sm text-muted-foreground">
+              <TimerIcon className="h-4 w-4 mr-1" />
+              {formatMilliseconds(currentTime)}
+            </div>
+          )}
+        </div>
         <Progress value={progress} className="mt-2" />
       </CardHeader>
       <CardContent className="space-y-6">
@@ -236,7 +294,7 @@ export default function InterviewSession() {
           End Interview
         </Button>
         <Button onClick={handleNextQuestion} disabled={sessionData.isLoading || !currentAnswer.trim()} className="bg-accent hover:bg-accent/90">
-          {sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish &amp; View Feedback" : "Next Question"}
+          {sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish & View Feedback" : "Next Question"}
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </CardFooter>

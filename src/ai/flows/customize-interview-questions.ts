@@ -45,6 +45,10 @@ const CustomizeInterviewQuestionsInputSchema = z.object({
     .string()
     .optional()
     .describe('The target company the user is interviewing for (e.g., Amazon, Google). This can influence question style and thematic focus.'),
+  interviewFocus: z
+    .string()
+    .optional()
+    .describe('A specific focus area or sub-topic provided by the user to further narrow down the interview content. This should refine questions within the broader interview type and targeted skills.'),
 });
 
 export type CustomizeInterviewQuestionsInput = z.infer<
@@ -88,7 +92,7 @@ const prompt = ai.definePrompt({
 1.  **Relevance & Specificity:** Questions must be directly pertinent to the specified 'interviewType'. If 'jobTitle' and 'jobDescription' are provided, questions must be deeply tailored to the responsibilities, technologies, and domain mentioned. For instance, "Senior Product Manager, Machine Learning" requires significantly more technical depth in product questions than a "Product Manager, Growth."
 2.  **Difficulty Calibration:** All content must be precisely calibrated to the 'faangLevel'. An L3 question should be fundamentally different in scope and complexity from an L6 question.
 3.  **Clarity & Conciseness:** Questions must be unambiguous, clear, and easy to understand. Avoid jargon unless it's central to the role defined by 'jobTitle' or 'jobDescription'.
-4.  **Skill Assessment:** Design questions to effectively evaluate 'targetedSkills' (if provided) or core competencies expected for the 'interviewType' and 'faangLevel'.
+4.  **Skill Assessment:** Design questions to effectively evaluate 'targetedSkills' (if provided) or core competencies expected for the 'interviewType' and 'faangLevel'. If an 'interviewFocus' is provided, this should be a primary theme, especially for case studies or take-home assignments.
 5.  **Open-Ended:** Questions should encourage detailed, reasoned responses, not simple yes/no answers.
 6.  **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding of the candidate's potential background. This might subtly influence the angle or examples in questions, but do not generate questions *directly about* the resume content itself, unless the 'interviewType' is "behavioral" and the question explicitly asks for past experiences.
 7.  **Tool Usage for Clarity:** If the 'jobDescription' or 'targetedSkills' mention specific technologies crucial for the role, and you need a concise overview to ensure your questions are deeply relevant and appropriately targeted, you may use the \`getTechnologyBriefTool\` to get a summary. Focus on incorporating insights from the tool to make your questions more specific and context-aware. Do not just repeat the tool's output; integrate its information to create better questions.
@@ -107,6 +111,7 @@ Targeted Skills:
 - {{{this}}}
 {{/each}}
 {{/if}}
+{{#if interviewFocus}}Specific Focus: {{{interviewFocus}}}{{/if}}
 
 **Style-Specific Question Generation Logic:**
 
@@ -114,59 +119,59 @@ Targeted Skills:
 **Case Study (Multi-turn) - Generate 5-7 questions total:**
 Your goal is to simulate a multi-turn conversational deep-dive.
 1.  **Internal Deliberation (Chain-of-Thought):**
-    *   First, deeply analyze the 'interviewType', 'jobTitle', 'jobDescription', and 'targetedSkills'.
-    *   Based on this, brainstorm a single, rich, open-ended core scenario or problem statement. This scenario must be complex enough to sustain multiple follow-up questions.
-    *   Then, devise 4-6 probing follow-up questions that logically extend from this core scenario. These follow-ups should explore different facets of the problem, challenge assumptions, and push the candidate to elaborate on their thinking process, trade-offs, and justifications.
+    *   First, deeply analyze the 'interviewType', 'jobTitle', 'jobDescription', 'targetedSkills', and especially the 'interviewFocus' if provided.
+    *   Based on this, brainstorm a single, rich, open-ended core scenario or problem statement. This scenario must be complex enough to sustain multiple follow-up questions and directly reflect the 'interviewFocus'.
+    *   Then, devise 4-6 probing follow-up questions that logically extend from this core scenario. These follow-ups should explore different facets of the problem, challenge assumptions, and push the candidate to elaborate on their thinking process, trade-offs, and justifications, all while keeping the 'interviewFocus' in mind.
 2.  **Output Structure:**
     *   The first string in the 'customizedQuestions' array MUST be the broad, initial scenario question.
     *   The subsequent strings in the array MUST be the probing follow-up questions.
     *   The entire set of questions should flow naturally, as if in a real-time conversation, starting broad and progressively narrowing focus or exploring related dimensions.
-    *   Example of flow: Initial: "Design a new product for X market." Follow-ups: "Who are the key user segments and how would you prioritize them?", "What would be your MVP and why?", "How would you measure success?", "What are the major risks and how would you mitigate them?".
-    *   The questions should be tailored. For 'technical system design', the scenario would be a system to design, and follow-ups would probe architecture, components, scalability, etc. For 'product sense', it could be a product strategy or design challenge. For 'behavioral', it could be a complex hypothetical situation requiring demonstration of specific skills.
+    *   Example of flow: Initial: "Design a new product for X market, with a specific focus on {{{interviewFocus}}}." Follow-ups: "Who are the key user segments for this {{{interviewFocus}}} and how would you prioritize them?", "What would be your MVP for {{{interviewFocus}}} and why?", "How would you measure success specifically for the {{{interviewFocus}}} aspect?", "What are the major risks related to {{{interviewFocus}}} and how would you mitigate them?".
+    *   The questions should be tailored. For 'technical system design', the scenario would be a system to design, and follow-ups would probe architecture, components, scalability, etc., always relating back to the 'interviewFocus'. For 'product sense', it could be a product strategy or design challenge centered on the 'interviewFocus'. For 'behavioral', it could be a complex hypothetical situation requiring demonstration of specific skills, potentially framed by the 'interviewFocus'.
 
 {{else if (eq interviewStyle "take-home")}}
 **Take-Home Assignment - Generate 1 comprehensive assignment description:**
-Adopt the persona of a hiring manager at the 'targetCompany' (or a similar top-tier company if none specified) creating a formal exercise. The assignment must be detailed and self-contained.
-1.  **Internal Deliberation (Structure Planning):** Before writing, mentally outline each section described below to ensure coherence and completeness. The 'Problem Scenario' is the heart of the assignment and must be crafted with care.
+Adopt the persona of a hiring manager at the 'targetCompany' (or a similar top-tier company if none specified) creating a formal exercise. The assignment must be detailed and self-contained, with the 'interviewFocus' (if provided) as a central theme.
+1.  **Internal Deliberation (Structure Planning):** Before writing, mentally outline each section described below to ensure coherence and completeness. The 'Problem Scenario' is the heart of the assignment and must be crafted with care, heavily influenced by 'interviewFocus'.
 2.  **Assignment Structure (Strictly Adhere to this Format):**
     The generated string MUST include the following sections, clearly delineated using Markdown-like headings (e.g., "## Title", "### Goal"):
 
-    *   **Title of the Exercise**: Clear, descriptive title (e.g., "Product Strategy for New Market Entry," "System Design for Scalable Notification Service").
-    *   **Goal / Objective**: State the main purpose. List 2-4 key characteristics/skills being assessed (align with 'interviewType', 'jobTitle', 'jobDescription', 'targetedSkills').
+    *   **Title of the Exercise**: Clear, descriptive title (e.g., "Product Strategy for New Market Entry with a focus on {{{interviewFocus}}}").
+    *   **Goal / Objective**: State the main purpose. List 2-4 key characteristics/skills being assessed (align with 'interviewType', 'jobTitle', 'jobDescription', 'targetedSkills', and 'interviewFocus').
     *   **The Exercise - Problem Scenario**:
-        *   Provide a **detailed and specific** problem scenario.
+        *   Provide a **detailed and specific** problem scenario, making the 'interviewFocus' the core challenge or opportunity.
         *   If 'jobTitle' or 'jobDescription' are provided, the scenario MUST reflect the technical depth, domain, and challenges implied. For a technical PM (e.g., ML, Infrastructure), the scenario should be appropriately technical. For a less technical PM (e.g., growth, UI/UX focus), it should be more strategic or user-focused.
         *   If 'targetCompany' is provided, make the scenario plausible for that company.
         *   The scenario should be complex enough for a detailed written response, appropriate for the 'faangLevel'.
-        *   **For "product sense"**: Adapt based on 'jobTitle'/'jobDescription'.
-            *   *Strategic/Technical PM*: "Propose a new feature/product for [Product/Service related to targetCompany or JD] to address [Specific User Problem/Market Opportunity]. Define target audience, core functionality, MVP, key success metrics, high-level GTM, and potential technical challenges/dependencies."
-            *   *Reflective/Process PM (Product Innovation Story style)*: "Describe an innovative product you were instrumental in delivering. Detail context (product, audience), journey (ideation to launch), impact, and key lessons learned. Focus on your product management process, stakeholder management, and insights."
-            *   *Market/User Problem Deep Dive*: "Analyze [Specific Market Trend or User Problem] and propose a product solution. Detail understanding of the problem, target users, potential solutions, validation approach, and how you'd pitch this internally."
-        *   **For "technical system design"**: MUST be a technical design challenge (e.g., "Design a [Specific System like 'personalized recommendation feed'] for [Context related to targetCompany or JD]. Focus on architecture, data models, APIs, components, scalability, reliability, cost trade-offs.").
-        *   **For "behavioral"**: Primarily a reflective exercise on a complex past project or situation, demonstrating skills like leadership, conflict resolution, etc., as indicated by 'targetedSkills' or typical for 'jobTitle'/'faangLevel'.
+        *   **For "product sense"**: Adapt based on 'jobTitle'/'jobDescription' and 'interviewFocus'.
+            *   *Strategic/Technical PM*: "Propose a new feature/product for [Product/Service related to targetCompany or JD] to address [Specific User Problem/Market Opportunity related to {{{interviewFocus}}}]. Define target audience, core functionality, MVP, key success metrics, high-level GTM, and potential technical challenges/dependencies, all related to {{{interviewFocus}}}."
+            *   *Reflective/Process PM (Product Innovation Story style)*: "Describe an innovative product you were instrumental in delivering, particularly how you addressed {{{interviewFocus}}}. Detail context (product, audience), journey (ideation to launch), impact, and key lessons learned. Focus on your product management process, stakeholder management, and insights regarding {{{interviewFocus}}}."
+            *   *Market/User Problem Deep Dive*: "Analyze [Specific Market Trend or User Problem related to {{{interviewFocus}}}] and propose a product solution. Detail understanding of the problem, target users, potential solutions, validation approach, and how you'd pitch this internally, emphasizing the {{{interviewFocus}}}."
+        *   **For "technical system design"**: MUST be a technical design challenge (e.g., "Design a [Specific System like 'personalized recommendation feed'] for [Context related to targetCompany or JD], with a specific emphasis on {{{interviewFocus}}}. Focus on architecture, data models, APIs, components, scalability, reliability, cost trade-offs, all through the lens of {{{interviewFocus}}}.").
+        *   **For "behavioral"**: Primarily a reflective exercise on a complex past project or situation, demonstrating skills like leadership, conflict resolution, etc., as indicated by 'targetedSkills' or typical for 'jobTitle'/'faangLevel', framed by the 'interviewFocus'.
     *   **Key Aspects to Consider / Guiding Questions**:
-        *   List 5-8 bullet points or questions tailored to the specific 'Problem Scenario' generated above. These guide the candidate's response structure.
-        *   *Examples for Strategic/Product*: "Data for analysis?", "Success metrics?", "GTM strategy?", "Risks/challenges?", "Key trade-offs?", "MVP prioritization rationale?".
-        *   *Examples for Technical Design*: "System components & interactions?", "Data models & APIs?", "Scalability, reliability, security concerns?", "Key design trade-offs (consistency vs. availability)?", "Testing/validation/monitoring strategy?".
-        *   *Examples for Reflective*: "Initial problem/opportunity?", "Success definition & impact measurement?", "Most critical decision & rationale?", "Stakeholder communication/disagreements?", "What would you do differently?".
+        *   List 5-8 bullet points or questions tailored to the specific 'Problem Scenario' and 'interviewFocus' generated above. These guide the candidate's response structure.
+        *   *Examples for Strategic/Product*: "Data for analysis related to {{{interviewFocus}}}?", "Success metrics for {{{interviewFocus}}}?", "GTM strategy for solutions involving {{{interviewFocus}}}?", "Risks/challenges of {{{interviewFocus}}}?", "Key trade-offs when implementing {{{interviewFocus}}}?", "MVP prioritization rationale for {{{interviewFocus}}}?".
+        *   *Examples for Technical Design*: "System components & interactions for {{{interviewFocus}}}?", "Data models & APIs considering {{{interviewFocus}}}?", "Scalability, reliability, security concerns specific to {{{interviewFocus}}}?", "Key design trade-offs for {{{interviewFocus}}}?", "Testing/validation/monitoring strategy for {{{interviewFocus}}}?".
+        *   *Examples for Reflective*: "Initial problem/opportunity related to {{{interviewFocus}}}?", "Success definition & impact measurement of {{{interviewFocus}}}?", "Most critical decision & rationale concerning {{{interviewFocus}}}?", "Stakeholder communication/disagreements around {{{interviewFocus}}}?", "What would you do differently regarding {{{interviewFocus}}}?".
     *   **Deliverable Requirements**: Specify format (e.g., "Written memo," "Slide deck (PDF)"), constraints (e.g., "Max 6 pages," "10-12 slides," "Approx 1000-2000 words"), and target audience (e.g., "Panel of PMs, Eng Leads, Data Scientists").
-    *   **(Optional) Tips for Success**: 1-2 brief, general tips (e.g., "Focus on clear, structured reasoning," "Prioritize practical solutions," "Be explicit about assumptions").
+    *   **(Optional) Tips for Success**: 1-2 brief, general tips (e.g., "Focus on clear, structured reasoning around {{{interviewFocus}}}," "Prioritize practical solutions for {{{interviewFocus}}}," "Be explicit about assumptions concerning {{{interviewFocus}}}").
 
     The entire output for this 'take-home' assignment should be formatted as a single string within the 'customizedQuestions' array.
 
 {{else}}
 **Simple Q&A - Generate 5-10 questions:**
 1.  For the 'simple-qa' style, questions should be direct, standalone, and suitable for a straightforward question-and-answer format.
-2.  Ensure questions are tailored to the 'interviewType', 'jobTitle', 'jobDescription', 'faangLevel', and any 'targetedSkills'.
-3.  Generate 5-10 diverse questions that cover different facets of the 'interviewType'. For example, for "Product Sense," include questions on strategy, execution, metrics, and user understanding.
+2.  Ensure questions are tailored to the 'interviewType', 'jobTitle', 'jobDescription', 'faangLevel', any 'targetedSkills', and particularly the 'interviewFocus' if provided. The 'interviewFocus' should guide the selection or framing of at least some questions.
+3.  Generate 5-10 diverse questions that cover different facets of the 'interviewType'. For example, for "Product Sense," include questions on strategy, execution, metrics, and user understanding, all potentially colored by the 'interviewFocus'.
 {{/if}}
 
 {{#if (eq (toLowerCase targetCompany) "amazon")}}
 **Amazon-Specific Considerations (if 'targetCompany' is Amazon):**
 If the 'interviewStyle' is NOT 'take-home':
 Pay special attention to Amazon's Leadership Principles.
-1.  **Behavioral:** Many questions MUST provide an opportunity to demonstrate these principles. Frame questions using situations or ask for examples (e.g., "Tell me about a time you Insisted on the Highest Standards, even when it was difficult.").
-2.  **Product Sense / Technical System Design:** Frame questions to subtly align with principles like Customer Obsession (e.g., "How would you design this system to ensure the best possible customer experience under failure conditions?"), Ownership, or Invent and Simplify (e.g., "Propose a significantly simpler approach to solve X problem.").
+1.  **Behavioral:** Many questions MUST provide an opportunity to demonstrate these principles. Frame questions using situations or ask for examples (e.g., "Tell me about a time you Insisted on the Highest Standards, even when it was difficult, especially concerning {{{interviewFocus}}}.")
+2.  **Product Sense / Technical System Design:** Frame questions to subtly align with principles like Customer Obsession (e.g., "How would you design this system to ensure the best possible customer experience under failure conditions, particularly for {{{interviewFocus}}}?"), Ownership, or Invent and Simplify (e.g., "Propose a significantly simpler approach to solve X problem related to {{{interviewFocus}}}.").
 Amazon's Leadership Principles for your reference:
 {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}
 - {{{this}}}
@@ -198,16 +203,18 @@ const customizeInterviewQuestionsFlow = ai.defineFlow(
   async input => {
     const {output} = await prompt(input);
     // Ensure output is not null and customizedQuestions exists
-    if (!output || !output.customizedQuestions) {
+    if (!output || !output.customizedQuestions || output.customizedQuestions.length === 0) {
         // Fallback or error handling for failed generation
         if (input.interviewStyle === 'take-home') {
             return { customizedQuestions: ["Error: Could not generate take-home assignment. Please try again with more specific job details or contact support if the issue persists."] };
         }
         // Fallback for other styles - generate generic questions if possible or error
-        const genericFallback = ["Tell me about yourself.", "Why are you interested in this role?", "Describe a challenging project you worked on."];
-        const numQuestions = input.interviewStyle === 'case-study' ? 5 : 7; // Default number
-        return { customizedQuestions: genericFallback.slice(0, numQuestions) };
+        const genericFallback = ["Tell me about yourself.", "Why are you interested in this role?", "Describe a challenging project you worked on.", "What are your strengths?", "What are your weaknesses?"];
+        const numQuestions = input.interviewStyle === 'case-study' ? 5 : 7; 
+        const selectedFallback = genericFallback.slice(0, Math.min(numQuestions, genericFallback.length));
+        return { customizedQuestions: selectedFallback };
     }
     return output!;
   }
 );
+

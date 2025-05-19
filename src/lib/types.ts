@@ -10,6 +10,7 @@ export interface InterviewSetupData {
   resume?: string;
   targetedSkills?: string[];
   targetCompany?: string;
+  interviewFocus?: string; // Added
 }
 
 export interface InterviewQuestion {

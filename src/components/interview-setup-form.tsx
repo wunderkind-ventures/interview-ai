@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ const formSchema = z.object({
   resume: z.string().optional(),
   targetedSkills: z.array(z.string()).optional(),
   targetCompany: z.string().optional(),
+  interviewFocus: z.string().optional(), // Added
 });
 
 export default function InterviewSetupForm() {
@@ -74,6 +75,7 @@ export default function InterviewSetupForm() {
       resume: "",
       targetedSkills: [],
       targetCompany: "",
+      interviewFocus: "", // Added
     },
   });
 
@@ -134,6 +136,7 @@ export default function InterviewSetupForm() {
           resume: parsedSetup.resume || "",
           targetedSkills: parsedSetup.targetedSkills || [],
           targetCompany: parsedSetup.targetCompany || "",
+          interviewFocus: parsedSetup.interviewFocus || "", // Added
         });
         if (parsedSetup.resume && parsedSetup.resume.trim() !== "") {
            setSummarizedForResumeText(parsedSetup.resume); 
@@ -157,6 +160,7 @@ export default function InterviewSetupForm() {
       resume: values.resume,
       targetedSkills: values.targetedSkills,
       targetCompany: values.targetCompany,
+      interviewFocus: values.interviewFocus, // Added
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
     localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
@@ -417,6 +421,29 @@ export default function InterviewSetupForm() {
 
             <FormField
               control={form.control}
+              name="interviewFocus" // Added
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center text-lg">
+                    <SearchCheck className="mr-2 h-5 w-5 text-primary" />
+                    Specific Focus (Optional)
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., 'handling high-traffic events', 'customer retention strategies'"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Provide a specific sub-topic or theme to further tailor the interview.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="resume"
               render={({ field }) => (
                 <FormItem>
@@ -489,3 +516,4 @@ export default function InterviewSetupForm() {
     </Card>
   );
 }
+

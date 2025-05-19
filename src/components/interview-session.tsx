@@ -10,13 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -29,6 +29,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   targetedSkills: [],
   targetCompany: undefined,
   jobTitle: undefined,
+  interviewFocus: undefined,
 };
 
 export default function InterviewSession() {
@@ -72,6 +73,7 @@ export default function InterviewSession() {
         faangLevel: setupData.faangLevel,
         targetedSkills: setupData.targetedSkills || [],
         targetCompany: setupData.targetCompany,
+        interviewFocus: setupData.interviewFocus, // Added
       };
       const response = await customizeInterviewQuestions(aiInput);
       
@@ -141,6 +143,7 @@ export default function InterviewSession() {
           resume: parsedSession.resume,
           targetedSkills: parsedSession.targetedSkills,
           targetCompany: parsedSession.targetCompany,
+          interviewFocus: parsedSession.interviewFocus, // Added
         };
         loadInterview(setupData);
       }
@@ -265,17 +268,23 @@ export default function InterviewSession() {
           <MessageSquare className="mr-3 h-7 w-7 text-primary" />
           Interview: {sessionData.interviewType} ({styleLabel})
         </CardTitle>
-        <div className="flex justify-between items-center text-sm text-muted-foreground">
-          <div>
+        <div className="flex flex-wrap justify-between items-center text-sm text-muted-foreground gap-y-1">
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
             {sessionData.jobTitle && (
-              <span className="mr-2 flex items-center">
+              <span className="flex items-center">
                 <Briefcase className="h-4 w-4 mr-1 text-primary" /> Role: {sessionData.jobTitle}
               </span>
             )}
-            Level: {sessionData.faangLevel} - Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}
+            <span>Level: {sessionData.faangLevel}</span>
+             <span>Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}</span>
             {sessionData.targetCompany && (
-              <span className="ml-2 flex items-center">
+              <span className="flex items-center">
                 <Building className="h-4 w-4 mr-1 text-primary" /> Target: {sessionData.targetCompany}
+              </span>
+            )}
+            {sessionData.interviewFocus && (
+              <span className="flex items-center">
+                <SearchCheck className="h-4 w-4 mr-1 text-primary" /> Focus: {sessionData.interviewFocus}
               </span>
             )}
           </div>
@@ -325,3 +334,4 @@ export default function InterviewSession() {
     </Card>
   );
 }
+

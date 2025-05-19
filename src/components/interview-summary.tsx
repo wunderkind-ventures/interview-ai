@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck } from "lucide-react";
 import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
 import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -58,6 +58,7 @@ export default function InterviewSummary() {
         jobTitle: currentSession.jobTitle,
         jobDescription: currentSession.jobDescription,
         resume: currentSession.resume,
+        interviewFocus: currentSession.interviewFocus, // Added
       };
 
       const feedbackResult = await generateInterviewFeedback(feedbackInput);
@@ -150,6 +151,7 @@ export default function InterviewSummary() {
         jobTitle: sessionData.jobTitle,
         jobDescription: sessionData.jobDescription,
         targetedSkills: sessionData.targetedSkills,
+        interviewFocus: sessionData.interviewFocus, // Added
         originalFeedback: originalFeedbackItem,
       };
       const result = await generateDeepDiveFeedback(deepDiveInput);
@@ -237,18 +239,24 @@ export default function InterviewSummary() {
       <CardHeader className="text-center">
         <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
         <CardTitle className="text-3xl font-bold text-primary">Interview Completed!</CardTitle>
-        <CardDescription className="text-muted-foreground pt-1">
-          Summary for your {sessionData.interviewType} ({sessionData.interviewStyle}) interview. Level: {sessionData.faangLevel}.
+        <CardDescription className="text-muted-foreground pt-1 space-y-0.5">
+          <div>Summary for your {sessionData.interviewType} ({sessionData.interviewStyle}) interview. Level: {sessionData.faangLevel}.</div>
           {sessionData.jobTitle && (
-             <span className="block mt-1">
-              <Briefcase className="h-4 w-4 mr-1 inline-block text-primary" /> Role: {sessionData.jobTitle}
-            </span>
+             <div className="flex items-center justify-center">
+              <Briefcase className="h-4 w-4 mr-1.5 text-primary" /> Role: {sessionData.jobTitle}
+            </div>
           )}
           {sessionData.targetCompany && (
-            <span className="block mt-1">
-              <Building className="h-4 w-4 mr-1 inline-block text-primary" />
+            <div className="flex items-center justify-center">
+              <Building className="h-4 w-4 mr-1.5 text-primary" />
               Target Company: {sessionData.targetCompany}
-            </span>
+            </div>
+          )}
+          {sessionData.interviewFocus && (
+            <div className="flex items-center justify-center">
+              <SearchCheck className="h-4 w-4 mr-1.5 text-primary" />
+              Specific Focus: {sessionData.interviewFocus}
+            </div>
           )}
         </CardDescription>
       </CardHeader>

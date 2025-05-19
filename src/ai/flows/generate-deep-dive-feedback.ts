@@ -21,6 +21,7 @@ const DeepDivePromptInputSchema = z.object({
   jobTitle: z.string().optional().describe('The job title, if provided.'),
   jobDescription: z.string().optional().describe('The job description, if provided.'),
   targetedSkills: z.array(z.string()).optional().describe('Specific skills the user focused on.'),
+  interviewFocus: z.string().optional().describe('The specific focus of the interview, if provided.'), // Added
   // Optional original feedback to give the AI more context, if available
   originalCritique: z.string().optional().describe('The initial critique provided for this answer, if any.'),
   originalStrengths: z.array(z.string()).optional().describe('Initial strengths identified, if any.'),
@@ -54,6 +55,7 @@ export const GenerateDeepDiveFeedbackInputSchema = z.object({
   jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
   targetedSkills: z.array(z.string()).optional(),
+  interviewFocus: z.string().optional(), // Added
   originalFeedback: z.custom<FeedbackItem>().optional().describe('The original feedback item for this question, if available.'),
 });
 export type GenerateDeepDiveFeedbackInput = z.infer<typeof GenerateDeepDiveFeedbackInputSchema>;
@@ -83,6 +85,7 @@ Interview Context:
   - {{{this}}}
 {{/each}}
 {{/if}}
+{{#if interviewFocus}}- Specific Focus: {{{interviewFocus}}}{{/if}}
 
 Original Question:
 "{{{questionText}}}"
@@ -102,26 +105,26 @@ Context from Initial Feedback (if available):
 {{/if}}
 
 Your Task:
-Provide a detailed "Deep Dive" analysis with the following components. Be specific, constructive, and tailored to the question, answer, and interview context.
+Provide a detailed "Deep Dive" analysis with the following components. Be specific, constructive, and tailored to the question, answer, and interview context (including the 'interviewFocus' if provided).
 
 1.  **detailedIdealAnswerBreakdown**: (Array of strings)
-    *   Provide a step-by-step breakdown of how an ideal answer might be structured or key components it should include.
+    *   Provide a step-by-step breakdown of how an ideal answer might be structured or key components it should include, particularly considering the 'interviewFocus'.
     *   Think about logical flow, critical points to cover, and common frameworks if applicable (e.g., STAR for behavioral, specific system design approaches).
-    *   Make this highly specific to the question. For example, if the question is "Design a notification system," break down aspects like requirements gathering, high-level design, component deep-dive, scalability, reliability, etc.
+    *   Make this highly specific to the question. For example, if the question is "Design a notification system," break down aspects like requirements gathering, high-level design, component deep-dive, scalability, reliability, etc., all while relating back to the 'interviewFocus'.
 
 2.  **alternativeApproaches**: (Array of strings)
-    *   Describe 2-3 different valid perspectives, frameworks, or methods the candidate could have used to approach this question.
+    *   Describe 2-3 different valid perspectives, frameworks, or methods the candidate could have used to approach this question, especially if they highlight different ways to address the 'interviewFocus'.
     *   Explain briefly why these alternatives are also valid or what different aspects they might highlight.
     *   This helps the user understand there isn't always one "right" way.
 
 3.  **followUpScenarios**: (Array of strings)
-    *   Generate 2-3 challenging but fair hypothetical "what if" scenarios or probing follow-up questions an interviewer might ask based on the original question or common answer patterns.
+    *   Generate 2-3 challenging but fair hypothetical "what if" scenarios or probing follow-up questions an interviewer might ask based on the original question or common answer patterns, especially ones that push deeper into the 'interviewFocus'.
     *   These should be designed to test deeper understanding, adaptability, or the ability to handle edge cases.
-    *   Example: If the original question was about system design, a follow-up could be "How would your design change if the user base suddenly increased by 100x?"
+    *   Example: If the original question was about system design with an 'interviewFocus' on cost-optimization, a follow-up could be "How would your design change if the budget was halved but performance requirements remained?"
 
 4.  **suggestedStudyConcepts**: (Array of strings)
-    *   List 2-4 key concepts, technologies, frameworks, or areas of knowledge directly relevant to the original question that the candidate might benefit from studying further.
-    *   Be specific. Instead of "data structures," suggest "hash maps for efficient lookups" or "understanding trade-offs in database consistency models."
+    *   List 2-4 key concepts, technologies, frameworks, or areas of knowledge directly relevant to the original question and the 'interviewFocus' that the candidate might benefit from studying further.
+    *   Be specific. Instead of "data structures," suggest "hash maps for efficient lookups related to '{{{interviewFocus}}}'" or "understanding trade-offs in database consistency models when dealing with '{{{interviewFocus}}}'."
 
 Ensure your output is in the specified JSON format with these four keys.
 Focus on providing actionable, insightful, and educational content.
@@ -143,6 +146,7 @@ const generateDeepDiveFeedbackFlow = ai.defineFlow(
       jobTitle: input.jobTitle,
       jobDescription: input.jobDescription,
       targetedSkills: input.targetedSkills,
+      interviewFocus: input.interviewFocus, // Added
       originalCritique: input.originalFeedback?.critique,
       originalStrengths: input.originalFeedback?.strengths,
       originalAreasForImprovement: input.originalFeedback?.areasForImprovement,
@@ -156,3 +160,4 @@ const generateDeepDiveFeedbackFlow = ai.defineFlow(
     return output;
   }
 );
+

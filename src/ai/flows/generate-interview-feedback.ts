@@ -17,6 +17,7 @@ const PromptInputSchema = z.object({
   interviewType: z.string(),
   interviewStyle: z.string(),
   faangLevel: z.string(),
+  jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
   resume: z.string().optional(),
   questionsAndAnswers: z.array(
@@ -65,11 +66,12 @@ export const GenerateInterviewFeedbackInputSchema = z.object({
   interviewType: z.nativeEnum(
     ['product sense', 'technical system design', 'behavioral']
   ).describe("The type of the interview."),
-   interviewStyle: z.nativeEnum(['simple-qa', 'case-study'])
-    .describe('The style of the interview: simple Q&A or multi-turn case study.'),
+   interviewStyle: z.nativeEnum(['simple-qa', 'case-study', 'take-home'])
+    .describe('The style of the interview: simple Q&A or multi-turn case study or take home.'),
   faangLevel: z
     .string()
     .describe('The target FAANG complexity level of the interview.'),
+  jobTitle: z.string().optional().describe('The job title, if provided.'),
   jobDescription: z
     .string()
     .optional()
@@ -110,6 +112,9 @@ const prompt = ai.definePrompt({
   output: {schema: AIOutputSchema},
   prompt: `You are an expert career coach and interviewer, providing detailed feedback for a mock interview session.
 The user has just completed a mock interview of type "{{interviewType}}" (style: "{{interviewStyle}}") targeting a "{{faangLevel}}" level.
+{{#if jobTitle}}
+The interview was for the role of: {{{jobTitle}}}
+{{/if}}
 {{#if jobDescription}}
 The interview was for a role with the following job description:
 {{{jobDescription}}}
@@ -119,6 +124,20 @@ The candidate's resume is as follows:
 {{{resume}}}
 {{/if}}
 
+Below are the questions asked and the answers provided by the user. For each answer, the time taken in milliseconds is also provided if available.
+{{#if (eq interviewStyle "take-home")}}
+This was a take-home assignment. The "question" is the assignment description, and the "answer" is the candidate's submission.
+Question (Assignment Description): {{{questionsAndAnswers.0.questionText}}}
+Candidate's Submission: {{{questionsAndAnswers.0.answerText}}}
+{{#if questionsAndAnswers.0.timeTakenMs}}
+(Time spent on submission (if tracked): {{questionsAndAnswers.0.timeTakenMs}} ms)
+{{/if}}
+
+Your task is to provide:
+1.  A detailed 'overallSummary' evaluating the candidate's submission against the assignment's requirements and goals. Consider clarity, structure, completeness, adherence to instructions, and the quality of the solution/analysis presented. Reference the job title/description if provided.
+2.  The 'feedbackItems' array should contain a single item. The 'questionId' should be the ID of the assignment. The 'feedbackText' should be a comprehensive critique of the submission.
+
+{{else}}
 Below are the questions asked and the answers provided by the user. For each answer, the time taken in milliseconds is also provided if available.
 {{#each questionsAndAnswers}}
 Question (ID: {{this.questionId}}): {{{this.questionText}}}
@@ -135,14 +154,14 @@ Your task is to:
     *   Structure and organization of thoughts.
     *   Relevance to the question.
     *   Completeness of the answer.
-    *   Demonstration of required skills or knowledge (based on interview type, JD, and resume).
+    *   Demonstration of required skills or knowledge (based on interview type, JD, job title, and resume).
     *   Use of examples (if applicable and appropriate for the interview style).
     *   Communication style.
     *   If time taken is provided, briefly consider if the length of the answer seems appropriate for the time spent.
 2.  Provide an 'overallSummary' of the candidate's performance. This summary should synthesize the feedback from individual questions, identify recurring themes (both positive and negative), and offer actionable advice for improvement.
     *   Specifically comment on the candidate's pacing and time management based on the time taken for answers, if this information was generally available. For example, were answers generally well-paced, too brief, or too verbose for the time spent?
-
-Output the feedback in the specified JSON format. Ensure 'feedbackText' for each item is a detailed critique of the corresponding answer. The 'overallSummary' should be a comprehensive paragraph.
+{{/if}}
+Output the feedback in the specified JSON format. Ensure 'feedbackText' for each item is a detailed critique of the corresponding answer/submission. The 'overallSummary' should be a comprehensive paragraph.
 Make sure each item in 'feedbackItems' includes the 'questionId' it refers to.
 `,
 });
@@ -170,6 +189,7 @@ const generateInterviewFeedbackFlow = ai.defineFlow(
       interviewType: input.interviewType,
       interviewStyle: input.interviewStyle,
       faangLevel: input.faangLevel,
+      jobTitle: input.jobTitle,
       jobDescription: input.jobDescription,
       resume: input.resume,
       questionsAndAnswers,

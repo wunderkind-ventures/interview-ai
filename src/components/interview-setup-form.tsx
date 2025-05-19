@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ const formSchema = z.object({
   faangLevel: z.custom<FaangLevel>((val) => FAANG_LEVELS.some(fl => fl.value === val), {
     message: "Please select a FAANG level.",
   }),
+  jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
   resume: z.string().optional(),
   targetedSkills: z.array(z.string()).optional(),
@@ -68,6 +69,7 @@ export default function InterviewSetupForm() {
       interviewType: INTERVIEW_TYPES[0].value,
       interviewStyle: INTERVIEW_STYLES[0].value,
       faangLevel: FAANG_LEVELS[1].value,
+      jobTitle: "",
       jobDescription: "",
       resume: "",
       targetedSkills: [],
@@ -127,6 +129,7 @@ export default function InterviewSetupForm() {
           interviewType: parsedSetup.interviewType,
           interviewStyle: parsedSetup.interviewStyle,
           faangLevel: parsedSetup.faangLevel,
+          jobTitle: parsedSetup.jobTitle || "",
           jobDescription: parsedSetup.jobDescription || "",
           resume: parsedSetup.resume || "",
           targetedSkills: parsedSetup.targetedSkills || [],
@@ -149,6 +152,7 @@ export default function InterviewSetupForm() {
       interviewType: values.interviewType,
       interviewStyle: values.interviewStyle,
       faangLevel: values.faangLevel,
+      jobTitle: values.jobTitle,
       jobDescription: values.jobDescription,
       resume: values.resume,
       targetedSkills: values.targetedSkills,
@@ -171,7 +175,7 @@ export default function InterviewSetupForm() {
   const getIconForStyle = (style: InterviewStyle) => {
     switch (style) {
       case "simple-qa": return <ListChecks className="mr-2 h-4 w-4" />;
-      case "case-study": return <Layers className="mr-2 h-4 w-4" />; // Using Layers for case-study
+      case "case-study": return <Layers className="mr-2 h-4 w-4" />;
       case "take-home": return <FileText className="mr-2 h-4 w-4" />;
       default: return null;
     }
@@ -366,6 +370,29 @@ export default function InterviewSetupForm() {
 
             <FormField
               control={form.control}
+              name="jobTitle"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center text-lg">
+                    <Briefcase className="mr-2 h-5 w-5 text-primary" />
+                    Job Title (Optional)
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., Senior Product Manager, Software Engineer II"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Helps tailor questions to the specific role and its expected technical depth.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="jobDescription"
               render={({ field }) => (
                 <FormItem>
@@ -462,4 +489,3 @@ export default function InterviewSetupForm() {
     </Card>
   );
 }
-

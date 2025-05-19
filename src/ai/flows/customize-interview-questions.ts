@@ -14,8 +14,13 @@ import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 
 const CustomizeInterviewQuestionsInputSchema = z.object({
+  jobTitle: z
+    .string()
+    .optional()
+    .describe('The job title to customize the interview questions for.'),
   jobDescription: z
     .string()
+    .optional()
     .describe('The job description to customize the interview questions for.'),
   resume: z
     .string()
@@ -74,7 +79,8 @@ const prompt = ai.definePrompt({
 Your goal is to generate interview questions or a detailed take-home assignment tailored to the inputs provided.
 
 Interview Context:
-Job Description: {{{jobDescription}}}
+{{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
+{{#if jobDescription}}Job Description: {{{jobDescription}}}{{/if}}
 {{#if resume}}Resume (for context, not for generating the assignment content itself): {{{resume}}}{{/if}}
 Interview Type: {{{interviewType}}}
 Interview Style: {{{interviewStyle}}}
@@ -87,6 +93,8 @@ Targeted Skills:
 {{/each}}
 {{/if}}
 
+Consider the job title and job description (if provided) to adjust the technical depth and focus of the questions. For example, a "Senior Product Manager, Machine Learning" should receive more technical questions than a "Product Manager, Growth".
+
 {{#if (eq interviewStyle "case-study")}}
 For the 'case-study' style, structure the output to simulate a multi-turn conversation.
 Start with 1 or 2 broad, open-ended scenario questions suitable for the interview type (e.g., a product design challenge for "product sense", a system scaling problem for "technical system design", or a complex past experience for "behavioral").
@@ -95,7 +103,7 @@ For example, an initial product sense question might be "Design a new product fo
 The total number of questions (initial scenarios + follow-ups) should be between 5 and 10.
 The goal is to create a set of questions that naturally flow like a real case study interview, starting broad and then exploring specifics.
 {{else if (eq interviewStyle "take-home")}}
-For the 'take-home' assignment style, you must generate ONLY ONE detailed assignment description. This description should be structured like a formal take-home exercise document. The goal is to assess the candidate's practical skills, problem-solving abilities, and communication, relevant to the specified 'interviewType', 'faangLevel', 'jobDescription', and 'targetCompany'.
+For the 'take-home' assignment style, you must generate ONLY ONE detailed assignment description. This description should be structured like a formal take-home exercise document. The goal is to assess the candidate's practical skills, problem-solving abilities, and communication, relevant to the specified 'interviewType', 'faangLevel', 'jobTitle', 'jobDescription', and 'targetCompany'.
 
 The assignment description MUST include the following sections, clearly delineated:
 
@@ -104,27 +112,27 @@ The assignment description MUST include the following sections, clearly delineat
 
 2.  **Goal / Objective**:
     *   Clearly state the main purpose of the exercise.
-    *   List 2-4 key characteristics or skills being assessed. These should align with the 'interviewType', 'jobDescription' and 'targetedSkills' (if provided). Examples: "Devising high-quality and practical solutions," "Clear and structured communication," "Strategic thinking," "Problem decomposition," "Systems thinking," "Data-driven decision making," "Reflection on product journey and impact."
+    *   List 2-4 key characteristics or skills being assessed. These should align with the 'interviewType', 'jobTitle', 'jobDescription' and 'targetedSkills' (if provided). Examples: "Devising high-quality and practical solutions," "Clear and structured communication," "Strategic thinking," "Problem decomposition," "Systems thinking," "Data-driven decision making," "Reflection on product journey and impact."
 
 3.  **The Exercise - Problem Scenario**:
-    *   Provide a detailed and specific problem scenario relevant to the 'interviewType' and other inputs. The technical depth and nature of the scenario should reflect the likely requirements of the role as inferred from 'jobDescription' and 'targetedSkills'.
+    *   Provide a detailed and specific problem scenario relevant to the 'interviewType' and other inputs. The technical depth and nature of the scenario should reflect the likely requirements of the role as inferred from 'jobTitle', 'jobDescription' and 'targetedSkills'.
     *   If 'targetCompany' is provided, make the scenario plausible for that company or a similar one in its industry.
-    *   If 'jobDescription' is provided, try to incorporate elements, challenges, or responsibilities mentioned into the scenario.
+    *   If 'jobDescription' or 'jobTitle' is provided, try to incorporate elements, challenges, or responsibilities mentioned into the scenario.
     *   The scenario should be complex enough to warrant a detailed written response and should be appropriate for the specified 'faangLevel'.
 
     *   **If 'interviewType' is "product sense"**:
-        *   The scenario could involve (select or adapt based on 'jobDescription' and 'targetedSkills' to match the role's likely focus, e.g., strategic, reflective, analytical, or product strategy for a technical product):
+        *   The scenario could involve (select or adapt based on 'jobTitle', 'jobDescription' and 'targetedSkills' to match the role's likely focus, e.g., strategic, reflective, analytical, or product strategy for a technical product):
             *   **Strategic Proposal**: "Propose a new feature for [Product/Service related to targetCompany or JD, e.g., 'enhancing user engagement on a social media platform'] to address [Specific User Problem/Market Opportunity, e.g., 'declining daily active users among a key demographic']. Define the target audience, core functionality, MVP, key success metrics, and a high-level go-to-market strategy."
-            *   **Reflective Analysis (Product Innovation Story style)**: "Describe an innovative product you were instrumental in delivering. Detail the context (product purpose, audience), the journey (how it came to be), its impact post-launch, and key lessons learned that have influenced your approach to product management. Focus on your product management process and insights."
+            *   **Reflective Analysis (Product Innovation Story style)**: "Describe an innovative product you were instrumental in delivering. Detail the context (product purpose, audience), the journey (how it came to be), its impact post-launch, and key lessons learned that have influenced your approach to product management. Focus on your product management process and insights." (This style is more suitable for less technical PM roles or when specified in Job Title/Description)
             *   **Market/User Problem Deep Dive**: "Analyze [Specific Market Trend or User Problem] and propose a product solution. Detail your understanding of the problem, target users, potential solutions, and how you'd validate your approach."
     *   **If 'interviewType' is "technical system design"**:
         *   The scenario MUST be a technical design challenge (e.g., "Design a [Specific System, e.g., 'personalized recommendation feed for an e-commerce app' or 'scalable backend for a new real-time collaboration feature'] for [Context related to targetCompany or JD]. Focus on system architecture, data models, API design, component interactions, and key scalability/reliability/cost trade-offs.").
     *   **If 'interviewType' is "behavioral"**:
-        *   The scenario should primarily be a reflective exercise (e.g., "Reflect on a complex project or situation from your past experience that aligns with challenges suggested in the 'jobDescription' or typical for the 'faangLevel'. Describe the situation, the actions you took, the rationale behind your decisions, the outcome, and key learnings, particularly focusing on [select 1-2 relevant from 'targetedSkills' or general principles like leadership, conflict resolution, etc.]."). This is especially suitable if 'targetedSkills' point to specific behavioral competencies.
+        *   The scenario should primarily be a reflective exercise (e.g., "Reflect on a complex project or situation from your past experience that aligns with challenges suggested in the 'jobTitle' or 'jobDescription' or typical for the 'faangLevel'. Describe the situation, the actions you took, the rationale behind your decisions, the outcome, and key learnings, particularly focusing on [select 1-2 relevant from 'targetedSkills' or general principles like leadership, conflict resolution, etc.]."). This is especially suitable if 'targetedSkills' point to specific behavioral competencies.
 
 4.  **Key Aspects to Consider / Guiding Questions**:
     *   Provide a list of 5-8 bullet points or questions that the candidate should address in their response. These should guide their thinking and ensure comprehensive coverage.
-    *   **Crucially, these aspects MUST be tailored to the specific problem scenario generated above and its required technical/strategic/reflective depth.**
+    *   **Crucially, these aspects MUST be tailored to the specific problem scenario generated above and its required technical/strategic/reflective depth (informed by jobTitle/JD).**
     *   Examples for Strategic/Product-Focused Scenarios: "What data would you use for analysis?", "Define success metrics.", "Outline GTM strategy.", "What are risks/challenges?", "What are key trade-offs in your proposal?", "How would you prioritize features for an MVP?".
     *   Examples for Technical Design Scenarios: "Detail system components and their interactions.", "Define data models and APIs.", "Discuss scalability, reliability, and security concerns.", "What are the key trade-offs in your design (e.g., consistency vs. availability)?", "How would you test/validate this system and monitor its performance?".
     *   Examples for Reflective Scenarios (like Product Innovation Story): "What was the initial problem or opportunity?", "How did you define success and measure impact?", "What was the most critical decision you made and its rationale?", "How did you handle stakeholder communication or disagreements?", "What would you do differently if you were to do it again?".
@@ -157,7 +165,7 @@ Generate 1 comprehensive take-home assignment description as detailed above.
 {{else}}
 Generate 5-10 interview questions.
 {{/if}}
-Ensure the questions or assignment are relevant and challenging for the specified FAANG level, interview type, interview style, targeted skills (if provided), and target company (if specified, especially Amazon for non-take-home styles).
+Ensure the questions or assignment are relevant and challenging for the specified FAANG level, job title, interview type, interview style, targeted skills (if provided), and target company (if specified, especially Amazon for non-take-home styles).
 Output the questions/assignment as a JSON array of strings. For 'take-home', this array will contain a single string with the full assignment text.
 `,
   customize: (prompt, input) => {

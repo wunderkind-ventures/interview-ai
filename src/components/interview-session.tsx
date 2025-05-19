@@ -10,13 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -28,6 +28,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   interviewStyle: "simple-qa", 
   targetedSkills: [],
   targetCompany: undefined,
+  jobTitle: undefined,
 };
 
 export default function InterviewSession() {
@@ -63,6 +64,7 @@ export default function InterviewSession() {
 
     try {
       const aiInput: CustomizeInterviewQuestionsInput = {
+        jobTitle: setupData.jobTitle,
         jobDescription: setupData.jobDescription || "",
         resume: setupData.resume || "",
         interviewType: setupData.interviewType,
@@ -134,6 +136,7 @@ export default function InterviewSession() {
           interviewType: parsedSession.interviewType,
           interviewStyle: parsedSession.interviewStyle,
           faangLevel: parsedSession.faangLevel,
+          jobTitle: parsedSession.jobTitle,
           jobDescription: parsedSession.jobDescription,
           resume: parsedSession.resume,
           targetedSkills: parsedSession.targetedSkills,
@@ -264,6 +267,11 @@ export default function InterviewSession() {
         </CardTitle>
         <div className="flex justify-between items-center text-sm text-muted-foreground">
           <div>
+            {sessionData.jobTitle && (
+              <span className="mr-2 flex items-center">
+                <Briefcase className="h-4 w-4 mr-1 text-primary" /> Role: {sessionData.jobTitle}
+              </span>
+            )}
             Level: {sessionData.faangLevel} - Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}
             {sessionData.targetCompany && (
               <span className="ml-2 flex items-center">
@@ -271,7 +279,7 @@ export default function InterviewSession() {
               </span>
             )}
           </div>
-          {sessionData.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime && (
+          {sessionData.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime && sessionData.interviewStyle !== 'take-home' && (
             <div className="flex items-center text-sm text-muted-foreground">
               <TimerIcon className="h-4 w-4 mr-1" />
               {formatMilliseconds(currentTime)}
@@ -284,14 +292,17 @@ export default function InterviewSession() {
         {currentQuestion ? (
           <div>
             <h2 className="text-xl font-semibold mb-3 text-foreground">
-              {currentQuestion.text}
+              {sessionData.interviewStyle === 'take-home' ? 'Take Home Assignment:' : `Question ${sessionData.currentQuestionIndex + 1}:`}
             </h2>
+            <p className={`text-lg mb-4 ${sessionData.interviewStyle === 'take-home' ? 'whitespace-pre-wrap p-4 border rounded-md bg-secondary/30' : ''}`}>
+                {currentQuestion.text}
+            </p>
             <Textarea
-              placeholder="Type your answer here..."
+              placeholder={sessionData.interviewStyle === 'take-home' ? "Paste your full response here..." : "Type your answer here..."}
               value={currentAnswer}
               onChange={(e) => setCurrentAnswer(e.target.value)}
               className="min-h-[200px] text-base"
-              rows={8}
+              rows={sessionData.interviewStyle === 'take-home' ? 15 : 8}
             />
           </div>
         ) : (
@@ -302,7 +313,11 @@ export default function InterviewSession() {
         <Button variant="outline" onClick={handleEndInterview} disabled={sessionData.isLoading}>
           End Interview
         </Button>
-        <Button onClick={handleNextQuestion} disabled={sessionData.isLoading || !currentAnswer.trim()} className="bg-accent hover:bg-accent/90">
+        <Button 
+          onClick={handleNextQuestion} 
+          disabled={sessionData.isLoading || !currentAnswer.trim()} 
+          className="bg-accent hover:bg-accent/90"
+        >
           {sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish & View Feedback" : "Next Question"}
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
@@ -310,4 +325,3 @@ export default function InterviewSession() {
     </Card>
   );
 }
-

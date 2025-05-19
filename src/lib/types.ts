@@ -5,10 +5,11 @@ export interface InterviewSetupData {
   interviewType: InterviewType;
   interviewStyle: InterviewStyle;
   faangLevel: FaangLevel;
+  jobTitle?: string; // Added jobTitle
   jobDescription?: string;
   resume?: string;
   targetedSkills?: string[];
-  targetCompany?: string; // Added targetCompany
+  targetCompany?: string;
 }
 
 export interface InterviewQuestion {
@@ -45,6 +46,5 @@ export interface InterviewSessionData extends InterviewSetupData {
   interviewStarted: boolean;
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
-  // targetedSkills and targetCompany are inherited from InterviewSetupData
+  // jobTitle, targetedSkills, and targetCompany are inherited from InterviewSetupData
 }
-

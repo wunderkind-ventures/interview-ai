@@ -2,6 +2,7 @@
 'use server';
 /**
  * @fileOverview Generates feedback for a completed interview session.
+ * This flow now orchestrates initial feedback generation and then refines it.
  *
  * - generateInterviewFeedback - A function that provides feedback on interview answers.
  * - GenerateInterviewFeedbackInput - The input type for the feedback generation.
@@ -11,16 +12,18 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
+import { refineInterviewFeedback } from './refine-interview-feedback';
+import type { RefineInterviewFeedbackInput } from './refine-interview-feedback';
 
-// Input schema for the data needed by the prompt template
-const PromptInputSchema = z.object({
+// Input schema for the data needed by the initial prompt template
+const DraftPromptInputSchema = z.object({
   interviewType: z.string(),
   interviewStyle: z.string(),
   faangLevel: z.string(),
   jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
   resume: z.string().optional(),
-  interviewFocus: z.string().optional(), // Added
+  interviewFocus: z.string().optional(),
   questionsAndAnswers: z.array(
     z.object({
       questionId: z.string(),
@@ -32,8 +35,8 @@ const PromptInputSchema = z.object({
   ),
 });
 
-// Schema for what the AI model is expected to return for each feedback item
-const AIFeedbackItemSchema = z.object({
+// Schema for what the AI model is expected to return for each feedback item (draft stage)
+const AIDraftFeedbackItemSchema = z.object({
   questionId: z
     .string()
     .describe('The ID of the question this feedback pertains to.'),
@@ -59,10 +62,10 @@ const AIFeedbackItemSchema = z.object({
     .describe('A list of key points or elements that would typically be found in a strong answer to this specific question. Focus on general best practices for this type of question rather than just rephrasing the candidate\'s answer.'),
 });
 
-// Schema for the overall AI model output
-const AIOutputSchema = z.object({
+// Schema for the overall AI model output (draft stage)
+const AIDraftOutputSchema = z.object({
   feedbackItems: z
-    .array(AIFeedbackItemSchema)
+    .array(AIDraftFeedbackItemSchema)
     .describe('An array of feedback objects, one for each question.'),
   overallSummary: z
     .string()
@@ -93,13 +96,14 @@ export const GenerateInterviewFeedbackInputSchema = z.object({
     .optional()
     .describe('The job description, if provided.'),
   resume: z.string().optional().describe('The candidate resume, if provided.'),
-  interviewFocus: z.string().optional().describe('The specific focus of the interview, if provided.'), // Added
+  interviewFocus: z.string().optional().describe('The specific focus of the interview, if provided.'),
 });
 export type GenerateInterviewFeedbackInput = z.infer<
   typeof GenerateInterviewFeedbackInputSchema
 >;
 
 // Output schema for the exported flow function (matches lib/types.ts)
+// This remains the same, as the refinement flow also outputs this structure.
 export const FeedbackItemSchema = z.object({
   questionId: z.string(),
   questionText: z.string(),
@@ -124,15 +128,18 @@ export type GenerateInterviewFeedbackOutput = z.infer<
 export async function generateInterviewFeedback(
   input: GenerateInterviewFeedbackInput
 ): Promise<GenerateInterviewFeedbackOutput> {
-  return generateInterviewFeedbackFlow(input);
+  // This flow now orchestrates draft generation and refinement.
+  return generateInterviewFeedbackOrchestrationFlow(input);
 }
 
-const prompt = ai.definePrompt({
-  name: 'generateInterviewFeedbackPrompt',
+const draftPrompt = ai.definePrompt({
+  name: 'generateDraftInterviewFeedbackPrompt', // Renamed to reflect it's a draft
   tools: [getTechnologyBriefTool],
-  input: {schema: PromptInputSchema},
-  output: {schema: AIOutputSchema},
-  prompt: `You are an expert career coach and interviewer, providing detailed, structured feedback for a mock interview session.
+  input: {schema: DraftPromptInputSchema},
+  output: {schema: AIDraftOutputSchema}, // AI outputs a draft
+  prompt: `You are an expert career coach and interviewer, providing detailed, structured DRAFT feedback for a mock interview session.
+This is the first pass; the feedback will be polished by another specialized AI agent later. Focus on getting comprehensive content and analysis down.
+
 The user has just completed a mock interview of type "{{interviewType}}" (style: "{{interviewStyle}}") targeting a "{{faangLevel}}" level.
 {{#if jobTitle}}
 The interview was for the role of: {{{jobTitle}}}
@@ -160,19 +167,19 @@ Candidate's Submission: {{{questionsAndAnswers.0.answerText}}}
 (Time spent on submission (if tracked): {{questionsAndAnswers.0.timeTakenMs}} ms)
 {{/if}}
 
-Your task is to provide:
+Your task is to provide a DRAFT of:
 1.  An 'overallSummary' evaluating the candidate's submission against the assignment's requirements and goals. Consider clarity, structure, completeness, adherence to instructions, and the quality of the solution/analysis presented. Reference the job title/description and 'interviewFocus' if provided.
 2.  The 'feedbackItems' array should contain a single item. For this item, related to questionId '{{questionsAndAnswers.0.questionId}}':
     *   Provide a 'critique': A comprehensive critique of the submission, focusing on how well it addressed the assignment and the 'interviewFocus'.
     *   Optionally, list 'strengths': Specific positive aspects of the submission.
     *   Optionally, list 'areasForImprovement': Specific areas where the submission could be improved.
     *   Optionally, list 'specificSuggestions': Actionable advice related to the submission content or presentation.
-    *   Optionally, list 'idealAnswerPointers': Key elements or considerations that would typically be part of a strong submission for this type of take-home assignment, considering the job title/description, interview type, and 'interviewFocus'. For example, for a "Product Sense" take-home, pointers might include "Clear problem definition related to '{{{interviewFocus}}}'", "User segmentation and justification for '{{{interviewFocus}}}'", "Well-defined MVP features for '{{{interviewFocus}}}'", "Success metrics with rationale for '{{{interviewFocus}}}'", "Discussion of potential risks and mitigations regarding '{{{interviewFocus}}}'". For a "Technical System Design" take-home, pointers could be "Clear diagram of components addressing '{{{interviewFocus}}}'", "Scalability considerations for '{{{interviewFocus}}}' addressed", "API design outlined", "Data model discussion", "Security and reliability aspects covered, especially for '{{{interviewFocus}}}'".
+    *   Optionally, list 'idealAnswerPointers': Key elements or considerations that would typically be part of a strong submission for this type of take-home assignment, considering the job title/description, interview type, and 'interviewFocus'.
 
 {{else}}
 Below are the questions asked and the answers provided by the user. For each answer, the time taken in milliseconds is also provided if available.
 {{#each questionsAndAnswers}}
-Question (ID: {{this.questionId}}): {{{this.questionText}}}
+Question {{this.indexPlusOne}} (ID: {{this.questionId}}): {{{this.questionText}}}
 Answer: {{{this.answerText}}}
 {{#if this.timeTakenMs}}
 (Time taken: {{this.timeTakenMs}} ms)
@@ -180,31 +187,31 @@ Answer: {{{this.answerText}}}
 
 {{/each}}
 
-Your task is to:
+Your task is to provide a DRAFT of:
 1.  For each question and answer pair (identified by questionId), provide structured feedback in the 'feedbackItems' array. Each item should include:
     *   'questionId': The ID of the question.
     *   'strengths': (Optional) An array of 1-3 strings listing specific positive aspects of the answer, especially how it relates to the 'interviewFocus' if applicable.
     *   'areasForImprovement': (Optional) An array of 1-3 strings listing specific areas where the answer could be improved, considering the 'interviewFocus'.
     *   'specificSuggestions': (Optional) An array of 1-3 strings offering actionable suggestions to enhance future answers to similar questions, keeping the 'interviewFocus' in mind.
     *   'critique': (Optional) A concise (1-2 sentences) overall critique summarizing the quality of this specific answer, considering clarity, structure, relevance, completeness, demonstration of skills (including relation to 'interviewFocus'), and use of examples. If time taken is provided, briefly comment if the answer seemed appropriate for the time.
-    *   'idealAnswerPointers': (Optional) An array of 2-4 strings listing key elements, frameworks (like STAR for behavioral), or critical points that a strong answer to this specific question would typically include, taking into account the 'interviewFocus'. These pointers should be general to the question type and context, not just a rehash of the user's answer. For example, for a product design question on '{{{interviewFocus}}}', pointers might include "Clarify ambiguous requirements around '{{{interviewFocus}}}'", "Define target user segments for '{{{interviewFocus}}}'", "Propose and prioritize features related to '{{{interviewFocus}}}'", "Discuss metrics for success for '{{{interviewFocus}}}'". For a behavioral question, pointers might include "Clearly describe the Situation", "Detail the Task/Action taken", "Explain the Result", "Share Learnings".
+    *   'idealAnswerPointers': (Optional) An array of 2-4 strings listing key elements, frameworks (like STAR for behavioral), or critical points that a strong answer to this specific question would typically include, taking into account the 'interviewFocus'.
     Focus on being constructive and specific.
 2.  Provide an 'overallSummary' of the candidate's performance. This summary should synthesize the feedback from individual questions, identify recurring themes (both positive and negative), and offer actionable advice for improvement. If an 'interviewFocus' was set, comment on how well the candidate addressed this focus throughout the interview.
     *   Specifically comment on the candidate's pacing and time management based on the time taken for answers, if this information was generally available. For example, were answers generally well-paced, too brief, or too verbose for the time spent?
 {{/if}}
-Output the feedback in the specified JSON format. Ensure all fields in 'feedbackItems' are correctly populated as described.
+Output the DRAFT feedback in the specified JSON format. Ensure all fields in 'feedbackItems' are correctly populated as described.
 Make sure each item in 'feedbackItems' includes the 'questionId' it refers to.
 `,
 });
 
-const generateInterviewFeedbackFlow = ai.defineFlow(
+const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
   {
-    name: 'generateInterviewFeedbackFlow',
+    name: 'generateInterviewFeedbackOrchestrationFlow', // Renamed to reflect orchestration
     inputSchema: GenerateInterviewFeedbackInputSchema,
-    outputSchema: GenerateInterviewFeedbackOutputSchema,
+    outputSchema: GenerateInterviewFeedbackOutputSchema, // Final output schema remains the same
   },
-  async (input: GenerateInterviewFeedbackInput) => {
-    // Prepare data for the prompt template
+  async (input: GenerateInterviewFeedbackInput): Promise<GenerateInterviewFeedbackOutput> => {
+    // Prepare data for the draft prompt template
     const questionsAndAnswers = input.questions.map((q, index) => {
       const answer = input.answers.find(a => a.questionId === q.id);
       return {
@@ -216,44 +223,69 @@ const generateInterviewFeedbackFlow = ai.defineFlow(
       };
     });
 
-    const promptInput: z.infer<typeof PromptInputSchema> = {
+    const draftPromptInput: z.infer<typeof DraftPromptInputSchema> = {
       interviewType: input.interviewType,
       interviewStyle: input.interviewStyle,
       faangLevel: input.faangLevel,
       jobTitle: input.jobTitle,
       jobDescription: input.jobDescription,
       resume: input.resume,
-      interviewFocus: input.interviewFocus, // Added
+      interviewFocus: input.interviewFocus,
       questionsAndAnswers,
     };
 
-    const {output: aiOutput} = await prompt(promptInput);
+    // 1. Generate Draft Feedback
+    const {output: draftAiOutput} = await draftPrompt(draftPromptInput);
 
-    if (!aiOutput) {
-      throw new Error('AI did not return feedback.');
+    if (!draftAiOutput) {
+      throw new Error('AI did not return draft feedback.');
     }
 
-    // Combine AI feedback with original question and answer text
-    const populatedFeedbackItems = aiOutput.feedbackItems.map(aiItem => {
+    // Ensure draftAiOutput feedbackItems have all optional arrays initialized for the refiner
+     const fullyFormedDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
       const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
       const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
       return {
         questionId: aiItem.questionId,
         questionText: originalQuestion ? originalQuestion.text : "Question text not found.",
         answerText: originalAnswer ? originalAnswer.answerText : "Answer text not found.",
-        strengths: aiItem.strengths,
-        areasForImprovement: aiItem.areasForImprovement,
-        specificSuggestions: aiItem.specificSuggestions,
-        critique: aiItem.critique,
-        idealAnswerPointers: aiItem.idealAnswerPointers,
+        strengths: aiItem.strengths || [],
+        areasForImprovement: aiItem.areasForImprovement || [],
+        specificSuggestions: aiItem.specificSuggestions || [],
+        critique: aiItem.critique || "",
+        idealAnswerPointers: aiItem.idealAnswerPointers || [],
         timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
       };
     });
 
-    return {
-      feedbackItems: populatedFeedbackItems,
-      overallSummary: aiOutput.overallSummary,
+    const draftFeedbackForRefiner: GenerateInterviewFeedbackOutput = {
+        feedbackItems: fullyFormedDraftFeedbackItems,
+        overallSummary: draftAiOutput.overallSummary
     };
+
+
+    // 2. Refine Feedback
+    const refineInput: RefineInterviewFeedbackInput = {
+      draftFeedback: draftFeedbackForRefiner,
+      interviewContext: {
+        interviewType: input.interviewType,
+        interviewStyle: input.interviewStyle,
+        faangLevel: input.faangLevel,
+        jobTitle: input.jobTitle,
+        interviewFocus: input.interviewFocus,
+        timeWasTracked: input.answers.some(a => a.timeTakenMs !== undefined)
+      },
+    };
+
+    const refinedOutput = await refineInterviewFeedback(refineInput);
+
+    if (!refinedOutput) {
+        throw new Error('Feedback refinement process failed.');
+    }
+    
+    // The refinedOutput already matches GenerateInterviewFeedbackOutputSchema structure
+    // and includes the questionText, answerText, timeTakenMs populated by the draft stage.
+    return refinedOutput;
   }
 );
 

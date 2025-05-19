@@ -31,6 +31,7 @@ export interface FeedbackItem {
   areasForImprovement?: string[];
   specificSuggestions?: string[];
   critique?: string;
+  idealAnswerPointers?: string[]; // Added this line
   timeTakenMs?: number;
 }
 
@@ -50,3 +51,4 @@ export interface InterviewSessionData extends InterviewSetupData {
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
 }
+

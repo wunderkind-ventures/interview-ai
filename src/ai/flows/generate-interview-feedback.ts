@@ -51,6 +51,10 @@ const AIFeedbackItemSchema = z.object({
     .string()
     .optional()
     .describe('A concise overall critique of the answer to this specific question.'),
+  idealAnswerPointers: z
+    .array(z.string())
+    .optional()
+    .describe('A list of key points or elements that would typically be found in a strong answer to this specific question. Focus on general best practices for this type of question rather than just rephrasing the candidate\'s answer.'),
 });
 
 // Schema for the overall AI model output
@@ -101,6 +105,7 @@ export const FeedbackItemSchema = z.object({
   areasForImprovement: z.array(z.string()).optional(),
   specificSuggestions: z.array(z.string()).optional(),
   critique: z.string().optional(),
+  idealAnswerPointers: z.array(z.string()).optional(), // Added this line
   timeTakenMs: z.number().optional(),
 });
 
@@ -152,6 +157,7 @@ Your task is to provide:
     *   Optionally, list 'strengths': Specific positive aspects of the submission.
     *   Optionally, list 'areasForImprovement': Specific areas where the submission could be improved.
     *   Optionally, list 'specificSuggestions': Actionable advice related to the submission content or presentation.
+    *   Optionally, list 'idealAnswerPointers': Key elements or considerations that would typically be part of a strong submission for this type of take-home assignment, considering the job title/description and interview type. For example, for a "Product Sense" take-home, pointers might include "Clear problem definition", "User segmentation and justification", "Well-defined MVP features", "Success metrics with rationale", "Discussion of potential risks and mitigations". For a "Technical System Design" take-home, pointers could be "Clear diagram of components", "Scalability considerations addressed", "API design outlined", "Data model discussion", "Security and reliability aspects covered".
 
 {{else}}
 Below are the questions asked and the answers provided by the user. For each answer, the time taken in milliseconds is also provided if available.
@@ -171,6 +177,7 @@ Your task is to:
     *   'areasForImprovement': (Optional) An array of 1-3 strings listing specific areas where the answer could be improved.
     *   'specificSuggestions': (Optional) An array of 1-3 strings offering actionable suggestions to enhance future answers to similar questions.
     *   'critique': (Optional) A concise (1-2 sentences) overall critique summarizing the quality of this specific answer, considering clarity, structure, relevance, completeness, demonstration of skills, and use of examples. If time taken is provided, briefly comment if the answer seemed appropriate for the time.
+    *   'idealAnswerPointers': (Optional) An array of 2-4 strings listing key elements, frameworks (like STAR for behavioral), or critical points that a strong answer to this specific question would typically include. These pointers should be general to the question type and context, not just a rehash of the user's answer. For example, for a product design question, pointers might include "Clarify ambiguous requirements", "Define target user segments", "Propose and prioritize features", "Discuss metrics for success". For a behavioral question, pointers might include "Clearly describe the Situation", "Detail the Task/Action taken", "Explain the Result", "Share Learnings".
     Focus on being constructive and specific.
 2.  Provide an 'overallSummary' of the candidate's performance. This summary should synthesize the feedback from individual questions, identify recurring themes (both positive and negative), and offer actionable advice for improvement.
     *   Specifically comment on the candidate's pacing and time management based on the time taken for answers, if this information was generally available. For example, were answers generally well-paced, too brief, or too verbose for the time spent?
@@ -227,6 +234,7 @@ const generateInterviewFeedbackFlow = ai.defineFlow(
         areasForImprovement: aiItem.areasForImprovement,
         specificSuggestions: aiItem.specificSuggestions,
         critique: aiItem.critique,
+        idealAnswerPointers: aiItem.idealAnswerPointers, // Added this line
         timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
       };
     });
@@ -237,3 +245,4 @@ const generateInterviewFeedbackFlow = ai.defineFlow(
     };
   }
 );
+

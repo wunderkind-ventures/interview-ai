@@ -12,6 +12,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
+import { getTechnologyBriefTool } from '../tools/technology-tools';
 
 const CustomizeInterviewQuestionsInputSchema = z.object({
   jobTitle: z
@@ -68,6 +69,7 @@ export async function customizeInterviewQuestions(
 
 const prompt = ai.definePrompt({
   name: 'customizeInterviewQuestionsPrompt',
+  tools: [getTechnologyBriefTool],
   input: {
     schema: CustomizeInterviewQuestionsInputSchema,
   },
@@ -89,6 +91,7 @@ const prompt = ai.definePrompt({
 4.  **Skill Assessment:** Design questions to effectively evaluate 'targetedSkills' (if provided) or core competencies expected for the 'interviewType' and 'faangLevel'.
 5.  **Open-Ended:** Questions should encourage detailed, reasoned responses, not simple yes/no answers.
 6.  **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding of the candidate's potential background. This might subtly influence the angle or examples in questions, but do not generate questions *directly about* the resume content itself, unless the 'interviewType' is "behavioral" and the question explicitly asks for past experiences.
+7.  **Tool Usage for Clarity:** If the 'jobDescription' or 'targetedSkills' mention specific technologies crucial for the role, and you need a concise overview to ensure your questions are deeply relevant and appropriately targeted, you may use the \`getTechnologyBriefTool\` to get a summary. Focus on incorporating insights from the tool to make your questions more specific and context-aware. Do not just repeat the tool's output; integrate its information to create better questions.
 
 **Interview Context & Inputs to Consider:**
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
@@ -208,4 +211,3 @@ const customizeInterviewQuestionsFlow = ai.defineFlow(
     return output!;
   }
 );
-

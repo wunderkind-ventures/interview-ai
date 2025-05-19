@@ -10,6 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { getTechnologyBriefTool } from '../tools/technology-tools';
 
 // Input schema for the data needed by the prompt template
 const PromptInputSchema = z.object({
@@ -126,6 +127,7 @@ export async function generateInterviewFeedback(
 
 const prompt = ai.definePrompt({
   name: 'generateInterviewFeedbackPrompt',
+  tools: [getTechnologyBriefTool],
   input: {schema: PromptInputSchema},
   output: {schema: AIOutputSchema},
   prompt: `You are an expert career coach and interviewer, providing detailed, structured feedback for a mock interview session.
@@ -141,6 +143,9 @@ The interview was for a role with the following job description:
 The candidate's resume is as follows:
 {{{resume}}}
 {{/if}}
+
+**Tool Usage Guidance:**
+If the candidate's answer mentions specific technologies and you need a quick, factual summary to help you evaluate their understanding or suggest alternatives, you may use the \`getTechnologyBriefTool\`. Use the tool's output to enrich your feedback, for example, by validating the candidate's usage of the technology or by pointing out common considerations for that tech. Do not simply repeat the tool's output in your feedback. Ensure your critique remains focused on the candidate's response.
 
 {{#if (eq interviewStyle "take-home")}}
 This was a take-home assignment. The "question" is the assignment description, and the "answer" is the candidate's submission.
@@ -245,4 +250,3 @@ const generateInterviewFeedbackFlow = ai.defineFlow(
     };
   }
 );
-

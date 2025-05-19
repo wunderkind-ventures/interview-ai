@@ -7,12 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle } from "lucide-react";
 import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
-import type { InterviewSessionData, FeedbackItem } from "@/lib/types";
+import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
 import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
+import { generateDeepDiveFeedback } from "@/ai/flows/generate-deep-dive-feedback";
+import type { GenerateDeepDiveFeedbackInput, GenerateDeepDiveFeedbackOutput } from "@/ai/flows/generate-deep-dive-feedback";
 import { formatMilliseconds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -23,6 +26,12 @@ export default function InterviewSummary() {
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+
+  const [activeDeepDiveQuestionId, setActiveDeepDiveQuestionId] = useState<string | null>(null);
+  const [deepDiveContent, setDeepDiveContent] = useState<DeepDiveFeedback | null>(null);
+  const [isDeepDiveLoading, setIsDeepDiveLoading] = useState(false);
+  const [deepDiveError, setDeepDiveError] = useState<string | null>(null);
+
 
   const fetchAndSetFeedback = useCallback(async (currentSession: InterviewSessionData) => {
     if (!currentSession.interviewFinished || currentSession.feedback || isFeedbackLoading) {
@@ -109,6 +118,59 @@ export default function InterviewSummary() {
     }
   }, [router, toast, fetchAndSetFeedback]);
 
+  const handleOpenDeepDive = async (questionId: string) => {
+    if (!sessionData) return;
+    setActiveDeepDiveQuestionId(questionId);
+    setDeepDiveContent(null);
+    setDeepDiveError(null);
+
+    // Check cache first
+    if (sessionData.deepDives && sessionData.deepDives[questionId]) {
+      setDeepDiveContent(sessionData.deepDives[questionId]);
+      return;
+    }
+
+    setIsDeepDiveLoading(true);
+    const question = sessionData.questions.find(q => q.id === questionId);
+    const answer = sessionData.answers.find(a => a.questionId === questionId);
+    const originalFeedbackItem = sessionData.feedback?.feedbackItems.find(f => f.questionId === questionId);
+
+    if (!question || !answer) {
+      setDeepDiveError("Question or answer not found for deep dive.");
+      setIsDeepDiveLoading(false);
+      return;
+    }
+
+    try {
+      const deepDiveInput: GenerateDeepDiveFeedbackInput = {
+        questionText: question.text,
+        userAnswerText: answer.answerText,
+        interviewType: sessionData.interviewType,
+        faangLevel: sessionData.faangLevel,
+        jobTitle: sessionData.jobTitle,
+        jobDescription: sessionData.jobDescription,
+        targetedSkills: sessionData.targetedSkills,
+        originalFeedback: originalFeedbackItem,
+      };
+      const result = await generateDeepDiveFeedback(deepDiveInput);
+      setDeepDiveContent(result);
+      setSessionData(prev => {
+        if (!prev) return null;
+        const updatedDeepDives = { ...(prev.deepDives || {}), [questionId]: result };
+        const updatedSession = { ...prev, deepDives: updatedDeepDives };
+        localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        return updatedSession;
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to generate deep dive feedback.";
+      setDeepDiveError(errorMessage);
+      toast({ title: "Deep Dive Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setIsDeepDiveLoading(false);
+    }
+  };
+
+
   if (isSessionLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -148,7 +210,7 @@ export default function InterviewSummary() {
 
   const isTakeHomeStyle = sessionData.interviewStyle === 'take-home';
 
-  const renderFeedbackSection = (title: string, items: string[] | undefined, icon: React.ReactNode, badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary") => {
+  const renderFeedbackSection = (title: string, items: string[] | undefined, icon: React.ReactNode, badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary", itemClassName?: string) => {
     if (!items || items.length === 0) return null;
     return (
       <div className="mt-3">
@@ -158,7 +220,7 @@ export default function InterviewSummary() {
         </h5>
         <ul className="list-none space-y-1 pl-0">
           {items.map((item, idx) => (
-            <li key={idx} className="flex items-start">
+            <li key={idx} className={`flex items-start ${itemClassName}`}>
                <Badge variant={badgeVariant} className="mr-2 mt-1 text-xs whitespace-normal break-words">{item}</Badge>
             </li>
           ))}
@@ -166,6 +228,9 @@ export default function InterviewSummary() {
       </div>
     );
   };
+  
+  const currentDeepDiveQuestionText = activeDeepDiveQuestionId ? sessionData.questions.find(q => q.id === activeDeepDiveQuestionId)?.text : "";
+  const currentDeepDiveUserAnswerText = activeDeepDiveQuestionId ? getAnswerInfoForQuestion(activeDeepDiveQuestionId).answerText : "";
 
   return (
     <Card className="w-full max-w-3xl mx-auto shadow-xl">
@@ -226,6 +291,15 @@ export default function InterviewSummary() {
                                     {renderFeedbackSection("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, "secondary")}
                                     {renderFeedbackSection("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, "secondary")}
                                     {renderFeedbackSection("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, "secondary")}
+                                     <Button 
+                                        onClick={() => handleOpenDeepDive(question.id)} 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="mt-4 bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
+                                        disabled={!feedbackItem}
+                                    >
+                                        <Layers className="mr-2 h-4 w-4" /> Deep Dive on this Assignment
+                                    </Button>
                                 </div>
                             )}
                         </div>
@@ -276,6 +350,15 @@ export default function InterviewSummary() {
                                     {renderFeedbackSection("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, "secondary")}
                                     {renderFeedbackSection("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, "secondary")}
                                     {renderFeedbackSection("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, "secondary")}
+                                    <Button 
+                                        onClick={() => handleOpenDeepDive(question.id)} 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="mt-4 bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
+                                        disabled={!feedbackItem}
+                                    >
+                                        <Layers className="mr-2 h-4 w-4" /> Deep Dive
+                                    </Button>
                                 </div>
                             )}
                         </AccordionContent>
@@ -328,6 +411,64 @@ export default function InterviewSummary() {
             </Alert>
         )}
       </CardContent>
+
+      {activeDeepDiveQuestionId && (
+        <Dialog open={!!activeDeepDiveQuestionId} onOpenChange={(open) => { if (!open) setActiveDeepDiveQuestionId(null); }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-2xl text-primary flex items-center">
+                <Layers className="mr-3 h-7 w-7" /> Deep Dive Analysis
+              </DialogTitle>
+              <DialogDescription className="pt-2">
+                Exploring the question: <span className="font-semibold">"{currentDeepDiveQuestionText}"</span>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+              <div>
+                  <h4 className="font-semibold text-muted-foreground mb-1">Your Answer:</h4>
+                  <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border text-sm">{currentDeepDiveUserAnswerText || "No answer provided."}</p>
+              </div>
+
+              {isDeepDiveLoading && (
+                <div className="flex flex-col items-center justify-center py-10">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary mb-3" />
+                  <p className="text-muted-foreground">Generating deep dive insights...</p>
+                </div>
+              )}
+              {deepDiveError && !isDeepDiveLoading && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-5 w-5" />
+                  <AlertTitle>Deep Dive Error</AlertTitle>
+                  <AlertDescription>
+                    {deepDiveError}
+                     <Button 
+                        onClick={() => activeDeepDiveQuestionId && handleOpenDeepDive(activeDeepDiveQuestionId)} 
+                        variant="link" 
+                        className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80"
+                    >
+                        Retry
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {deepDiveContent && !isDeepDiveLoading && !deepDiveError && (
+                <div className="space-y-4">
+                  {renderFeedbackSection("Detailed Ideal Answer Breakdown", deepDiveContent.detailedIdealAnswerBreakdown, <CheckSquare className="h-5 w-5 text-green-600" />, "secondary", "text-sm")}
+                  {renderFeedbackSection("Alternative Approaches", deepDiveContent.alternativeApproaches, <Lightbulb className="h-5 w-5 text-blue-600" />, "secondary", "text-sm")}
+                  {renderFeedbackSection("Follow-up Scenarios / Probing Questions", deepDiveContent.followUpScenarios, <Search className="h-5 w-5 text-purple-600" />, "secondary", "text-sm")}
+                  {renderFeedbackSection("Suggested Study Concepts", deepDiveContent.suggestedStudyConcepts, <BookOpen className="h-5 w-5 text-orange-600" />, "secondary", "text-sm")}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <CardFooter>
         <Button onClick={() => {
             localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 

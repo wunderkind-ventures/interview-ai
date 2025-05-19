@@ -31,13 +31,20 @@ export interface FeedbackItem {
   areasForImprovement?: string[];
   specificSuggestions?: string[];
   critique?: string;
-  idealAnswerPointers?: string[]; // Added this line
+  idealAnswerPointers?: string[];
   timeTakenMs?: number;
 }
 
 export interface InterviewFeedback {
   feedbackItems: FeedbackItem[];
   overallSummary: string;
+}
+
+export interface DeepDiveFeedback {
+  detailedIdealAnswerBreakdown: string[];
+  alternativeApproaches: string[];
+  followUpScenarios: string[];
+  suggestedStudyConcepts: string[];
 }
 
 export interface InterviewSessionData extends InterviewSetupData {
@@ -50,5 +57,6 @@ export interface InterviewSessionData extends InterviewSetupData {
   interviewStarted: boolean;
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
+  deepDives?: Record<string, DeepDiveFeedback>; // Question ID -> DeepDiveFeedback
 }
 

@@ -1,10 +1,11 @@
 
-import type { InterviewSetupData, ThemedInterviewPack } from './types';
+import type { InterviewSetupData, ThemedInterviewPack, Skill } from './types';
 
 export const INTERVIEW_TYPES = [
   { value: "product sense", label: "Product Sense" },
   { value: "technical system design", label: "Technical System Design" },
   { value: "behavioral", label: "Behavioral" },
+  { value: "machine learning", label: "Machine Learning" },
 ] as const;
 
 export type InterviewType = typeof INTERVIEW_TYPES[number]['value'];
@@ -32,11 +33,6 @@ export const LOCAL_STORAGE_KEYS = {
   INTERVIEW_SESSION: 'interviewAI_session',
 };
 
-export interface Skill {
-  value: string;
-  label: string;
-}
-
 export const SKILLS_BY_INTERVIEW_TYPE: Record<InterviewType, Skill[]> = {
   "product sense": [
     { value: "user-empathy", label: "User Empathy" },
@@ -58,6 +54,13 @@ export const SKILLS_BY_INTERVIEW_TYPE: Record<InterviewType, Skill[]> = {
     { value: "conflict-resolution", label: "Conflict Resolution & Adaptability" },
     { value: "problem-solving-decision-making", label: "Problem Solving & Decision Making" },
     { value: "communication-skills", label: "Communication Skills" },
+  ],
+  "machine learning": [
+    { value: "ml-model-fundamentals", label: "ML Model Fundamentals" },
+    { value: "ml-system-design", label: "ML System Design" },
+    { value: "data-handling-feature-engineering", label: "Data Handling & Feature Engineering" },
+    { value: "ml-evaluation-iteration", label: "Evaluation & Iteration" },
+    { value: "ml-ethics-fairness", label: "ML Ethics & Fairness" },
   ],
 };
 
@@ -90,8 +93,6 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       faangLevel: 'L5',
       targetCompany: 'Amazon',
       jobTitle: 'Software Engineer II',
-      // Behavioral skills that align with demonstrating LPs.
-      // The "Amazon" targetCompany and "behavioral" type will inherently push the AI towards LP-style questions.
       targetedSkills: ['leadership', 'problem-solving-decision-making', 'communication-skills'],
       interviewFocus: 'Demonstrating Amazon Leadership Principles through past experiences',
       interviewStyle: 'simple-qa',
@@ -108,7 +109,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       targetedSkills: ['product-strategy', 'innovation-creativity', 'metrics-analytics'],
       jobTitle: 'Senior Product Manager',
       interviewFocus: 'Developing a 5-year product vision for a new market entry',
-      targetCompany: 'Google', // Example, could be any FAANG
+      targetCompany: 'Google', 
     },
   },
   {
@@ -118,7 +119,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
     config: {
       interviewType: 'technical system design',
       interviewStyle: 'case-study',
-      faangLevel: 'L4', // Startups often look for strong individual contributors
+      faangLevel: 'L4', 
       targetedSkills: ['scalability', 'api-design', 'trade-offs-decision-making'],
       jobTitle: 'Founding Engineer',
       interviewFocus: 'Designing the initial architecture for a B2C photo sharing service expecting rapid growth',
@@ -148,5 +149,31 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       targetedSkills: ['metrics-analytics', 'product-strategy'],
       interviewFocus: 'Defining a metrics framework for a new feature launch and analyzing its potential impact.',
     }
+  },
+  {
+    id: 'ml-engineer-conceptual-L4',
+    label: 'ML Engineer (L4) - Conceptual Foundations',
+    description: 'Focuses on core machine learning concepts for an L4 ML Engineer.',
+    config: {
+      interviewType: 'machine learning',
+      interviewStyle: 'simple-qa',
+      faangLevel: 'L4',
+      jobTitle: 'Machine Learning Engineer',
+      targetedSkills: ['ml-model-fundamentals', 'ml-evaluation-iteration'],
+      interviewFocus: 'Understanding core ML algorithms and evaluation techniques',
+    },
+  },
+  {
+    id: 'senior-ml-system-design-case',
+    label: 'Senior ML Engineer (L6) - System Design Case',
+    description: 'A case study focusing on ML system design for a senior ML Engineer role.',
+    config: {
+      interviewType: 'machine learning',
+      interviewStyle: 'case-study',
+      faangLevel: 'L6',
+      jobTitle: 'Senior Machine Learning Engineer',
+      targetedSkills: ['ml-system-design', 'data-handling-feature-engineering', 'scalability'],
+      interviewFocus: 'Designing a large-scale recommendation system',
+    },
   }
 ];

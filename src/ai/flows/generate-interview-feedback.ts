@@ -83,7 +83,7 @@ export const GenerateInterviewFeedbackInputSchema = z.object({
     z.object({questionId: z.string(), answerText: z.string(), timeTakenMs: z.number().optional() })
   ).describe("The list of answers provided by the user, including time taken for each."),
   interviewType: z.nativeEnum(
-    ['product sense', 'technical system design', 'behavioral']
+    ['product sense', 'technical system design', 'behavioral', 'machine learning']
   ).describe("The type of the interview."),
    interviewStyle: z.nativeEnum(['simple-qa', 'case-study', 'take-home'])
     .describe('The style of the interview: simple Q&A or multi-turn case study or take home.'),
@@ -174,13 +174,13 @@ Candidate's Submission: {{{questionsAndAnswers.0.answerText}}}
 {{/if}}
 
 Your task is to provide a DRAFT of:
-1.  An 'overallSummary' evaluating the candidate's submission against the assignment's requirements and goals. Consider clarity, structure, completeness, adherence to instructions, the quality of the solution/analysis presented, and how well it met the expectations for '{{faangLevel}}' (ambiguity, complexity, scope, execution). Reference the job title/description and 'interviewFocus' if provided.
+1.  An 'overallSummary' evaluating the candidate's submission against the assignment's requirements and goals. Consider clarity, structure, completeness, adherence to instructions, the quality of the solution/analysis presented, and how well it met the expectations for '{{faangLevel}}' (ambiguity, complexity, scope, execution). Reference the job title/description and 'interviewFocus' if provided. For 'machine learning' assignments, assess the technical rigor and justification of ML choices.
 2.  The 'feedbackItems' array should contain a single item. For this item, related to questionId '{{questionsAndAnswers.0.questionId}}':
-    *   Provide a 'critique': A comprehensive critique of the submission, focusing on how well it addressed the assignment, the 'interviewFocus', and the expectations for '{{faangLevel}}'.
+    *   Provide a 'critique': A comprehensive critique of the submission, focusing on how well it addressed the assignment, the 'interviewFocus', and the expectations for '{{faangLevel}}'. If it's a 'machine learning' assignment, comment on the soundness of the ML approach.
     *   Optionally, list 'strengths': Specific positive aspects of the submission.
     *   Optionally, list 'areasForImprovement': Specific areas where the submission could be improved.
     *   Optionally, list 'specificSuggestions': Actionable advice related to the submission content or presentation.
-    *   Optionally, list 'idealAnswerPointers': Key elements or considerations that would typically be part of a strong submission for this type of take-home assignment, considering the job title/description, interview type, 'interviewFocus', and '{{faangLevel}}'.
+    *   Optionally, list 'idealAnswerPointers': Key elements or considerations that would typically be part of a strong submission for this type of take-home assignment, considering the job title/description, interview type, 'interviewFocus', and '{{faangLevel}}'. For 'machine learning', this might include typical sections of an ML design document (e.g., problem definition, data, model, evaluation, deployment).
 
 {{else}}
 Below are the questions asked and the answers provided by the user. For each answer, the time taken in milliseconds is also provided if available.
@@ -199,10 +199,10 @@ Your task is to provide a DRAFT of:
     *   'strengths': (Optional) An array of 1-3 strings listing specific positive aspects of the answer, especially how it relates to the 'interviewFocus' if applicable.
     *   'areasForImprovement': (Optional) An array of 1-3 strings listing specific areas where the answer could be improved, considering the 'interviewFocus'.
     *   'specificSuggestions': (Optional) An array of 1-3 strings offering actionable suggestions to enhance future answers to similar questions, keeping the 'interviewFocus' in mind.
-    *   'critique': (Optional) A concise (1-2 sentences) overall critique summarizing the quality of this specific answer, considering clarity, structure, relevance, completeness, demonstration of skills (including relation to 'interviewFocus'), use of examples, and alignment with '{{faangLevel}}' expectations (ambiguity, complexity, scope, execution). If time taken is provided, briefly comment if the answer seemed appropriate for the time.
-    *   'idealAnswerPointers': (Optional) An array of 2-4 strings listing key elements, frameworks (like STAR for behavioral), or critical points that a strong answer to this specific question would typically include, taking into account the 'interviewFocus' and '{{faangLevel}}'.
+    *   'critique': (Optional) A concise (1-2 sentences) overall critique summarizing the quality of this specific answer, considering clarity, structure, relevance, completeness, demonstration of skills (including relation to 'interviewFocus'), use of examples, and alignment with '{{faangLevel}}' expectations (ambiguity, complexity, scope, execution). If 'interviewType' is 'machine learning', consider the technical accuracy and depth of the explanation or design. If time taken is provided, briefly comment if the answer seemed appropriate for the time.
+    *   'idealAnswerPointers': (Optional) An array of 2-4 strings listing key elements, frameworks (like STAR for behavioral), or critical points that a strong answer to this specific question would typically include, taking into account the 'interviewFocus' and '{{faangLevel}}'. For 'machine learning' conceptual questions, this could be key definitions or components. For ML system design, it might be key design phases.
     Focus on being constructive and specific.
-2.  Provide an 'overallSummary' of the candidate's performance. This summary should synthesize the feedback from individual questions, identify recurring themes (both positive and negative), and offer actionable advice for improvement. If an 'interviewFocus' was set, comment on how well the candidate addressed this focus throughout the interview. Critically, evaluate how the overall performance aligns with the expectations for '{{faangLevel}}' regarding handling ambiguity, complexity of thought, and scope of solutions.
+2.  Provide an 'overallSummary' of the candidate's performance. This summary should synthesize the feedback from individual questions, identify recurring themes (both positive and negative), and offer actionable advice for improvement. If an 'interviewFocus' was set, comment on how well the candidate addressed this focus throughout the interview. Critically, evaluate how the overall performance aligns with the expectations for '{{faangLevel}}' regarding handling ambiguity, complexity of thought, and scope of solutions. If 'interviewType' is 'machine learning', comment on the overall grasp of ML concepts or design principles demonstrated.
     *   Specifically comment on the candidate's pacing and time management based on the time taken for answers, if this information was generally available. For example, were answers generally well-paced, too brief, or too verbose for the time spent?
 {{/if}}
 Output the DRAFT feedback in the specified JSON format. Ensure all fields in 'feedbackItems' are correctly populated as described.

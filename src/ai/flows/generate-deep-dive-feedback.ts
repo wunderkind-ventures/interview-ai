@@ -16,7 +16,7 @@ import type { FeedbackItem } from '@/lib/types';
 const DeepDivePromptInputSchema = z.object({
   questionText: z.string().describe('The original interview question.'),
   userAnswerText: z.string().describe("The user's answer to the question."),
-  interviewType: z.string().describe('The overall type of the interview (e.g., "product sense").'),
+  interviewType: z.string().describe('The overall type of the interview (e.g., "product sense", "machine learning").'),
   faangLevel: z.string().describe('The target FAANG complexity level of the interview. This should influence the depth and rigor of the ideal answer and alternative approaches.'),
   jobTitle: z.string().optional().describe('The job title, if provided.'),
   jobDescription: z.string().optional().describe('The job description, if provided.'),
@@ -49,7 +49,7 @@ export type GenerateDeepDiveFeedbackOutput = z.infer<typeof DeepDiveOutputSchema
 export const GenerateDeepDiveFeedbackInputSchema = z.object({
   questionText: z.string(),
   userAnswerText: z.string(),
-  interviewType: z.string(),
+  interviewType: z.string(), // Will include 'machine learning'
   faangLevel: z.string(),
   jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
@@ -109,21 +109,38 @@ Provide a detailed "Deep Dive" analysis with the following components. Be specif
 1.  **detailedIdealAnswerBreakdown**: (Array of strings)
     *   Provide a step-by-step breakdown of how an ideal answer might be structured or key components it should include, particularly considering the 'interviewFocus' and the depth expected for '{{{faangLevel}}}'.
     *   Think about logical flow, critical points to cover, and common frameworks if applicable (e.g., STAR for behavioral, specific system design approaches for different levels of complexity).
-    *   Make this highly specific to the question. For example, if the question is "Design a notification system," break down aspects like requirements gathering (more detailed for higher levels), high-level design, component deep-dive, scalability (more critical for higher levels), reliability, etc., all while relating back to the 'interviewFocus' and '{{{faangLevel}}}'.
+    *   Make this highly specific to the question. 
+        {{#if (eq interviewType "machine learning")}}
+        If this is a Machine Learning conceptual question, the breakdown might include: clear definition, key characteristics, pros/cons, common use cases, and potential pitfalls. 
+        If it's an ML system design question, breakdown could include: problem understanding & scoping, data considerations (sources, preprocessing, labeling), feature engineering, model selection rationale, training strategy, evaluation metrics, deployment plan, and monitoring.
+        {{else if (eq interviewType "technical system design")}}
+        If the question is "Design a notification system," break down aspects like requirements gathering (more detailed for higher levels), high-level design, component deep-dive, scalability (more critical for higher levels), reliability, etc., all while relating back to the 'interviewFocus' and '{{{faangLevel}}}'.
+        {{else}}
+        Tailor the breakdown to the specific '{{{interviewType}}}'.
+        {{/if}}
 
 2.  **alternativeApproaches**: (Array of strings)
     *   Describe 2-3 different valid perspectives, frameworks, or methods the candidate could have used to approach this question, especially if they highlight different ways to address the 'interviewFocus'.
     *   Explain briefly why these alternatives are also valid or what different aspects they might highlight. The sophistication of these alternatives should align with '{{{faangLevel}}}'.
+        {{#if (eq interviewType "machine learning")}}
+        For ML questions, alternatives could include different model families (e.g., tree-based vs. neural nets), different evaluation strategies, or alternative ways to frame the problem (e.g., classification vs. regression if applicable).
+        {{/if}}
     *   This helps the user understand there isn't always one "right" way.
 
 3.  **followUpScenarios**: (Array of strings)
     *   Generate 2-3 challenging but fair hypothetical "what if" scenarios or probing follow-up questions an interviewer might ask based on the original question or common answer patterns, especially ones that push deeper into the 'interviewFocus'.
     *   These should be designed to test deeper understanding, adaptability, or the ability to handle edge cases, with complexity appropriate for '{{{faangLevel}}}'.
     *   Example: If the original question was about system design with an 'interviewFocus' on cost-optimization for an L6, a follow-up could be "How would your design change if the budget was halved but performance requirements remained, and how would you negotiate these constraints with stakeholders?"
+        {{#if (eq interviewType "machine learning")}}
+        For ML system design, follow-ups could be: "What if your primary data source becomes unavailable?", "How would you handle a sudden concept drift in your model's predictions related to {{{interviewFocus}}}?", "How would you explain your model's decision-making process to a non-technical stakeholder, especially for {{{faangLevel}}} roles that require strong communication?"
+        {{/if}}
 
 4.  **suggestedStudyConcepts**: (Array of strings)
     *   List 2-4 key concepts, technologies, frameworks, or areas of knowledge directly relevant to the original question, the 'interviewFocus', and what would be expected for someone at '{{{faangLevel}}}' to master.
     *   Be specific. Instead of "data structures," suggest "advanced hash map collision resolution techniques for '{{{interviewFocus}}}' at scale" or "understanding eventual consistency vs. strong consistency trade-offs in distributed databases when dealing with '{{{interviewFocus}}}' for an L5/L6 role."
+        {{#if (eq interviewType "machine learning")}}
+        For ML, this could be specific algorithms (e.g., "Transformer architectures for NLP tasks related to {{{interviewFocus}}}"), MLOps tools/practices (e.g., "Kubeflow or MLflow for model lifecycle management at {{{faangLevel}}} scale"), or advanced statistical concepts relevant to {{{interviewFocus}}}.
+        {{/if}}
 
 Ensure your output is in the specified JSON format with these four keys.
 Focus on providing actionable, insightful, and educational content, calibrated to the '{{{faangLevel}}}'.

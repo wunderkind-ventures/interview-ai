@@ -103,13 +103,28 @@ Your goal is to simulate a multi-turn conversational deep-dive.
     *   The subsequent strings in the array MUST be the probing follow-up questions.
     *   The entire set of questions should flow naturally, as if in a real-time conversation, starting broad and progressively narrowing focus or exploring related dimensions. Ensure the scenario has enough depth for a rich discussion but isn't overly prescriptive, allowing the candidate room to define their approach. The follow-ups should feel like natural progressions in a conversation, adapting to potential lines of reasoning.
     *   Example of flow: Initial: "Design a new product for X market, with a specific focus on {{{interviewFocus}}}." Follow-ups: "Who are the key user segments for this {{{interviewFocus}}} and how would you prioritize them?", "What would be your MVP for {{{interviewFocus}}} and why?", "How would you measure success specifically for the {{{interviewFocus}}} aspect?", "What are the major risks related to {{{interviewFocus}}} and how would you mitigate them?".
-    *   The questions should be tailored. For 'technical system design', the scenario would be a system to design, and follow-ups would probe architecture, components, scalability, etc., always relating back to the 'interviewFocus' and 'faangLevel' complexity. For 'product sense', it could be a product strategy or design challenge centered on the 'interviewFocus' and appropriate 'faangLevel' scope. For 'behavioral', it could be a complex hypothetical situation requiring demonstration of specific skills, potentially framed by the 'interviewFocus'.
+    *   The questions should be tailored. 
+        {{#if (eq interviewType "technical system design")}}For 'technical system design', the scenario would be a system to design, and follow-ups would probe architecture, components, scalability, etc., always relating back to the 'interviewFocus' and 'faangLevel' complexity.{{/if}}
+        {{#if (eq interviewType "product sense")}}For 'product sense', it could be a product strategy or design challenge centered on the 'interviewFocus' and appropriate 'faangLevel' scope.{{/if}}
+        {{#if (eq interviewType "behavioral")}}For 'behavioral', it could be a complex hypothetical situation requiring demonstration of specific skills, potentially framed by the 'interviewFocus'.{{/if}}
+        {{#if (eq interviewType "machine learning")}}
+        For 'machine learning', the case study MUST be an ML System Design problem. The scenario should describe a real-world problem requiring an ML solution (e.g., 'Design a personalized recommendation system for an e-commerce platform' or 'Develop a strategy for detecting deepfakes in user-generated video content').
+        Follow-up questions should probe:
+        - Data collection and preprocessing strategies relevant to {{{interviewFocus}}}.
+        - Feature engineering choices and their rationale.
+        - Model selection considerations (e.g., tradeoffs between different types of models for {{{interviewFocus}}}).
+        - Training and validation methodologies.
+        - Deployment considerations (scalability, latency, cost for {{{faangLevel}}}).
+        - Monitoring strategies and how to address model drift or performance degradation.
+        - Ethical considerations if relevant to the {{{interviewFocus}}} or problem.
+        Ensure the complexity is appropriate for the specified 'faangLevel'.
+        {{/if}}
 
 {{#if (eq (toLowerCase targetCompany) "amazon")}}
 **Amazon-Specific Considerations (if 'targetCompany' is Amazon):**
 Pay special attention to Amazon's Leadership Principles.
 1.  **Behavioral:** If the case study leans behavioral, questions MUST provide an opportunity to demonstrate these principles. Frame questions using situations or ask for examples (e.g., "Imagine in this scenario, you encountered strong resistance to your proposed {{{interviewFocus}}} strategy. Tell me about a time you Insisted on the Highest Standards to overcome such a challenge.").
-2.  **Product Sense / Technical System Design:** Frame the case study and follow-ups to subtly align with principles like Customer Obsession (e.g., "How would your design for {{{interviewFocus}}} ensure the best possible customer experience under failure conditions?"), Ownership, or Invent and Simplify (e.g., "Within this case, propose a significantly simpler approach to solve X problem related to {{{interviewFocus}}}.").
+2.  **Product Sense / Technical System Design / Machine Learning:** Frame the case study and follow-ups to subtly align with principles like Customer Obsession (e.g., "How would your design for {{{interviewFocus}}} ensure the best possible customer experience under failure conditions?"), Ownership, or Invent and Simplify (e.g., "Within this case, propose a significantly simpler approach to solve X problem related to {{{interviewFocus}}}.").
 Amazon's Leadership Principles for your reference:
 {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}
 - {{{this}}}

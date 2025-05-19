@@ -7,6 +7,7 @@ export interface InterviewSetupData {
   faangLevel: FaangLevel;
   jobDescription?: string;
   resume?: string;
+  targetedSkills?: string[]; // Added targetedSkills
 }
 
 export interface InterviewQuestion {
@@ -17,7 +18,7 @@ export interface InterviewQuestion {
 export interface Answer {
   questionId: string;
   answerText: string;
-  timeTakenMs?: number; // Added to store time taken for the answer
+  timeTakenMs?: number;
 }
 
 export interface FeedbackItem {
@@ -25,7 +26,7 @@ export interface FeedbackItem {
   questionText: string;
   answerText: string;
   feedbackText: string;
-  timeTakenMs?: number; // Added to display time taken alongside feedback
+  timeTakenMs?: number;
 }
 
 export interface InterviewFeedback {
@@ -37,10 +38,11 @@ export interface InterviewSessionData extends InterviewSetupData {
   questions: InterviewQuestion[];
   answers: Answer[];
   currentQuestionIndex: number;
-  currentQuestionStartTime?: number; // Added to track start time of current question
+  currentQuestionStartTime?: number;
   isLoading: boolean;
   error?: string | null;
   interviewStarted: boolean;
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
+  // targetedSkills is already part of InterviewSetupData, so it's inherited
 }

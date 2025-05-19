@@ -2,10 +2,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, InterviewType, FaangLevel, INTERVIEW_STYLES, InterviewStyle } from "@/lib/constants";
+import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, InterviewType, FaangLevel, INTERVIEW_STYLES, InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, Skill } from "@/lib/constants";
 import type { InterviewSetupData } from "@/lib/types";
 import { summarizeResume } from "@/ai/flows/summarize-resume";
 import type { SummarizeResumeOutput } from "@/ai/flows/summarize-resume";
@@ -46,6 +47,7 @@ const formSchema = z.object({
   }),
   jobDescription: z.string().optional(),
   resume: z.string().optional(),
+  targetedSkills: z.array(z.string()).optional(),
 });
 
 export default function InterviewSetupForm() {
@@ -66,8 +68,17 @@ export default function InterviewSetupForm() {
       faangLevel: FAANG_LEVELS[1].value,
       jobDescription: "",
       resume: "",
+      targetedSkills: [],
     },
   });
+
+  const watchedInterviewType = form.watch("interviewType");
+  const availableSkills = watchedInterviewType ? SKILLS_BY_INTERVIEW_TYPE[watchedInterviewType] : [];
+
+  useEffect(() => {
+    // Reset targeted skills when interview type changes
+    form.setValue("targetedSkills", []);
+  }, [watchedInterviewType, form]);
 
   const handleResumeAnalysis = async () => {
     const currentResumeText = form.getValues('resume');
@@ -75,17 +86,16 @@ export default function InterviewSetupForm() {
       setResumeSummary(null);
       setResumeSummaryError(null);
       setSummarizedForResumeText(null);
-      setIsSummarizingResume(false); // Ensure loading is stopped if text is cleared
+      setIsSummarizingResume(false);
       return;
     }
 
     if (currentResumeText === summarizedForResumeText && !resumeSummaryError) {
-      // No change in resume text and no previous error, or summary already exists
       return;
     }
 
     setIsSummarizingResume(true);
-    setResumeSummary(null); // Clear previous summary
+    setResumeSummary(null);
     setResumeSummaryError(null);
 
     try {
@@ -105,7 +115,6 @@ export default function InterviewSetupForm() {
     }
   };
   
-  // Effect to load existing setup from localStorage
   useEffect(() => {
     const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
     if (storedSetup) {
@@ -117,13 +126,10 @@ export default function InterviewSetupForm() {
           faangLevel: parsedSetup.faangLevel,
           jobDescription: parsedSetup.jobDescription || "",
           resume: parsedSetup.resume || "",
+          targetedSkills: parsedSetup.targetedSkills || [],
         });
-        // Optionally, trigger analysis if resume was present
         if (parsedSetup.resume && parsedSetup.resume.trim() !== "") {
-           // Set summarizedForResumeText to avoid initial auto-analysis if resume is unchanged
            setSummarizedForResumeText(parsedSetup.resume); 
-           // No, don't auto-analyze on load. Let user blur or click.
-           // handleResumeAnalysis(); 
         }
       } catch (e) {
         console.error("Failed to parse stored interview setup:", e);
@@ -141,9 +147,9 @@ export default function InterviewSetupForm() {
       faangLevel: values.faangLevel,
       jobDescription: values.jobDescription,
       resume: values.resume,
+      targetedSkills: values.targetedSkills,
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
-    // Clear any existing session data to ensure a fresh start for the new setup
     localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
     router.push("/interview");
   }
@@ -201,6 +207,60 @@ export default function InterviewSetupForm() {
                 </FormItem>
               )}
             />
+
+            {availableSkills.length > 0 && (
+              <FormField
+                control={form.control}
+                name="targetedSkills"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center text-lg">
+                      <Target className="mr-2 h-5 w-5 text-primary" />
+                      Targeted Skills (Optional)
+                    </FormLabel>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 p-3 border rounded-md bg-background">
+                      {availableSkills.map((skill) => (
+                        <FormField
+                          key={skill.value}
+                          control={form.control}
+                          name="targetedSkills"
+                          render={({ field: skillField }) => {
+                            return (
+                              <FormItem
+                                key={skill.value}
+                                className="flex flex-row items-start space-x-3 space-y-0"
+                              >
+                                <FormControl>
+                                  <Checkbox
+                                    checked={skillField.value?.includes(skill.value)}
+                                    onCheckedChange={(checked) => {
+                                      return checked
+                                        ? skillField.onChange([...(skillField.value || []), skill.value])
+                                        : skillField.onChange(
+                                            (skillField.value || []).filter(
+                                              (value) => value !== skill.value
+                                            )
+                                          );
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormLabel className="text-sm font-normal">
+                                  {skill.label}
+                                </FormLabel>
+                              </FormItem>
+                            );
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <FormDescription>
+                      Select specific skills to focus on within the chosen interview type.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -305,7 +365,7 @@ export default function InterviewSetupForm() {
                       placeholder="Paste your resume content here for further personalization..."
                       className="resize-y min-h-[120px]"
                       {...field}
-                      onBlur={handleResumeAnalysis} // Analyze on blur
+                      onBlur={handleResumeAnalysis}
                     />
                   </FormControl>
                   <FormDescription>
@@ -365,4 +425,3 @@ export default function InterviewSetupForm() {
     </Card>
   );
 }
-

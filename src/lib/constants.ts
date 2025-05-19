@@ -3,7 +3,6 @@ export const INTERVIEW_TYPES = [
   { value: "product sense", label: "Product Sense" },
   { value: "technical system design", label: "Technical System Design" },
   { value: "behavioral", label: "Behavioral" },
-  // "Case Study" removed as a type, will be an interview style
 ] as const;
 
 export type InterviewType = typeof INTERVIEW_TYPES[number]['value'];
@@ -28,4 +27,33 @@ export type FaangLevel = typeof FAANG_LEVELS[number]['value'];
 export const LOCAL_STORAGE_KEYS = {
   INTERVIEW_SETUP: 'interviewAI_setup',
   INTERVIEW_SESSION: 'interviewAI_session',
+};
+
+export interface Skill {
+  value: string;
+  label: string;
+}
+
+export const SKILLS_BY_INTERVIEW_TYPE: Record<InterviewType, Skill[]> = {
+  "product sense": [
+    { value: "user-empathy", label: "User Empathy" },
+    { value: "product-strategy", label: "Product Strategy" },
+    { value: "metrics-analytics", label: "Metrics & Analytics" },
+    { value: "execution", label: "Execution & Prioritization" },
+    { value: "innovation-creativity", label: "Innovation & Creativity" },
+  ],
+  "technical system design": [
+    { value: "scalability", label: "Scalability & Performance" },
+    { value: "api-design", label: "API Design & Integration" },
+    { value: "data-modeling", label: "Data Modeling & Databases" },
+    { value: "distributed-systems", label: "Distributed Systems & Architecture" },
+    { value: "trade-offs-decision-making", label: "Trade-offs & Decision Making" },
+  ],
+  "behavioral": [
+    { value: "leadership", label: "Leadership & Influence" },
+    { value: "teamwork-collaboration", label: "Teamwork & Collaboration" },
+    { value: "conflict-resolution", label: "Conflict Resolution & Adaptability" },
+    { value: "problem-solving-decision-making", label: "Problem Solving & Decision Making" },
+    { value: "communication-skills", label: "Communication Skills" },
+  ],
 };

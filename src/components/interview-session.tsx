@@ -16,7 +16,7 @@ import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, Inter
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[] } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -26,6 +26,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   interviewStarted: false,
   interviewFinished: false,
   interviewStyle: "simple-qa", 
+  targetedSkills: [],
 };
 
 export default function InterviewSession() {
@@ -56,7 +57,7 @@ export default function InterviewSession() {
       ...initialSessionState, 
       isLoading: true,
       interviewStarted: true,
-      currentQuestionStartTime: Date.now(), // Set start time for the first question
+      currentQuestionStartTime: Date.now(), 
     }));
 
     try {
@@ -66,6 +67,7 @@ export default function InterviewSession() {
         interviewType: setupData.interviewType,
         interviewStyle: setupData.interviewStyle,
         faangLevel: setupData.faangLevel,
+        targetedSkills: setupData.targetedSkills || [],
       };
       const response = await customizeInterviewQuestions(aiInput);
       
@@ -85,7 +87,7 @@ export default function InterviewSession() {
           questions: questionsWithIds, 
           isLoading: false, 
           error: null,
-          currentQuestionStartTime: Date.now(), // Reset start time as questions are now loaded
+          currentQuestionStartTime: Date.now(), 
         };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSession));
         return newSession;
@@ -116,7 +118,6 @@ export default function InterviewSession() {
         return;
       }
       setSessionData(parsedSession);
-       // If session is active but currentQuestionStartTime is missing (e.g., older session or reload issue), set it.
       if (parsedSession.interviewStarted && !parsedSession.interviewFinished && !parsedSession.currentQuestionStartTime && parsedSession.questions.length > 0) {
         setSessionData(prev => {
           if (!prev) return null;
@@ -133,6 +134,7 @@ export default function InterviewSession() {
           faangLevel: parsedSession.faangLevel,
           jobDescription: parsedSession.jobDescription,
           resume: parsedSession.resume,
+          targetedSkills: parsedSession.targetedSkills,
         };
         loadInterview(setupData);
       }
@@ -166,7 +168,7 @@ export default function InterviewSession() {
         answers: updatedAnswers,
         isLoading: false,
         interviewFinished: true,
-        currentQuestionStartTime: undefined, // Clear start time as interview is finished
+        currentQuestionStartTime: undefined, 
       };
       toast({ title: "Interview Complete!", description: "Redirecting to feedback page." });
       localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
@@ -178,13 +180,13 @@ export default function InterviewSession() {
         answers: updatedAnswers,
         currentQuestionIndex: sessionData.currentQuestionIndex + 1,
         isLoading: false, 
-        currentQuestionStartTime: Date.now(), // Set start time for the next question
+        currentQuestionStartTime: Date.now(), 
       };
       localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
       setSessionData(newSessionData);
     }
     setCurrentAnswer("");
-    setCurrentTime(0); // Reset timer display for next question
+    setCurrentTime(0); 
   };
 
   const handleEndInterview = () => {
@@ -208,7 +210,7 @@ export default function InterviewSession() {
       answers: updatedAnswers,
       isLoading: false,
       interviewFinished: true,
-      currentQuestionStartTime: undefined, // Clear start time
+      currentQuestionStartTime: undefined, 
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
     setSessionData(newSessionData);
@@ -238,7 +240,6 @@ export default function InterviewSession() {
   }
   
   if (sessionData.interviewFinished) {
-    // This state should ideally be caught by the useEffect redirecting to /feedback
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <CheckCircle className="h-16 w-16 text-green-500 mb-4" />

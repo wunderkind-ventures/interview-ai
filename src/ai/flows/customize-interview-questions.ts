@@ -2,7 +2,7 @@
 'use server';
 
 /**
- * @fileOverview Customizes interview questions based on a provided job description, interview type, style, and other factors.
+ * @fileOverview Customizes interview questions based on a provided job description, interview type, style, targeted skills, and other factors.
  *
  * - customizeInterviewQuestions - A function that customizes interview questions.
  * - CustomizeInterviewQuestionsInput - The input type for the customizeInterviewQuestions function.
@@ -30,6 +30,10 @@ const CustomizeInterviewQuestionsInputSchema = z.object({
     .string()
     .optional()
     .describe('The target FAANG level for difficulty adjustment.'),
+  targetedSkills: z
+    .array(z.string())
+    .optional()
+    .describe('Specific skills the user wants to focus on.'),
 });
 
 export type CustomizeInterviewQuestionsInput = z.infer<
@@ -62,7 +66,7 @@ const prompt = ai.definePrompt({
   },
   prompt: `You are an expert interviewer specializing in FAANG interviews.
 
-You will generate customized interview questions based on the provided job description, resume, interview type, interview style, and FAANG level.
+You will generate customized interview questions based on the provided job description, resume, interview type, interview style, FAANG level, and targeted skills.
 
 {{#if (eq interviewStyle "case-study")}}
 The questions should be suitable for a multi-turn conversation. They should often start with a broad scenario related to the interview type (e.g., a product design challenge for "product sense", a system scaling problem for "technical system design"). The initial question should be open-ended, encouraging a detailed response. You can also suggest potential areas for deeper dives or follow-up questions that an interviewer might ask, if appropriate within the 5-10 question limit for the initial set. The goal is to simulate the beginning of a case study.
@@ -79,8 +83,14 @@ Interview Style: {{{interviewStyle}}}
 {{~#if faangLevel}}
 FAANG Level: {{{faangLevel}}}
 {{~/if}}
+{{#if targetedSkills.length}}
+Prioritize questions that assess the following skills:
+{{#each targetedSkills}}
+- {{{this}}}
+{{/each}}
+{{/if}}
 
-Generate 5-10 interview questions tailored to the inputs. Ensure the questions are relevant and challenging for the specified FAANG level and interview type.
+Generate 5-10 interview questions tailored to the inputs. Ensure the questions are relevant and challenging for the specified FAANG level, interview type, and targeted skills if provided.
 Output the questions as a JSON array of strings.
 `,
 });

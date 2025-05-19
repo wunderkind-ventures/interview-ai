@@ -30,8 +30,9 @@ export interface InterviewQuestion {
   idealAnswerCharacteristics?: string[];
   // Fields for dynamic case studies
   isInitialCaseQuestion?: boolean;
-  fullScenarioDescription?: string; // The full descriptive text of the case scenario
-  internalNotesForFollowUpGenerator?: string; // Context for the AI to generate next follow-up
+  fullScenarioDescription?: string; 
+  internalNotesForFollowUpGenerator?: string; 
+  isLikelyFinalFollowUp?: boolean; // Added to indicate if a dynamic follow-up is likely the last
 }
 
 export interface Answer {
@@ -80,3 +81,5 @@ export interface InterviewSessionData extends InterviewSetupData {
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
 }
 
+
+    

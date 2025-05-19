@@ -4,17 +4,21 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-questions";
-import type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions"; // Updated import
+import type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
+import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-follow-up";
+import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
+
+const MAX_CASE_FOLLOW_UPS = 4; // Max number of follow-ups after the initial question
 
 const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string } = {
   questions: [],
@@ -30,6 +34,8 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   targetCompany: undefined,
   jobTitle: undefined,
   interviewFocus: undefined,
+  currentCaseTurnNumber: 0,
+  caseConversationHistory: [],
 };
 
 export default function InterviewSession() {
@@ -38,6 +44,7 @@ export default function InterviewSession() {
   const [sessionData, setSessionData] = useState<InterviewSessionData | null>(null);
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [currentTime, setCurrentTime] = useState(0);
+  const [isGeneratingFollowUp, setIsGeneratingFollowUp] = useState(false);
 
   useEffect(() => {
     let timerInterval: NodeJS.Timeout | undefined;
@@ -61,6 +68,10 @@ export default function InterviewSession() {
       isLoading: true,
       interviewStarted: true,
       currentQuestionStartTime: Date.now(),
+      // Initialize case study specific fields
+      interviewStyle: setupData.interviewStyle,
+      currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
+      caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
     }));
 
     try {
@@ -75,16 +86,23 @@ export default function InterviewSession() {
         targetCompany: setupData.targetCompany,
         interviewFocus: setupData.interviewFocus,
       };
-      const response: CustomizeInterviewQuestionsOutput = await customizeInterviewQuestions(aiInput); // Expect new output type
+      const response: CustomizeInterviewQuestionsOutput = await customizeInterviewQuestions(aiInput);
       
       if (!response.customizedQuestions || response.customizedQuestions.length === 0) {
         throw new Error("AI did not return any questions. Please try again.");
       }
 
+      // For case studies, the orchestrator now returns only the initial setup question.
+      // Additional questions are generated dynamically.
       const questionsWithIds: InterviewQuestion[] = response.customizedQuestions.map((q, i) => ({
         id: `q-${Date.now()}-${i}`,
         text: q.questionText,
-        idealAnswerCharacteristics: q.idealAnswerCharacteristics, // Store characteristics
+        idealAnswerCharacteristics: q.idealAnswerCharacteristics,
+        // Case study specific fields from orchestrator
+        isInitialCaseQuestion: q.isInitialCaseQuestion,
+        fullScenarioDescription: q.fullScenarioDescription,
+        internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
+        isLikelyFinalFollowUp: false, // Initial question is not the final one
       }));
 
       setSessionData(prev => {
@@ -124,6 +142,12 @@ export default function InterviewSession() {
         router.replace("/feedback");
         return;
       }
+      // Ensure case study specific fields are initialized if loading an older session
+      if (parsedSession.interviewStyle === 'case-study') {
+        parsedSession.currentCaseTurnNumber = parsedSession.currentCaseTurnNumber ?? 0;
+        parsedSession.caseConversationHistory = parsedSession.caseConversationHistory ?? [];
+      }
+
       setSessionData(parsedSession);
       if (parsedSession.interviewStarted && !parsedSession.interviewFinished && !parsedSession.currentQuestionStartTime && parsedSession.questions.length > 0) {
         setSessionData(prev => {
@@ -133,9 +157,7 @@ export default function InterviewSession() {
           return updatedSession;
         });
       }
-
-      // Ensure questions are loaded if they are missing (e.g., after a bad save or version update)
-      // but only if the interview has started and is not in an error state.
+      
       if (parsedSession.interviewStarted && parsedSession.questions.length === 0 && !parsedSession.error && !parsedSession.isLoading) {
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
@@ -150,7 +172,6 @@ export default function InterviewSession() {
         };
         loadInterview(setupData);
       } else if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
-         // This covers the initial loadInterview call when setup is done
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
           interviewStyle: parsedSession.interviewStyle,
@@ -178,40 +199,117 @@ export default function InterviewSession() {
     }
   }, [loadInterview, router, toast]);
 
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
     if (!sessionData || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
+    if (isGeneratingFollowUp) return;
 
     const endTime = Date.now();
     const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
 
-    const currentQuestionId = sessionData.questions[sessionData.currentQuestionIndex].id;
-    const newAnswer: Answer = { questionId: currentQuestionId, answerText: currentAnswer, timeTakenMs };
-    const updatedAnswers = [...sessionData.answers, newAnswer];
+    const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
+    const newAnswer: Answer = { questionId: currentQ.id, answerText: currentAnswer, timeTakenMs };
     
-    let newSessionData: InterviewSessionData;
+    let updatedAnswers = [...sessionData.answers, newAnswer];
+    let newSessionData: InterviewSessionData | null = null;
 
-    if (sessionData.currentQuestionIndex === sessionData.questions.length - 1) {
-      newSessionData = {
-        ...sessionData,
-        answers: updatedAnswers,
-        isLoading: false,
-        interviewFinished: true,
-        currentQuestionStartTime: undefined,
-      };
-      toast({ title: "Interview Complete!", description: "Redirecting to feedback page." });
+    if (sessionData.interviewStyle === 'case-study') {
+      setIsGeneratingFollowUp(true);
+      const updatedCaseConversationHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
+      const updatedCurrentCaseTurnNumber = (sessionData.currentCaseTurnNumber || 0) + 1;
+
+      const isLastFollowUp = currentQ.isLikelyFinalFollowUp || updatedCurrentCaseTurnNumber > MAX_CASE_FOLLOW_UPS;
+
+      if (isLastFollowUp) {
+        newSessionData = {
+          ...sessionData,
+          answers: updatedAnswers,
+          caseConversationHistory: updatedCaseConversationHistory,
+          currentCaseTurnNumber: updatedCurrentCaseTurnNumber,
+          isLoading: false,
+          interviewFinished: true,
+          currentQuestionStartTime: undefined,
+        };
+        toast({ title: "Case Study Complete!", description: "Redirecting to feedback page." });
+      } else {
+        try {
+          const initialQuestion = sessionData.questions.find(q => q.isInitialCaseQuestion);
+          if (!initialQuestion || !initialQuestion.internalNotesForFollowUpGenerator) {
+            throw new Error("Initial case study setup notes not found.");
+          }
+
+          const followUpInput: GenerateDynamicCaseFollowUpInput = {
+            internalNotesFromInitialScenario: initialQuestion.internalNotesForFollowUpGenerator,
+            previousQuestionText: currentQ.text,
+            previousUserAnswerText: currentAnswer,
+            conversationHistory: updatedCaseConversationHistory,
+            interviewContext: { // Pass relevant parts of sessionData as InterviewSetupData
+              interviewType: sessionData.interviewType,
+              interviewStyle: sessionData.interviewStyle,
+              faangLevel: sessionData.faangLevel,
+              jobTitle: sessionData.jobTitle,
+              jobDescription: sessionData.jobDescription,
+              resume: sessionData.resume,
+              targetedSkills: sessionData.targetedSkills,
+              targetCompany: sessionData.targetCompany,
+              interviewFocus: sessionData.interviewFocus,
+            },
+            currentTurnNumber: updatedCurrentCaseTurnNumber,
+          };
+
+          const followUpResponse: GenerateDynamicCaseFollowUpOutput = await generateDynamicCaseFollowUp(followUpInput);
+          
+          const newFollowUpQ: InterviewQuestion = {
+            id: `q-${Date.now()}-fu-${updatedCurrentCaseTurnNumber}`,
+            text: followUpResponse.followUpQuestionText,
+            idealAnswerCharacteristics: followUpResponse.idealAnswerCharacteristicsForFollowUp,
+            isLikelyFinalFollowUp: followUpResponse.isLikelyFinalFollowUp,
+          };
+
+          newSessionData = {
+            ...sessionData,
+            answers: updatedAnswers,
+            questions: [...sessionData.questions, newFollowUpQ],
+            currentQuestionIndex: sessionData.currentQuestionIndex + 1,
+            isLoading: false,
+            currentQuestionStartTime: Date.now(),
+            currentCaseTurnNumber: updatedCurrentCaseTurnNumber,
+            caseConversationHistory: updatedCaseConversationHistory,
+          };
+
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : "Failed to generate follow-up question.";
+          toast({ title: "Error", description: errorMessage, variant: "destructive" });
+          newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage }; // Keep current question
+        }
+      }
+      setIsGeneratingFollowUp(false);
+    } else { // Simple Q&A or Take Home
+      if (sessionData.currentQuestionIndex === sessionData.questions.length - 1) {
+        newSessionData = {
+          ...sessionData,
+          answers: updatedAnswers,
+          isLoading: false,
+          interviewFinished: true,
+          currentQuestionStartTime: undefined,
+        };
+        toast({ title: "Interview Complete!", description: "Redirecting to feedback page." });
+      } else {
+        newSessionData = {
+          ...sessionData,
+          answers: updatedAnswers,
+          currentQuestionIndex: sessionData.currentQuestionIndex + 1,
+          isLoading: false,
+          currentQuestionStartTime: Date.now(),
+        };
+      }
+    }
+
+    if (newSessionData) {
       localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
       setSessionData(newSessionData);
-      router.push("/feedback");
-    } else {
-      newSessionData = {
-        ...sessionData,
-        answers: updatedAnswers,
-        currentQuestionIndex: sessionData.currentQuestionIndex + 1,
-        isLoading: false,
-        currentQuestionStartTime: Date.now(),
-      };
-      localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSessionData));
-      setSessionData(newSessionData);
+      if (newSessionData.interviewFinished) {
+        router.push("/feedback");
+      }
     }
     setCurrentAnswer("");
     setCurrentTime(0);
@@ -223,19 +321,24 @@ export default function InterviewSession() {
     const endTime = Date.now();
     const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
     
-    const currentQuestionId = sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length
-                              ? sessionData.questions[sessionData.currentQuestionIndex]?.id
+    const currentQ = sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length
+                              ? sessionData.questions[sessionData.currentQuestionIndex]
                               : undefined;
     let updatedAnswers = sessionData.answers;
+    let updatedCaseHistory = sessionData.caseConversationHistory;
 
-    if (currentQuestionId && currentAnswer.trim() !== "") {
-       const newAnswer: Answer = { questionId: currentQuestionId, answerText: currentAnswer, timeTakenMs };
+    if (currentQ && currentAnswer.trim() !== "") {
+       const newAnswer: Answer = { questionId: currentQ.id, answerText: currentAnswer, timeTakenMs };
        updatedAnswers = [...sessionData.answers, newAnswer];
+       if (sessionData.interviewStyle === 'case-study') {
+         updatedCaseHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
+       }
     }
     
     const newSessionData: InterviewSessionData = {
       ...sessionData,
       answers: updatedAnswers,
+      caseConversationHistory: updatedCaseHistory,
       isLoading: false,
       interviewFinished: true,
       currentQuestionStartTime: undefined,
@@ -247,7 +350,7 @@ export default function InterviewSession() {
   };
 
 
-  if (!sessionData || (sessionData.isLoading && !sessionData.questions.length)) {
+  if (!sessionData || (sessionData.isLoading && !sessionData.questions.length && !isGeneratingFollowUp)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
@@ -268,6 +371,7 @@ export default function InterviewSession() {
   }
   
   if (sessionData.interviewFinished) {
+    // This check might be redundant if router.push already happened, but good for safety.
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
@@ -277,8 +381,13 @@ export default function InterviewSession() {
   }
 
   const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
-  const progress = sessionData.questions.length > 0 ? ((sessionData.currentQuestionIndex + 1) / sessionData.questions.length) * 100 : 0;
   const styleLabel = INTERVIEW_STYLES.find(s => s.value === sessionData.interviewStyle)?.label || sessionData.interviewStyle;
+  
+  const isCaseStudyStyle = sessionData.interviewStyle === 'case-study';
+  const progressValue = isCaseStudyStyle 
+    ? ((sessionData.currentCaseTurnNumber || 0) / (MAX_CASE_FOLLOW_UPS +1)) * 100 // +1 for initial question
+    : (sessionData.questions.length > 0 ? ((sessionData.currentQuestionIndex + 1) / sessionData.questions.length) * 100 : 0);
+
 
   return (
     <Card className="w-full max-w-3xl mx-auto shadow-xl">
@@ -295,7 +404,14 @@ export default function InterviewSession() {
               </span>
             )}
             <span>Level: {sessionData.faangLevel}</span>
-             <span>Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}</span>
+            {isCaseStudyStyle ? (
+              <span className="flex items-center">
+                <Layers className="h-4 w-4 mr-1 text-primary" />
+                Turn: {(sessionData.currentCaseTurnNumber || 0) + 1}
+              </span>
+            ) : (
+               <span>Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}</span>
+            )}
             {sessionData.targetCompany && (
               <span className="flex items-center">
                 <Building className="h-4 w-4 mr-1 text-primary" /> Target: {sessionData.targetCompany}
@@ -314,13 +430,28 @@ export default function InterviewSession() {
             </div>
           )}
         </div>
-        <Progress value={progress} className="mt-2" />
+        <Progress value={progressValue} className="mt-2" />
       </CardHeader>
       <CardContent className="space-y-6">
-        {currentQuestion ? (
+        {isGeneratingFollowUp && (
+          <div className="flex flex-col items-center justify-center min-h-[100px]">
+            <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />
+            <p className="text-lg text-muted-foreground">Generating next follow-up question...</p>
+          </div>
+        )}
+        {!isGeneratingFollowUp && currentQuestion ? (
           <div>
+            {currentQuestion.isInitialCaseQuestion && currentQuestion.fullScenarioDescription && (
+              <div className="mb-6 p-4 border rounded-md bg-secondary/30">
+                <h3 className="text-lg font-semibold mb-2 text-primary">Case Scenario:</h3>
+                <p className="whitespace-pre-wrap text-base">{currentQuestion.fullScenarioDescription}</p>
+              </div>
+            )}
             <h2 className="text-xl font-semibold mb-3 text-foreground">
-              {sessionData.interviewStyle === 'take-home' ? 'Take Home Assignment:' : `Question ${sessionData.currentQuestionIndex + 1}:`}
+              {sessionData.interviewStyle === 'take-home' ? 'Take Home Assignment:' : 
+               currentQuestion.isInitialCaseQuestion ? 'Initial Question:' :
+               isCaseStudyStyle ? `Follow-up Question (Turn ${(sessionData.currentCaseTurnNumber || 0) + 1}):` :
+               `Question ${sessionData.currentQuestionIndex + 1}:`}
             </h2>
             <p className={`text-lg mb-4 ${sessionData.interviewStyle === 'take-home' ? 'whitespace-pre-wrap p-4 border rounded-md bg-secondary/30' : ''}`}>
                 {currentQuestion.text}
@@ -331,25 +462,32 @@ export default function InterviewSession() {
               onChange={(e) => setCurrentAnswer(e.target.value)}
               className="min-h-[200px] text-base"
               rows={sessionData.interviewStyle === 'take-home' ? 15 : 8}
+              disabled={isGeneratingFollowUp}
             />
           </div>
-        ) : (
-          <p>No questions available. This might be an error.</p>
+        ) : !isGeneratingFollowUp && (
+          <p>No questions available or loading follow-up. This might be an error if not in a case study.</p>
         )}
       </CardContent>
       <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={handleEndInterview} disabled={sessionData.isLoading}>
+        <Button variant="outline" onClick={handleEndInterview} disabled={sessionData.isLoading || isGeneratingFollowUp}>
           End Interview
         </Button>
         <Button
           onClick={handleNextQuestion}
-          disabled={sessionData.isLoading || !currentAnswer.trim()}
+          disabled={sessionData.isLoading || !currentAnswer.trim() || isGeneratingFollowUp}
           className="bg-accent hover:bg-accent/90"
         >
-          {sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish & View Feedback" : "Next Question"}
-          <ArrowRight className="ml-2 h-4 w-4" />
+          {isGeneratingFollowUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {sessionData.interviewStyle === 'case-study' 
+            ? (currentQuestion?.isLikelyFinalFollowUp || (sessionData.currentCaseTurnNumber || 0) >= MAX_CASE_FOLLOW_UPS ? "Finish Case & View Feedback" : "Submit & Get Next Follow-up")
+            : (sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish & View Feedback" : "Next Question")
+          }
+          {!isGeneratingFollowUp && <ArrowRight className="ml-2 h-4 w-4" />}
         </Button>
       </CardFooter>
     </Card>
   );
 }
+
+    

@@ -7,23 +7,23 @@ import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-ques
 import type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
 import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-follow-up";
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
-import { explainConcept } from "@/ai/flows/explain-concept"; // Added
-import type { ExplainConceptInput, ExplainConceptOutput } from "@/ai/flows/explain-concept"; // Added
+import { explainConcept } from "@/ai/flows/explain-concept";
+import type { ExplainConceptInput, ExplainConceptOutput } from "@/ai/flows/explain-concept";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input"; // Added
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"; // Added
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle } from "lucide-react"; // Added Lightbulb, AlertTriangle
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star } from "lucide-react"; // Added Star
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
-const MAX_CASE_FOLLOW_UPS = 4; // Max number of follow-ups after the initial question
+const MAX_CASE_FOLLOW_UPS = 4;
 
 const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string } = {
   questions: [],
@@ -50,8 +50,8 @@ export default function InterviewSession() {
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [currentTime, setCurrentTime] = useState(0);
   const [isGeneratingFollowUp, setIsGeneratingFollowUp] = useState(false);
+  const [currentConfidenceScore, setCurrentConfidenceScore] = useState<number | null>(null); // Added
 
-  // State for "Explain Term" feature
   const [isExplainTermDialogOpen, setIsExplainTermDialogOpen] = useState(false);
   const [termToExplainInput, setTermToExplainInput] = useState("");
   const [explanation, setExplanation] = useState<string | null>(null);
@@ -99,7 +99,7 @@ export default function InterviewSession() {
         interviewFocus: setupData.interviewFocus,
       };
       const response: CustomizeInterviewQuestionsOutput = await customizeInterviewQuestions(aiInput);
-      
+
       if (!response.customizedQuestions || response.customizedQuestions.length === 0) {
         throw new Error("AI did not return any questions. Please try again.");
       }
@@ -111,7 +111,7 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false, 
+        isLikelyFinalFollowUp: false,
       }));
 
       setSessionData(prev => {
@@ -165,7 +165,7 @@ export default function InterviewSession() {
           return updatedSession;
         });
       }
-      
+
       if (parsedSession.interviewStarted && parsedSession.questions.length === 0 && !parsedSession.error && !parsedSession.isLoading) {
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
@@ -215,8 +215,13 @@ export default function InterviewSession() {
     const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
 
     const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
-    const newAnswer: Answer = { questionId: currentQ.id, answerText: currentAnswer, timeTakenMs };
-    
+    const newAnswer: Answer = {
+      questionId: currentQ.id,
+      answerText: currentAnswer,
+      timeTakenMs,
+      confidenceScore: currentConfidenceScore ?? undefined, // Add confidence score
+    };
+
     let updatedAnswers = [...sessionData.answers, newAnswer];
     let newSessionData: InterviewSessionData | null = null;
 
@@ -250,7 +255,7 @@ export default function InterviewSession() {
             previousQuestionText: currentQ.text,
             previousUserAnswerText: currentAnswer,
             conversationHistory: updatedCaseConversationHistory,
-            interviewContext: { 
+            interviewContext: {
               interviewType: sessionData.interviewType,
               interviewStyle: sessionData.interviewStyle,
               faangLevel: sessionData.faangLevel,
@@ -265,7 +270,7 @@ export default function InterviewSession() {
           };
 
           const followUpResponse: GenerateDynamicCaseFollowUpOutput = await generateDynamicCaseFollowUp(followUpInput);
-          
+
           const newFollowUpQ: InterviewQuestion = {
             id: `q-${Date.now()}-fu-${updatedCurrentCaseTurnNumber}`,
             text: followUpResponse.followUpQuestionText,
@@ -287,11 +292,11 @@ export default function InterviewSession() {
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : "Failed to generate follow-up question.";
           toast({ title: "Error", description: errorMessage, variant: "destructive" });
-          newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage }; 
+          newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage };
         }
       }
       setIsGeneratingFollowUp(false);
-    } else { 
+    } else {
       if (sessionData.currentQuestionIndex === sessionData.questions.length - 1) {
         newSessionData = {
           ...sessionData,
@@ -321,14 +326,15 @@ export default function InterviewSession() {
     }
     setCurrentAnswer("");
     setCurrentTime(0);
+    setCurrentConfidenceScore(null); // Reset confidence score for next question
   };
 
   const handleEndInterview = () => {
     if (!sessionData) return;
-    
+
     const endTime = Date.now();
     const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
-    
+
     const currentQ = sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length
                               ? sessionData.questions[sessionData.currentQuestionIndex]
                               : undefined;
@@ -336,13 +342,18 @@ export default function InterviewSession() {
     let updatedCaseHistory = sessionData.caseConversationHistory;
 
     if (currentQ && currentAnswer.trim() !== "") {
-       const newAnswer: Answer = { questionId: currentQ.id, answerText: currentAnswer, timeTakenMs };
+       const newAnswer: Answer = {
+         questionId: currentQ.id,
+         answerText: currentAnswer,
+         timeTakenMs,
+         confidenceScore: currentConfidenceScore ?? undefined, // Add confidence score
+        };
        updatedAnswers = [...sessionData.answers, newAnswer];
        if (sessionData.interviewStyle === 'case-study') {
          updatedCaseHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
        }
     }
-    
+
     const newSessionData: InterviewSessionData = {
       ...sessionData,
       answers: updatedAnswers,
@@ -385,6 +396,26 @@ export default function InterviewSession() {
     setIsExplainTermDialogOpen(true);
   };
 
+  const ConfidenceRating = () => (
+    <div className="mt-4">
+      <label className="block text-sm font-medium text-muted-foreground mb-2">Rate your confidence in this answer (1-5 stars):</label>
+      <div className="flex space-x-1">
+        {[1, 2, 3, 4, 5].map((rating) => (
+          <Button
+            key={rating}
+            variant="ghost"
+            size="icon"
+            onClick={() => setCurrentConfidenceScore(rating)}
+            className={`rounded-full p-1 ${currentConfidenceScore === rating ? "text-yellow-400 bg-yellow-50 hover:bg-yellow-100" : "text-gray-300 hover:text-yellow-300"}`}
+            aria-label={`Rate ${rating} star`}
+          >
+            <Star className={`h-6 w-6 ${currentConfidenceScore !== null && rating <= currentConfidenceScore ? "fill-current" : "fill-transparent"}`} />
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+
 
   if (!sessionData || (sessionData.isLoading && !sessionData.questions.length && !isGeneratingFollowUp)) {
     return (
@@ -405,7 +436,7 @@ export default function InterviewSession() {
       </Alert>
     );
   }
-  
+
   if (sessionData.interviewFinished) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -417,10 +448,10 @@ export default function InterviewSession() {
 
   const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
   const styleLabel = INTERVIEW_STYLES.find(s => s.value === sessionData.interviewStyle)?.label || sessionData.interviewStyle;
-  
+
   const isCaseStudyStyle = sessionData.interviewStyle === 'case-study';
-  const progressValue = isCaseStudyStyle 
-    ? ((sessionData.currentCaseTurnNumber || 0) / (MAX_CASE_FOLLOW_UPS +1)) * 100 
+  const progressValue = isCaseStudyStyle
+    ? ((sessionData.currentCaseTurnNumber || 0) / (MAX_CASE_FOLLOW_UPS +1)) * 100
     : (sessionData.questions.length > 0 ? ((sessionData.currentQuestionIndex + 1) / sessionData.questions.length) * 100 : 0);
 
 
@@ -484,7 +515,7 @@ export default function InterviewSession() {
               </div>
             )}
             <h2 className="text-xl font-semibold mb-1 text-foreground">
-              {sessionData.interviewStyle === 'take-home' ? 'Take Home Assignment:' : 
+              {sessionData.interviewStyle === 'take-home' ? 'Take Home Assignment:' :
                currentQuestion.isInitialCaseQuestion ? 'Initial Question:' :
                isCaseStudyStyle ? `Follow-up Question (Turn ${(sessionData.currentCaseTurnNumber || 0) + 1}):` :
                `Question ${sessionData.currentQuestionIndex + 1}:`}
@@ -503,6 +534,7 @@ export default function InterviewSession() {
               rows={sessionData.interviewStyle === 'take-home' ? 15 : 8}
               disabled={isGeneratingFollowUp}
             />
+            {sessionData.interviewStyle !== 'take-home' && <ConfidenceRating />}
           </div>
         ) : !isGeneratingFollowUp && (
           <p>No questions available or loading follow-up. This might be an error if not in a case study.</p>
@@ -518,7 +550,7 @@ export default function InterviewSession() {
           className="bg-accent hover:bg-accent/90"
         >
           {isGeneratingFollowUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {sessionData.interviewStyle === 'case-study' 
+          {sessionData.interviewStyle === 'case-study'
             ? (currentQuestion?.isLikelyFinalFollowUp || (sessionData.currentCaseTurnNumber || 0) >= MAX_CASE_FOLLOW_UPS ? "Finish Case & View Feedback" : "Submit & Get Next Follow-up")
             : (sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish & View Feedback" : "Next Question")
           }

@@ -32,6 +32,7 @@ const DraftPromptInputSchema = z.object({
       timeTakenMs: z.number().optional().describe('Time taken for the answer in milliseconds.'),
       indexPlusOne: z.number(),
       idealAnswerCharacteristics: z.array(z.string()).optional().describe("Pre-defined characteristics of a strong answer to this question."),
+      confidenceScore: z.number().min(1).max(5).optional().describe("User's self-rated confidence (1-5 stars) for their answer."),
     })
   ),
 });
@@ -56,11 +57,15 @@ const AIDraftFeedbackItemSchema = z.object({
   critique: z
     .string()
     .optional()
-    .describe('A concise overall critique of the answer to this specific question, considering its alignment with the faangLevel expectations for ambiguity, complexity, scope, and execution.'),
-  idealAnswerPointers: z // This was already here from a previous step, now it can be informed by idealAnswerCharacteristics
+    .describe('A concise overall critique of the answer to this specific question, considering its alignment with the faangLevel expectations for ambiguity, complexity, scope, and execution, and subtly acknowledging user confidence if provided.'),
+  idealAnswerPointers: z
     .array(z.string())
     .optional()
     .describe('A list of key points or elements that would typically be found in a strong answer to this specific question, reflecting the faangLevel. Consider the provided Ideal Answer Characteristics if available.'),
+  reflectionPrompts: z
+    .array(z.string())
+    .optional()
+    .describe("1-2 thoughtful prompts to encourage user self-reflection, based on their answer, the critique, and their self-rated confidence score (if provided).")
 });
 
 // Schema for the overall AI model output (draft stage)
@@ -79,14 +84,19 @@ const AIDraftOutputSchema = z.object({
 export const GenerateInterviewFeedbackInputSchema = z.object({
   questions: z.array(
     z.object({
-      id: z.string(), 
+      id: z.string(),
       text: z.string(),
-      idealAnswerCharacteristics: z.array(z.string()).optional(), // Added characteristics
+      idealAnswerCharacteristics: z.array(z.string()).optional(),
     })
   ).describe("The list of questions asked during the interview, including ideal answer characteristics."),
   answers: z.array(
-    z.object({questionId: z.string(), answerText: z.string(), timeTakenMs: z.number().optional() })
-  ).describe("The list of answers provided by the user, including time taken for each."),
+    z.object({
+      questionId: z.string(),
+      answerText: z.string(),
+      timeTakenMs: z.number().optional(),
+      confidenceScore: z.number().min(1).max(5).optional(), // Added confidenceScore
+    })
+  ).describe("The list of answers provided by the user, including time taken and confidence for each."),
   interviewType: z.nativeEnum(
     ['product sense', 'technical system design', 'behavioral', 'machine learning', 'data structures & algorithms']
   ).describe("The type of the interview."),
@@ -118,8 +128,8 @@ export const FeedbackItemSchema = z.object({
   critique: z.string().optional(),
   idealAnswerPointers: z.array(z.string()).optional(),
   timeTakenMs: z.number().optional(),
-  // idealAnswerCharacteristics from the original question are not part of the final feedback item to the user,
-  // but are used internally by the AI.
+  confidenceScore: z.number().min(1).max(5).optional(), // Added
+  reflectionPrompts: z.array(z.string()).optional(), // Added
 });
 
 export const GenerateInterviewFeedbackOutputSchema = z.object({
@@ -184,16 +194,20 @@ Candidate's Submission: {{{questionsAndAnswers.0.answerText}}}
 {{#if questionsAndAnswers.0.timeTakenMs}}
 (Time spent on submission (if tracked): {{questionsAndAnswers.0.timeTakenMs}} ms)
 {{/if}}
+{{#if questionsAndAnswers.0.confidenceScore}}
+User Confidence (1-5 stars): {{questionsAndAnswers.0.confidenceScore}}
+{{/if}}
 
 Your task is to provide a DRAFT of:
 1.  An 'overallSummary' evaluating the candidate's submission. Consider clarity, structure, completeness, adherence to instructions, quality of the solution/analysis, and how well it met '{{faangLevel}}' expectations and the provided 'Ideal Submission Characteristics'.
 2.  The 'feedbackItems' array should contain a single item for questionId '{{questionsAndAnswers.0.questionId}}':
-    *   'critique': Comprehensive critique, referencing 'Ideal Submission Characteristics'.
+    *   'critique': Comprehensive critique, referencing 'Ideal Submission Characteristics' and subtly acknowledging user 'confidenceScore' if available.
     *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional).
     *   'idealAnswerPointers': Key elements of a strong submission, potentially expanding on or reinforcing the 'Ideal Submission Characteristics'.
+    *   'reflectionPrompts': Based on the submission, critique, and confidence, generate 1-2 prompts for self-reflection.
 
 {{else}}
-Below are the questions asked, the answers provided, and potentially ideal answer characteristics for each question.
+Below are the questions asked, the answers provided, ideal answer characteristics, and user confidence for each question.
 {{#each questionsAndAnswers}}
 Question {{this.indexPlusOne}} (ID: {{this.questionId}}): {{{this.questionText}}}
 {{#if this.idealAnswerCharacteristics.length}}
@@ -206,16 +220,20 @@ Answer: {{{this.answerText}}}
 {{#if this.timeTakenMs}}
 (Time taken: {{this.timeTakenMs}} ms)
 {{/if}}
-
-{{/each}}
+{{#if this.confidenceScore}}
+User Confidence (1-5 stars): {{this.confidenceScore}}
+{{/if}}
 
 Your task is to provide a DRAFT of:
 1.  For each question and answer pair, provide structured feedback in 'feedbackItems'. Each item should include:
     *   'questionId'.
     *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional arrays of 1-3 strings).
-    *   'critique': (Optional concise summary). Your critique should be informed by the 'Ideal Answer Characteristics' provided for the question, if any.
+    *   'critique': (Optional concise summary). Your critique should be informed by the 'Ideal Answer Characteristics' provided for the question, and subtly acknowledge the user's 'confidenceScore' if available.
     *   'idealAnswerPointers': (Optional array of 2-4 strings) Key elements of a strong answer, potentially expanding on or reinforcing the provided 'Ideal Answer Characteristics'.
-    Focus on being constructive and specific.
+    *   'reflectionPrompts': Based on the answer, critique, strengths, areas for improvement, AND the user's 'confidenceScore' (if provided), generate 1-2 thoughtful reflection prompts.
+        If confidence aligns with feedback (e.g., high confidence & strong feedback), ask what led to success.
+        If confidence misaligns (e.g., high confidence & weak feedback, or low confidence & strong feedback), prompt user to explore the discrepancy.
+        If no confidence score is available, you may omit reflection prompts or provide very general ones.
 2.  Provide an 'overallSummary' of performance. Synthesize feedback, identify themes, offer advice. Comment on 'interviewFocus' and how performance aligns with '{{faangLevel}}' expectations (ambiguity, complexity, scope, execution), referencing 'Ideal Answer Characteristics' in general terms if they were commonly met or missed.
     *   Comment on pacing based on 'timeTakenMs' if available.
 {{/if}}
@@ -239,7 +257,8 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
         answerText: answer ? answer.answerText : "No answer provided.",
         timeTakenMs: answer ? answer.timeTakenMs : undefined,
         indexPlusOne: index + 1,
-        idealAnswerCharacteristics: q.idealAnswerCharacteristics, // Pass characteristics
+        idealAnswerCharacteristics: q.idealAnswerCharacteristics,
+        confidenceScore: answer ? answer.confidenceScore : undefined, // Pass confidenceScore
       };
     });
 
@@ -273,6 +292,8 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
         critique: aiItem.critique || "",
         idealAnswerPointers: aiItem.idealAnswerPointers || [],
         timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
+        confidenceScore: originalAnswer ? originalAnswer.confidenceScore : undefined, // Carry over confidenceScore
+        reflectionPrompts: aiItem.reflectionPrompts || [], // Carry over reflectionPrompts
       };
     });
 
@@ -298,7 +319,7 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
     if (!refinedOutput) {
         throw new Error('Feedback refinement process failed.');
     }
-    
+
     return refinedOutput;
   }
 );

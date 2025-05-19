@@ -28,17 +28,17 @@ export interface InterviewQuestion {
   id: string;
   text: string;
   idealAnswerCharacteristics?: string[];
-  // Fields for dynamic case studies
   isInitialCaseQuestion?: boolean;
-  fullScenarioDescription?: string; 
-  internalNotesForFollowUpGenerator?: string; 
-  isLikelyFinalFollowUp?: boolean; // Added to indicate if a dynamic follow-up is likely the last
+  fullScenarioDescription?: string;
+  internalNotesForFollowUpGenerator?: string;
+  isLikelyFinalFollowUp?: boolean;
 }
 
 export interface Answer {
   questionId: string;
   answerText: string;
   timeTakenMs?: number;
+  confidenceScore?: number; // Added
 }
 
 export interface FeedbackItem {
@@ -51,6 +51,8 @@ export interface FeedbackItem {
   critique?: string;
   idealAnswerPointers?: string[];
   timeTakenMs?: number;
+  confidenceScore?: number; // Added: To store and display with feedback item
+  reflectionPrompts?: string[]; // Added
 }
 
 export interface InterviewFeedback {
@@ -76,10 +78,6 @@ export interface InterviewSessionData extends InterviewSetupData {
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
   deepDives?: Record<string, DeepDiveFeedback>;
-  // For dynamic case studies
   currentCaseTurnNumber?: number;
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
 }
-
-
-    

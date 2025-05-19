@@ -8,9 +8,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck } from "lucide-react";
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle } from "lucide-react"; // Added Star, HelpCircle
 import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
-import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion } from "@/lib/types"; // Added InterviewQuestion
+import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
 import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
@@ -42,16 +42,16 @@ export default function InterviewSummary() {
     setFeedbackError(null);
 
     try {
-      // Pass the full question objects, including idealAnswerCharacteristics
-      const questionsForFeedback = currentSession.questions.map(q => ({ 
-        id: q.id, 
+      const questionsForFeedback = currentSession.questions.map(q => ({
+        id: q.id,
         text: q.text,
-        idealAnswerCharacteristics: q.idealAnswerCharacteristics 
+        idealAnswerCharacteristics: q.idealAnswerCharacteristics
       }));
       const answersForFeedback = currentSession.answers.map(a => ({
         questionId: a.questionId,
         answerText: a.answerText,
-        timeTakenMs: a.timeTakenMs
+        timeTakenMs: a.timeTakenMs,
+        confidenceScore: a.confidenceScore, // Pass confidence score
       }));
 
       const feedbackInput: GenerateInterviewFeedbackInput = {
@@ -67,18 +67,19 @@ export default function InterviewSummary() {
       };
 
       const feedbackResult = await generateInterviewFeedback(feedbackInput);
-      
+
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedFeedbackItems = feedbackResult.feedbackItems.map(item => {
-            const originalAnswer = currentSession.answers.find(ans => ans.questionId === item.questionId);
-            return {
-                ...item,
-                timeTakenMs: originalAnswer?.timeTakenMs
-            };
+        // Merge confidenceScore back into feedback items for display
+        const updatedFeedbackItemsWithConfidence = feedbackResult.feedbackItems.map(item => {
+          const originalAnswer = currentSession.answers.find(ans => ans.questionId === item.questionId);
+          return {
+            ...item,
+            confidenceScore: originalAnswer?.confidenceScore,
+          };
         });
 
-        const updatedSession = { ...prev, feedback: {...feedbackResult, feedbackItems: updatedFeedbackItems} };
+        const updatedSession = { ...prev, feedback: {...feedbackResult, feedbackItems: updatedFeedbackItemsWithConfidence } };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -157,7 +158,7 @@ export default function InterviewSummary() {
         targetedSkills: sessionData.targetedSkills,
         interviewFocus: sessionData.interviewFocus,
         originalFeedback: originalFeedbackItem,
-        idealAnswerCharacteristics: question.idealAnswerCharacteristics, // Pass characteristics
+        idealAnswerCharacteristics: question.idealAnswerCharacteristics,
       };
       const result = await generateDeepDiveFeedback(deepDiveInput);
       setDeepDiveContent(result);
@@ -202,12 +203,13 @@ export default function InterviewSummary() {
       </Alert>
     );
   }
-  
-  const getAnswerInfoForQuestion = (questionId: string): { answerText: string; timeTakenMs?: number } => {
+
+  const getAnswerInfoForQuestion = (questionId: string): { answerText: string; timeTakenMs?: number; confidenceScore?: number } => {
     const answerObj = sessionData.answers.find(ans => ans.questionId === questionId);
     return {
       answerText: answerObj ? answerObj.answerText : "No answer provided.",
-      timeTakenMs: answerObj?.timeTakenMs
+      timeTakenMs: answerObj?.timeTakenMs,
+      confidenceScore: answerObj?.confidenceScore,
     };
   };
 
@@ -235,7 +237,22 @@ export default function InterviewSummary() {
       </div>
     );
   };
-  
+
+  const renderConfidenceStars = (score: number | undefined) => {
+    if (score === undefined) return <span className="text-xs text-muted-foreground italic">Not rated</span>;
+    return (
+      <div className="flex items-center">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`h-4 w-4 ${star <= score ? "fill-yellow-400 text-yellow-400" : "fill-gray-300 text-gray-300"}`}
+          />
+        ))}
+        <span className="ml-1.5 text-xs text-muted-foreground">({score}/5)</span>
+      </div>
+    );
+  };
+
   const currentDeepDiveQuestionText = activeDeepDiveQuestionId ? sessionData.questions.find(q => q.id === activeDeepDiveQuestionId)?.text : "";
   const currentDeepDiveUserAnswerText = activeDeepDiveQuestionId ? getAnswerInfoForQuestion(activeDeepDiveQuestionId).answerText : "";
 
@@ -273,7 +290,7 @@ export default function InterviewSummary() {
           </h3>
           {sessionData.questions.length > 0 ? (
              isTakeHomeStyle ? (
-                sessionData.questions.map((question) => { // question here is InterviewQuestion type
+                sessionData.questions.map((question) => {
                     const answerInfo = getAnswerInfoForQuestion(question.id);
                     const feedbackItem = getFeedbackItemForQuestion(question.id);
                     return (
@@ -304,7 +321,8 @@ export default function InterviewSummary() {
                                     {renderFeedbackSection("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, "secondary")}
                                     {renderFeedbackSection("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, "secondary")}
                                     {renderFeedbackSection("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, "secondary")}
-                                     <Button
+                                    {renderFeedbackSection("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, "secondary", "text-sm")}
+                                    <Button
                                         onClick={() => handleOpenDeepDive(question.id)}
                                         variant="outline"
                                         size="sm"
@@ -320,7 +338,7 @@ export default function InterviewSummary() {
                 })
              ) : (
                 <Accordion type="single" collapsible className="w-full">
-                {sessionData.questions.map((question, index) => { // question here is InterviewQuestion type
+                {sessionData.questions.map((question, index) => {
                     const answerInfo = getAnswerInfoForQuestion(question.id);
                     const feedbackItem = getFeedbackItemForQuestion(question.id);
                     const displayTime = formatMilliseconds(answerInfo.timeTakenMs);
@@ -337,11 +355,18 @@ export default function InterviewSummary() {
                             <div>
                                 <div className="flex justify-between items-center mb-1">
                                     <p className="font-semibold text-muted-foreground">Your Answer:</p>
-                                    {answerInfo.timeTakenMs !== undefined && (
-                                        <p className="text-xs text-muted-foreground flex items-center">
-                                            <TimerIcon className="h-3 w-3 mr-1" /> {displayTime}
-                                        </p>
-                                    )}
+                                    <div className="flex items-center space-x-3">
+                                      {answerInfo.confidenceScore !== undefined && (
+                                        <div className="flex items-center text-xs text-muted-foreground">
+                                          <span className="mr-1">Confidence:</span> {renderConfidenceStars(answerInfo.confidenceScore)}
+                                        </div>
+                                      )}
+                                      {answerInfo.timeTakenMs !== undefined && (
+                                          <p className="text-xs text-muted-foreground flex items-center">
+                                              <TimerIcon className="h-3 w-3 mr-1" /> {displayTime}
+                                          </p>
+                                      )}
+                                    </div>
                                 </div>
                                 <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md">{answerInfo.answerText}</p>
                             </div>
@@ -363,6 +388,7 @@ export default function InterviewSummary() {
                                     {renderFeedbackSection("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, "secondary")}
                                     {renderFeedbackSection("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, "secondary")}
                                     {renderFeedbackSection("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, "secondary")}
+                                    {renderFeedbackSection("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, "secondary", "text-sm")}
                                     <Button
                                         onClick={() => handleOpenDeepDive(question.id)}
                                         variant="outline"

@@ -7,12 +7,17 @@ import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-ques
 import type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
 import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-follow-up";
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
+import { explainConcept } from "@/ai/flows/explain-concept"; // Added
+import type { ExplainConceptInput, ExplainConceptOutput } from "@/ai/flows/explain-concept"; // Added
+
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input"; // Added
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"; // Added
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle } from "lucide-react"; // Added Lightbulb, AlertTriangle
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -46,6 +51,14 @@ export default function InterviewSession() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isGeneratingFollowUp, setIsGeneratingFollowUp] = useState(false);
 
+  // State for "Explain Term" feature
+  const [isExplainTermDialogOpen, setIsExplainTermDialogOpen] = useState(false);
+  const [termToExplainInput, setTermToExplainInput] = useState("");
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [isExplainingTerm, setIsExplainingTerm] = useState(false);
+  const [explainTermError, setExplainTermError] = useState<string | null>(null);
+
+
   useEffect(() => {
     let timerInterval: NodeJS.Timeout | undefined;
     if (sessionData?.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime) {
@@ -68,7 +81,6 @@ export default function InterviewSession() {
       isLoading: true,
       interviewStarted: true,
       currentQuestionStartTime: Date.now(),
-      // Initialize case study specific fields
       interviewStyle: setupData.interviewStyle,
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
@@ -92,17 +104,14 @@ export default function InterviewSession() {
         throw new Error("AI did not return any questions. Please try again.");
       }
 
-      // For case studies, the orchestrator now returns only the initial setup question.
-      // Additional questions are generated dynamically.
       const questionsWithIds: InterviewQuestion[] = response.customizedQuestions.map((q, i) => ({
         id: `q-${Date.now()}-${i}`,
         text: q.questionText,
         idealAnswerCharacteristics: q.idealAnswerCharacteristics,
-        // Case study specific fields from orchestrator
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false, // Initial question is not the final one
+        isLikelyFinalFollowUp: false, 
       }));
 
       setSessionData(prev => {
@@ -142,7 +151,6 @@ export default function InterviewSession() {
         router.replace("/feedback");
         return;
       }
-      // Ensure case study specific fields are initialized if loading an older session
       if (parsedSession.interviewStyle === 'case-study') {
         parsedSession.currentCaseTurnNumber = parsedSession.currentCaseTurnNumber ?? 0;
         parsedSession.caseConversationHistory = parsedSession.caseConversationHistory ?? [];
@@ -242,7 +250,7 @@ export default function InterviewSession() {
             previousQuestionText: currentQ.text,
             previousUserAnswerText: currentAnswer,
             conversationHistory: updatedCaseConversationHistory,
-            interviewContext: { // Pass relevant parts of sessionData as InterviewSetupData
+            interviewContext: { 
               interviewType: sessionData.interviewType,
               interviewStyle: sessionData.interviewStyle,
               faangLevel: sessionData.faangLevel,
@@ -279,11 +287,11 @@ export default function InterviewSession() {
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : "Failed to generate follow-up question.";
           toast({ title: "Error", description: errorMessage, variant: "destructive" });
-          newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage }; // Keep current question
+          newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage }; 
         }
       }
       setIsGeneratingFollowUp(false);
-    } else { // Simple Q&A or Take Home
+    } else { 
       if (sessionData.currentQuestionIndex === sessionData.questions.length - 1) {
         newSessionData = {
           ...sessionData,
@@ -349,6 +357,34 @@ export default function InterviewSession() {
     router.push("/feedback");
   };
 
+  const handleExplainTermSubmit = async () => {
+    if (!termToExplainInput.trim() || !sessionData) return;
+    setIsExplainingTerm(true);
+    setExplainTermError(null);
+    setExplanation(null);
+    try {
+      const input: ExplainConceptInput = {
+        term: termToExplainInput,
+        interviewContext: sessionData.interviewType,
+      };
+      const result: ExplainConceptOutput = await explainConcept(input);
+      setExplanation(result.explanation);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to get explanation.";
+      setExplainTermError(errorMsg);
+      toast({ title: "Explanation Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsExplainingTerm(false);
+    }
+  };
+
+  const openExplainTermDialog = () => {
+    setTermToExplainInput("");
+    setExplanation(null);
+    setExplainTermError(null);
+    setIsExplainTermDialogOpen(true);
+  };
+
 
   if (!sessionData || (sessionData.isLoading && !sessionData.questions.length && !isGeneratingFollowUp)) {
     return (
@@ -371,7 +407,6 @@ export default function InterviewSession() {
   }
   
   if (sessionData.interviewFinished) {
-    // This check might be redundant if router.push already happened, but good for safety.
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
@@ -385,11 +420,12 @@ export default function InterviewSession() {
   
   const isCaseStudyStyle = sessionData.interviewStyle === 'case-study';
   const progressValue = isCaseStudyStyle 
-    ? ((sessionData.currentCaseTurnNumber || 0) / (MAX_CASE_FOLLOW_UPS +1)) * 100 // +1 for initial question
+    ? ((sessionData.currentCaseTurnNumber || 0) / (MAX_CASE_FOLLOW_UPS +1)) * 100 
     : (sessionData.questions.length > 0 ? ((sessionData.currentQuestionIndex + 1) / sessionData.questions.length) * 100 : 0);
 
 
   return (
+    <>
     <Card className="w-full max-w-3xl mx-auto shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl flex items-center">
@@ -447,15 +483,18 @@ export default function InterviewSession() {
                 <p className="whitespace-pre-wrap text-base">{currentQuestion.fullScenarioDescription}</p>
               </div>
             )}
-            <h2 className="text-xl font-semibold mb-3 text-foreground">
+            <h2 className="text-xl font-semibold mb-1 text-foreground">
               {sessionData.interviewStyle === 'take-home' ? 'Take Home Assignment:' : 
                currentQuestion.isInitialCaseQuestion ? 'Initial Question:' :
                isCaseStudyStyle ? `Follow-up Question (Turn ${(sessionData.currentCaseTurnNumber || 0) + 1}):` :
                `Question ${sessionData.currentQuestionIndex + 1}:`}
             </h2>
-            <p className={`text-lg mb-4 ${sessionData.interviewStyle === 'take-home' ? 'whitespace-pre-wrap p-4 border rounded-md bg-secondary/30' : ''}`}>
+             <p className={`text-lg mb-3 ${sessionData.interviewStyle === 'take-home' ? 'whitespace-pre-wrap p-4 border rounded-md bg-secondary/30' : ''}`}>
                 {currentQuestion.text}
             </p>
+            <Button variant="ghost" size="sm" onClick={openExplainTermDialog} className="mb-3 text-xs text-muted-foreground hover:text-primary">
+              <Lightbulb className="mr-1.5 h-3.5 w-3.5" /> Explain a concept from this question
+            </Button>
             <Textarea
               placeholder={sessionData.interviewStyle === 'take-home' ? "Paste your full response here..." : "Type your answer here..."}
               value={currentAnswer}
@@ -487,7 +526,59 @@ export default function InterviewSession() {
         </Button>
       </CardFooter>
     </Card>
+
+    <Dialog open={isExplainTermDialogOpen} onOpenChange={setIsExplainTermDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <Lightbulb className="mr-2 h-5 w-5 text-primary" /> Explain a Term/Concept
+            </DialogTitle>
+            <DialogDescription>
+              Enter a term or concept from the current interview question that you'd like explained.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <Input
+              placeholder="e.g., CAP Theorem, STAR method, Microservices"
+              value={termToExplainInput}
+              onChange={(e) => setTermToExplainInput(e.target.value)}
+            />
+            {isExplainingTerm && (
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Getting explanation...
+              </div>
+            )}
+            {explainTermError && !isExplainingTerm && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{explainTermError}</AlertDescription>
+              </Alert>
+            )}
+            {explanation && !isExplainingTerm && (
+              <Alert variant="default" className="bg-emerald-50 border-emerald-200">
+                <Lightbulb className="h-4 w-4 text-emerald-600" />
+                <AlertTitle className="text-emerald-700">Explanation</AlertTitle>
+                <AlertDescription className="text-emerald-700">
+                  {explanation}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter className="sm:justify-end">
+             <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Close
+              </Button>
+            </DialogClose>
+            <Button type="button" onClick={handleExplainTermSubmit} disabled={isExplainingTerm || !termToExplainInput.trim()}>
+              {isExplainingTerm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchCheck className="mr-2 h-4 w-4" /> }
+              Get Explanation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
-
-    

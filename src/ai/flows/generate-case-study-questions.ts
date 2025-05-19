@@ -1,0 +1,135 @@
+
+'use server';
+/**
+ * @fileOverview Generates a set of case study questions for an interview.
+ *
+ * - generateCaseStudyQuestions - A function that handles the case study question generation process.
+ * - GenerateCaseStudyQuestionsInput - The input type for the generateCaseStudyQuestions function.
+ * - GenerateCaseStudyQuestionsOutput - The return type for the generateCaseStudyQuestions function.
+ */
+
+import {ai} from '@/ai/genkit';
+import {z} from 'genkit';
+import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
+import { getTechnologyBriefTool } from '../tools/technology-tools';
+// Using the same input schema as the main customization flow for consistency,
+// as all fields can be relevant for tailoring case studies.
+import type { CustomizeInterviewQuestionsInput } from './customize-interview-questions'; 
+import { CustomizeInterviewQuestionsInputSchema } from './customize-interview-questions';
+
+
+// Output schema should be an array of questions
+const GenerateCaseStudyQuestionsOutputSchema = z.object({
+  customizedQuestions: z
+    .array(z.string())
+    .describe('An array of 5-7 customized case study questions, starting with a broad scenario and followed by probing follow-ups.'),
+});
+export type GenerateCaseStudyQuestionsOutput = z.infer<
+  typeof GenerateCaseStudyQuestionsOutputSchema
+>;
+
+// Exported function to be called by the orchestrator
+export async function generateCaseStudyQuestions(
+  input: CustomizeInterviewQuestionsInput
+): Promise<GenerateCaseStudyQuestionsOutput> {
+  return generateCaseStudyQuestionsFlow(input);
+}
+
+const caseStudyPrompt = ai.definePrompt({
+  name: 'generateCaseStudyQuestionsPrompt',
+  tools: [getTechnologyBriefTool],
+  input: {
+    schema: CustomizeInterviewQuestionsInputSchema, // Using the comprehensive input schema
+  },
+  output: {
+    schema: GenerateCaseStudyQuestionsOutputSchema,
+  },
+  prompt: `You are an expert Interview Architect AI, specializing in crafting FAANG-level case study interviews.
+Your primary function is to generate a cohesive set of 5-7 questions that simulate a multi-turn conversational deep-dive.
+You must meticulously consider all inputs to create a relevant, challenging, and insightful case study scenario and follow-up questions.
+
+**Core Instructions & Persona:**
+- Your persona is that of a seasoned hiring manager and curriculum designer from a top-tier tech company (like Google, Meta, or Amazon).
+- You are creating questions for a mock interview, designed to help candidates prepare effectively for a case study style interaction.
+- Ensure every question directly reflects the provided inputs.
+
+**General Principles for All Questions:**
+1.  **Relevance & Specificity:** The case must be directly pertinent to the specified 'interviewType'. If 'jobTitle' and 'jobDescription' are provided, the case must be deeply tailored to the responsibilities, technologies, and domain mentioned.
+2.  **Difficulty Calibration:** All content must be precisely calibrated to the 'faangLevel'.
+3.  **Clarity & Conciseness:** Questions must be unambiguous and clear.
+4.  **Skill Assessment:** Design the case to effectively evaluate 'targetedSkills' (if provided) or core competencies expected for the 'interviewType' and 'faangLevel'. The 'interviewFocus' (if provided) MUST be a central theme.
+5.  **Open-Ended:** Questions should encourage detailed, reasoned responses.
+6.  **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding. Do not generate questions *directly about* the resume content itself for the case study, unless the 'interviewType' is "behavioral" and the question explicitly asks for past experiences in the context of the case.
+7.  **Tool Usage for Clarity:** If crucial technologies are involved, you may use the \`getTechnologyBriefTool\` to get a summary. Integrate insights to make your case more specific.
+
+**Interview Context & Inputs to Consider:**
+{{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
+{{#if jobDescription}}Job Description: {{{jobDescription}}}{{/if}}
+{{#if resume}}Candidate Resume Context: {{{resume}}}{{/if}}
+Interview Type: {{{interviewType}}}
+Interview Style: case-study
+{{#if faangLevel}}FAANG Level: {{{faangLevel}}}{{/if}}
+{{#if targetCompany}}Target Company: {{{targetCompany}}}{{/if}}
+{{#if targetedSkills.length}}
+Targeted Skills:
+{{#each targetedSkills}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if interviewFocus}}Specific Focus: {{{interviewFocus}}}{{/if}}
+
+**Case Study (Multi-turn) - Generate 5-7 questions total:**
+Your goal is to simulate a multi-turn conversational deep-dive.
+1.  **Internal Deliberation (Chain-of-Thought):**
+    *   First, deeply analyze the 'interviewType', 'jobTitle', 'jobDescription', 'targetedSkills', and especially the 'interviewFocus' if provided.
+    *   Based on this, brainstorm a single, rich, open-ended core scenario or problem statement. This scenario must be complex enough to sustain multiple follow-up questions and directly reflect the 'interviewFocus'.
+    *   Then, devise 4-6 probing follow-up questions that logically extend from this core scenario. These follow-ups should explore different facets of the problem, challenge assumptions, and push the candidate to elaborate on their thinking process, trade-offs, and justifications, all while keeping the 'interviewFocus' in mind.
+2.  **Output Structure:**
+    *   The first string in the 'customizedQuestions' array MUST be the broad, initial scenario question.
+    *   The subsequent strings in the array MUST be the probing follow-up questions.
+    *   The entire set of questions should flow naturally, as if in a real-time conversation, starting broad and progressively narrowing focus or exploring related dimensions.
+    *   Example of flow: Initial: "Design a new product for X market, with a specific focus on {{{interviewFocus}}}." Follow-ups: "Who are the key user segments for this {{{interviewFocus}}} and how would you prioritize them?", "What would be your MVP for {{{interviewFocus}}} and why?", "How would you measure success specifically for the {{{interviewFocus}}} aspect?", "What are the major risks related to {{{interviewFocus}}} and how would you mitigate them?".
+    *   The questions should be tailored. For 'technical system design', the scenario would be a system to design, and follow-ups would probe architecture, components, scalability, etc., always relating back to the 'interviewFocus'. For 'product sense', it could be a product strategy or design challenge centered on the 'interviewFocus'. For 'behavioral', it could be a complex hypothetical situation requiring demonstration of specific skills, potentially framed by the 'interviewFocus'.
+
+{{#if (eq (toLowerCase targetCompany) "amazon")}}
+**Amazon-Specific Considerations (if 'targetCompany' is Amazon):**
+Pay special attention to Amazon's Leadership Principles.
+1.  **Behavioral:** If the case study leans behavioral, questions MUST provide an opportunity to demonstrate these principles. Frame questions using situations or ask for examples (e.g., "Imagine in this scenario, you encountered strong resistance to your proposed {{{interviewFocus}}} strategy. Tell me about a time you Insisted on the Highest Standards to overcome such a challenge.").
+2.  **Product Sense / Technical System Design:** Frame the case study and follow-ups to subtly align with principles like Customer Obsession (e.g., "How would your design for {{{interviewFocus}}} ensure the best possible customer experience under failure conditions?"), Ownership, or Invent and Simplify (e.g., "Within this case, propose a significantly simpler approach to solve X problem related to {{{interviewFocus}}}.").
+Amazon's Leadership Principles for your reference:
+{{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+
+**Final Output Format:**
+Output the questions as a JSON object with a 'customizedQuestions' key, which is an array of 5-7 strings.
+`,
+  customize: (prompt, input) => {
+    return {
+      ...prompt,
+      prompt: prompt.prompt!.replace(
+        '${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}',
+        AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
+      ),
+    };
+  }
+});
+
+const generateCaseStudyQuestionsFlow = ai.defineFlow(
+  {
+    name: 'generateCaseStudyQuestionsFlow',
+    inputSchema: CustomizeInterviewQuestionsInputSchema,
+    outputSchema: GenerateCaseStudyQuestionsOutputSchema,
+  },
+  async (input: CustomizeInterviewQuestionsInput): Promise<GenerateCaseStudyQuestionsOutput> => {
+    const {output} = await caseStudyPrompt(input);
+    if (!output || !output.customizedQuestions || output.customizedQuestions.length < 2) { // Case studies should have at least a scenario and one follow-up
+        // More robust fallback for case studies
+        const fallbackScenario = `Considering your role as a ${input.jobTitle || 'professional'} and the interview focus on ${input.interviewFocus || input.interviewType}, describe a complex project or challenge you've faced. What was the situation, your approach, and the outcome?`;
+        const fallbackFollowUp = "What were the key trade-offs you had to make, and how did you decide?";
+        return { customizedQuestions: [fallbackScenario, fallbackFollowUp, "What would you do differently if you faced a similar situation again?"] };
+    }
+    return output;
+  }
+);

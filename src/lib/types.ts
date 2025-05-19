@@ -5,7 +5,7 @@ export interface InterviewSetupData {
   interviewType: InterviewType;
   interviewStyle: InterviewStyle;
   faangLevel: FaangLevel;
-  jobTitle?: string; // Added jobTitle
+  jobTitle?: string;
   jobDescription?: string;
   resume?: string;
   targetedSkills?: string[];
@@ -27,7 +27,10 @@ export interface FeedbackItem {
   questionId: string;
   questionText: string;
   answerText: string;
-  feedbackText: string;
+  strengths?: string[];
+  areasForImprovement?: string[];
+  specificSuggestions?: string[];
+  critique?: string;
   timeTakenMs?: number;
 }
 
@@ -46,5 +49,4 @@ export interface InterviewSessionData extends InterviewSetupData {
   interviewStarted: boolean;
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
-  // jobTitle, targetedSkills, and targetCompany are inherited from InterviewSetupData
 }

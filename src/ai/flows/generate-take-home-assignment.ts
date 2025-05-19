@@ -89,6 +89,14 @@ The 'faangLevel' is a critical input. You must calibrate the assignment based on
 *   **Execution & Strategic Thinking:** Is the focus more on tactical execution or strategic planning and justification? (e.g., L5 might design short-term solutions, L7 might set a vision and design long-term solutions).
 The problem scenario, guiding questions, and expected depth of the deliverable MUST reflect these level-specific expectations.
 
+**Internal Reflection on Ideal Answer Characteristics:**
+Before finalizing the assignment, deeply consider the key characteristics a strong submission would demonstrate. For example:
+- For Product Sense: Clarity of problem definition, strategic thinking, data-driven rationale, user empathy, clear communication of trade-offs.
+- For Technical System Design: Robustness, scalability, clear articulation of components and interactions, justification of design choices, consideration of NFRs.
+- For ML: Sound problem framing, appropriate model selection, clear evaluation strategy, awareness of data issues and ethical considerations.
+- For DSA: Correct and efficient algorithm, clear explanation, thorough complexity analysis, handling of edge cases.
+This internal reflection will help ensure the assignment is well-posed and effectively tests the intended skills for the given 'faangLevel'. You do not need to output these characteristics, just use them to refine the assignment itself.
+
 **Input Context to Consider:**
 Interview Type: {{{interviewType}}}
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
@@ -190,3 +198,4 @@ const generateTakeHomeAssignmentFlow = ai.defineFlow(
     return output;
   }
 );
+

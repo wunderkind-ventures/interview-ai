@@ -64,6 +64,7 @@ Your goal is to create a case that not only tests skills but makes the candidate
 5.  **Open-Ended:** Questions should encourage detailed, reasoned responses.
 6.  **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding of the candidate's likely background. Do not generate questions *directly about* the resume content itself.
 7.  **Tool Usage for Clarity:** If crucial technologies are involved in the case, you may use the \`getTechnologyBriefTool\` to get a summary. Integrate insights to make your case more specific and realistic.
+8.  **Internal Reflection on Ideal Answer Characteristics:** Before finalizing the case study scenario and follow-up questions, briefly consider the key characteristics a strong set of answers would demonstrate (e.g., clear problem definition, logical reasoning, consideration of trade-offs, data-driven approach for PM, robust design for engineering). This internal reflection will help ensure the case is well-posed and effectively tests the intended skills. You do not need to output these characteristics, just use them to refine the case itself.
 
 **Interview Context & Inputs to Consider:**
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}

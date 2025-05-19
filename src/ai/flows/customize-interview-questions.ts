@@ -143,6 +143,7 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
 5.  **Open-Ended (Crucial for L4+):** AVOID asking questions that can be answered with a simple 'yes' or 'no', or that only require factual recall, especially for L4 and above. Questions should encourage detailed, reasoned responses and discussion.
 6.  **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding to subtly angle questions or understand the candidate's likely exposure to certain topics. Do not generate questions *directly about* the resume content itself unless the 'interviewType' is "behavioral" and the question explicitly asks for past experiences.
 7.  **Tool Usage for Clarity:** If technologies are crucial, you may use the \`getTechnologyBriefTool\`. Integrate insights to make questions more specific; don't just repeat tool output.
+8.  **Internal Reflection on Ideal Answer Characteristics:** Before finalizing each question, briefly consider the key characteristics or elements a strong answer would demonstrate. This internal reflection will help ensure the question is well-posed and effectively tests the intended skills. You do not need to output these characteristics, just use them to refine the question itself.
 
 **Interview Context & Inputs to Consider:**
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}

@@ -10,6 +10,7 @@ export type InterviewType = typeof INTERVIEW_TYPES[number]['value'];
 export const INTERVIEW_STYLES = [
   { value: "simple-qa", label: "Simple Q&A" },
   { value: "case-study", label: "Case Study (Multi-turn)" },
+  { value: "take-home", label: "Take Home Assignment" },
 ] as const;
 
 export type InterviewStyle = typeof INTERVIEW_STYLES[number]['value'];

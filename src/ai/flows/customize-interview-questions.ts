@@ -25,8 +25,8 @@ const CustomizeInterviewQuestionsInputSchema = z.object({
     .enum(['product sense', 'technical system design', 'behavioral'])
     .describe('The type of interview to generate questions for.'),
   interviewStyle: z
-    .enum(['simple-qa', 'case-study'])
-    .describe('The style of the interview: simple Q&A or multi-turn case study.'),
+    .enum(['simple-qa', 'case-study', 'take-home'])
+    .describe('The style of the interview: simple Q&A, multi-turn case study, or take-home assignment.'),
   faangLevel: z
     .string()
     .optional()
@@ -48,7 +48,7 @@ export type CustomizeInterviewQuestionsInput = z.infer<
 const CustomizeInterviewQuestionsOutputSchema = z.object({
   customizedQuestions: z
     .array(z.string())
-    .describe('An array of customized interview questions.'),
+    .describe('An array of customized interview questions. For "take-home" style, this will contain a single, comprehensive question.'),
 });
 
 export type CustomizeInterviewQuestionsOutput = z.infer<
@@ -71,7 +71,7 @@ const prompt = ai.definePrompt({
   },
   prompt: `You are an expert interviewer specializing in FAANG interviews.
 
-Your goal is to generate 5-10 interview questions tailored to the inputs provided.
+Your goal is to generate interview questions tailored to the inputs provided.
 
 Interview Details:
 Job Description: {{{jobDescription}}}
@@ -86,10 +86,17 @@ For the 'case-study' style, structure the output to simulate a multi-turn conver
 Start with 1 or 2 broad, open-ended scenario questions suitable for the interview type (e.g., a product design challenge for "product sense", a system scaling problem for "technical system design", or a complex past experience for "behavioral").
 The subsequent questions should be probing follow-ups that delve deeper into different facets of the initial scenario(s). These follow-ups should encourage detailed, structured responses and allow for a conversational exploration of the candidate's thought process.
 For example, an initial product sense question might be "Design a new product for X market." Follow-up questions could then explore user segments, monetization, MVP features, metrics, and trade-offs.
-The total number of questions (initial scenarios + follow-ups) should still be between 5 and 10.
+The total number of questions (initial scenarios + follow-ups) should be between 5 and 10.
 The goal is to create a set of questions that naturally flow like a real case study interview, starting broad and then exploring specifics.
+{{else if (eq interviewStyle "take-home")}}
+For the 'take-home' style, generate ONLY ONE comprehensive question or scenario suitable for a take-home assignment. This question should be detailed enough to allow a candidate to produce a thorough written response, design document, or presentation.
+Examples:
+- For "product sense": "Outline a detailed product strategy for [specific product/market scenario], including target users, core features, go-to-market plan, and success metrics."
+- For "technical system design": "Design a scalable system for [specific service, e.g., a ride-sharing app or a video streaming platform], covering architecture, data model, API design, and key trade-offs."
+- For "behavioral" (less common for take-homes, but possible): "Describe a complex project you led, detailing your approach to challenges, team collaboration, and how you measured success. Structure this as a reflective document."
+The output should be a single, well-defined task.
 {{else}}
-For the 'simple-qa' style, the questions should be direct and suitable for a simple question and answer format, tailored to the interview type.
+For the 'simple-qa' style, the questions should be direct and suitable for a simple question and answer format, tailored to the interview type. Generate 5-10 questions.
 {{/if}}
 
 {{#if targetedSkills.length}}
@@ -108,7 +115,12 @@ Amazon's Leadership Principles for your reference:
 Suggest situations or ask for examples where the candidate has demonstrated these.
 {{/if}}
 
-Generate 5-10 interview questions. Ensure the questions are relevant and challenging for the specified FAANG level, interview type, targeted skills (if provided), and target company (if specified, especially Amazon).
+{{#if (eq interviewStyle "take-home")}}
+Generate 1 comprehensive interview question.
+{{else}}
+Generate 5-10 interview questions.
+{{/if}}
+Ensure the questions are relevant and challenging for the specified FAANG level, interview type, interview style, targeted skills (if provided), and target company (if specified, especially Amazon).
 Output the questions as a JSON array of strings.
 `,
   customize: (prompt, input) => {
@@ -133,18 +145,3 @@ const customizeInterviewQuestionsFlow = ai.defineFlow(
     return output!;
   }
 );
-
-// Helper function to convert string to lowercase for case-insensitive comparison in Handlebars
-// Although Handlebars doesn't directly support complex helpers in Genkit like this,
-// we can do the lowercase comparison directly in the template or preprocess.
-// For this example, direct comparison in template with a hypothetical toLowerCase (or pre-process targetCompany).
-// Genkit's Handlebars implementation might not support complex helpers.
-// We will handle the lowercase check directly in the template using a hypothetical helper,
-// or assume case-insensitive matching where possible.
-// For robust solution, preprocessing `targetCompany` to lowercase before passing to prompt might be better if direct template functions are limited.
-// Let's assume a simple string comparison, and if specific casing is needed, it must match.
-// UPDATE: Using `(eq (toLowerCase targetCompany) "amazon")` in the template.
-// This requires toLowerCase to be available or the comparison to be done in a way that handles cases.
-// For Genkit, a customizer function is better for such logic.
-// Let's adjust to use a customizer to inject the principles if targetCompany is Amazon.
-

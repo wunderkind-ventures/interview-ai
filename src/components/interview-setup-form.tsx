@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -168,6 +168,15 @@ export default function InterviewSetupForm() {
     }
   };
 
+  const getIconForStyle = (style: InterviewStyle) => {
+    switch (style) {
+      case "simple-qa": return <ListChecks className="mr-2 h-4 w-4" />;
+      case "case-study": return <Layers className="mr-2 h-4 w-4" />; // Using Layers for case-study
+      case "take-home": return <FileText className="mr-2 h-4 w-4" />;
+      default: return null;
+    }
+  };
+
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-xl">
       <CardHeader>
@@ -286,7 +295,7 @@ export default function InterviewSetupForm() {
                       {INTERVIEW_STYLES.map((style) => (
                         <SelectItem key={style.value} value={style.value}>
                           <div className="flex items-center">
-                            {style.value === 'simple-qa' ? <ListChecks className="mr-2 h-4 w-4" /> : <MessagesSquare className="mr-2 h-4 w-4" />}
+                            {getIconForStyle(style.value)}
                             {style.label}
                           </div>
                         </SelectItem>
@@ -294,7 +303,7 @@ export default function InterviewSetupForm() {
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Choose question delivery: direct Q&amp;A or multi-turn case studies.
+                    Choose question delivery: Q&A, multi-turn case study, or take-home.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

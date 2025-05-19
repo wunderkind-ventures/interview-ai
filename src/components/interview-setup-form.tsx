@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -205,6 +205,7 @@ export default function InterviewSetupForm() {
       case "technical system design": return <Workflow className="mr-2 h-4 w-4" />;
       case "behavioral": return <Users className="mr-2 h-4 w-4" />;
       case "machine learning": return <BrainCircuit className="mr-2 h-4 w-4" />;
+      case "data structures & algorithms": return <Code2 className="mr-2 h-4 w-4" />;
       default: return null;
     }
   };

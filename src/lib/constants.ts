@@ -6,6 +6,7 @@ export const INTERVIEW_TYPES = [
   { value: "technical system design", label: "Technical System Design" },
   { value: "behavioral", label: "Behavioral" },
   { value: "machine learning", label: "Machine Learning" },
+  { value: "data structures & algorithms", label: "Data Structures & Algorithms" },
 ] as const;
 
 export type InterviewType = typeof INTERVIEW_TYPES[number]['value'];
@@ -61,6 +62,14 @@ export const SKILLS_BY_INTERVIEW_TYPE: Record<InterviewType, Skill[]> = {
     { value: "data-handling-feature-engineering", label: "Data Handling & Feature Engineering" },
     { value: "ml-evaluation-iteration", label: "Evaluation & Iteration" },
     { value: "ml-ethics-fairness", label: "ML Ethics & Fairness" },
+  ],
+  "data structures & algorithms": [
+    { value: "array-string-manipulation", label: "Array/String Manipulation" },
+    { value: "linked-lists", label: "Linked Lists" },
+    { value: "trees-graphs", label: "Trees & Graphs" },
+    { value: "sorting-searching", label: "Sorting & Searching" },
+    { value: "dynamic-programming-recursion", label: "Dynamic Programming/Recursion" },
+    { value: "complexity-analysis", label: "Time/Space Complexity Analysis" },
   ],
 };
 
@@ -175,5 +184,18 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       targetedSkills: ['ml-system-design', 'data-handling-feature-engineering', 'scalability'],
       interviewFocus: 'Designing a large-scale recommendation system',
     },
-  }
+  },
+  {
+    id: 'dsa-foundations-L4',
+    label: 'DSA Foundations (L4) - Core Problems',
+    description: 'Focuses on foundational Data Structures & Algorithms problems for L4/entry-level software engineers.',
+    config: {
+      interviewType: 'data structures & algorithms',
+      interviewStyle: 'simple-qa',
+      faangLevel: 'L4',
+      jobTitle: 'Software Engineer',
+      targetedSkills: ['array-string-manipulation', 'sorting-searching', 'complexity-analysis'],
+      interviewFocus: 'Core algorithmic problem solving and complexity analysis',
+    },
+  },
 ];

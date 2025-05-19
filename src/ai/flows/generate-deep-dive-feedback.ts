@@ -16,7 +16,7 @@ import type { FeedbackItem } from '@/lib/types';
 const DeepDivePromptInputSchema = z.object({
   questionText: z.string().describe('The original interview question.'),
   userAnswerText: z.string().describe("The user's answer to the question."),
-  interviewType: z.string().describe('The overall type of the interview (e.g., "product sense", "machine learning").'),
+  interviewType: z.string().describe('The overall type of the interview (e.g., "product sense", "machine learning", "data structures & algorithms").'),
   faangLevel: z.string().describe('The target FAANG complexity level of the interview. This should influence the depth and rigor of the ideal answer and alternative approaches.'),
   jobTitle: z.string().optional().describe('The job title, if provided.'),
   jobDescription: z.string().optional().describe('The job description, if provided.'),
@@ -49,7 +49,7 @@ export type GenerateDeepDiveFeedbackOutput = z.infer<typeof DeepDiveOutputSchema
 export const GenerateDeepDiveFeedbackInputSchema = z.object({
   questionText: z.string(),
   userAnswerText: z.string(),
-  interviewType: z.string(), // Will include 'machine learning'
+  interviewType: z.string(), 
   faangLevel: z.string(),
   jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
@@ -115,6 +115,14 @@ Provide a detailed "Deep Dive" analysis with the following components. Be specif
         If it's an ML system design question, breakdown could include: problem understanding & scoping, data considerations (sources, preprocessing, labeling), feature engineering, model selection rationale, training strategy, evaluation metrics, deployment plan, and monitoring.
         {{else if (eq interviewType "technical system design")}}
         If the question is "Design a notification system," break down aspects like requirements gathering (more detailed for higher levels), high-level design, component deep-dive, scalability (more critical for higher levels), reliability, etc., all while relating back to the 'interviewFocus' and '{{{faangLevel}}}'.
+        {{else if (eq interviewType "data structures & algorithms")}}
+        If this is a Data Structures & Algorithms problem, the breakdown should cover:
+        - Understanding the problem: Restating, clarifying constraints, identifying inputs/outputs.
+        - High-level approach: General strategy (e.g., two pointers, BFS, recursion).
+        - Detailed algorithm steps: Pseudo-code like description of the logic.
+        - Data structures: Justification for chosen data structures (e.g., hash map for lookups, heap for priority).
+        - Complexity analysis: Step-by-step derivation of time and space complexity.
+        - Edge cases: How the solution handles common edge cases (e.g., empty input, single element).
         {{else}}
         Tailor the breakdown to the specific '{{{interviewType}}}'.
         {{/if}}
@@ -124,6 +132,8 @@ Provide a detailed "Deep Dive" analysis with the following components. Be specif
     *   Explain briefly why these alternatives are also valid or what different aspects they might highlight. The sophistication of these alternatives should align with '{{{faangLevel}}}'.
         {{#if (eq interviewType "machine learning")}}
         For ML questions, alternatives could include different model families (e.g., tree-based vs. neural nets), different evaluation strategies, or alternative ways to frame the problem (e.g., classification vs. regression if applicable).
+        {{else if (eq interviewType "data structures & algorithms")}}
+        For DSA, alternatives could include different algorithms (e.g., brute-force vs. optimized), variations in data structures (e.g., array vs. linked list for storing a sequence), or different ways to approach complexity trade-offs (time vs. space).
         {{/if}}
     *   This helps the user understand there isn't always one "right" way.
 
@@ -133,6 +143,8 @@ Provide a detailed "Deep Dive" analysis with the following components. Be specif
     *   Example: If the original question was about system design with an 'interviewFocus' on cost-optimization for an L6, a follow-up could be "How would your design change if the budget was halved but performance requirements remained, and how would you negotiate these constraints with stakeholders?"
         {{#if (eq interviewType "machine learning")}}
         For ML system design, follow-ups could be: "What if your primary data source becomes unavailable?", "How would you handle a sudden concept drift in your model's predictions related to {{{interviewFocus}}}?", "How would you explain your model's decision-making process to a non-technical stakeholder, especially for {{{faangLevel}}} roles that require strong communication?"
+        {{else if (eq interviewType "data structures & algorithms")}}
+        For DSA, follow-ups could be: "How would your solution adapt if the input numbers could be negative?", "What if the input array is sorted?", "Can you optimize your solution if memory is very constrained but time is less critical?", "How would this problem change if we were dealing with a stream of data instead of a fixed array?"
         {{/if}}
 
 4.  **suggestedStudyConcepts**: (Array of strings)
@@ -140,6 +152,8 @@ Provide a detailed "Deep Dive" analysis with the following components. Be specif
     *   Be specific. Instead of "data structures," suggest "advanced hash map collision resolution techniques for '{{{interviewFocus}}}' at scale" or "understanding eventual consistency vs. strong consistency trade-offs in distributed databases when dealing with '{{{interviewFocus}}}' for an L5/L6 role."
         {{#if (eq interviewType "machine learning")}}
         For ML, this could be specific algorithms (e.g., "Transformer architectures for NLP tasks related to {{{interviewFocus}}}"), MLOps tools/practices (e.g., "Kubeflow or MLflow for model lifecycle management at {{{faangLevel}}} scale"), or advanced statistical concepts relevant to {{{interviewFocus}}}.
+        {{else if (eq interviewType "data structures & algorithms")}}
+        For DSA, this could be specific algorithmic paradigms (e.g., "Kadane's algorithm for maximum subarray problems", "Floyd-Warshall for all-pairs shortest paths"), advanced data structures (e.g., "Trie for string prefix operations", "Segment Trees for range queries"), or proof techniques for complexity.
         {{/if}}
 
 Ensure your output is in the specified JSON format with these four keys.
@@ -176,5 +190,3 @@ const generateDeepDiveFeedbackFlow = ai.defineFlow(
     return output;
   }
 );
-
-    

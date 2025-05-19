@@ -119,12 +119,25 @@ Your goal is to simulate a multi-turn conversational deep-dive.
         - Ethical considerations if relevant to the {{{interviewFocus}}} or problem.
         Ensure the complexity is appropriate for the specified 'faangLevel'.
         {{/if}}
+        {{#if (eq interviewType "data structures & algorithms")}}
+        For "Data Structures & Algorithms," the case study should present a more complex algorithmic problem that might involve multiple steps, or a scenario where different data structures/algorithms could be applied and compared.
+        The initial scenario should set up the problem. Follow-up questions should probe:
+        - Initial understanding and clarification of the problem's constraints.
+        - Different approaches to solving the core problem.
+        - Detailed discussion of a chosen approach (algorithm, data structures).
+        - Time and space complexity analysis for the chosen and alternative approaches.
+        - How the solution handles edge cases or variations of the problem.
+        - Potential optimizations.
+        Example Scenario: "Imagine you're building a feature for a social network to suggest mutual friends. Design the core algorithm. What data structures would you use?"
+        Follow-ups: "How would your approach change if the network has billions of users?", "What if we want to rank suggestions by the number of common interests?", "Discuss the trade-offs between different graph traversal algorithms you might consider here."
+        Ensure the problem is solvable by discussing algorithms and data structures, not by writing code. The depth of complexity (e.g., multi-dimensional dynamic programming vs. simpler graph traversal) should align with 'faangLevel'.
+        {{/if}}
 
 {{#if (eq (toLowerCase targetCompany) "amazon")}}
 **Amazon-Specific Considerations (if 'targetCompany' is Amazon):**
 Pay special attention to Amazon's Leadership Principles.
 1.  **Behavioral:** If the case study leans behavioral, questions MUST provide an opportunity to demonstrate these principles. Frame questions using situations or ask for examples (e.g., "Imagine in this scenario, you encountered strong resistance to your proposed {{{interviewFocus}}} strategy. Tell me about a time you Insisted on the Highest Standards to overcome such a challenge.").
-2.  **Product Sense / Technical System Design / Machine Learning:** Frame the case study and follow-ups to subtly align with principles like Customer Obsession (e.g., "How would your design for {{{interviewFocus}}} ensure the best possible customer experience under failure conditions?"), Ownership, or Invent and Simplify (e.g., "Within this case, propose a significantly simpler approach to solve X problem related to {{{interviewFocus}}}.").
+2.  **Product Sense / Technical System Design / Machine Learning / Data Structures & Algorithms:** Frame the case study and follow-ups to subtly align with principles like Customer Obsession (e.g., "How would your design for {{{interviewFocus}}} ensure the best possible customer experience under failure conditions?"), Ownership, or Invent and Simplify (e.g., "Within this case, propose a significantly simpler approach to solve X problem related to {{{interviewFocus}}}.").
 Amazon's Leadership Principles for your reference:
 {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}
 - {{{this}}}
@@ -161,5 +174,3 @@ const generateCaseStudyQuestionsFlow = ai.defineFlow(
     return output;
   }
 );
-
-    

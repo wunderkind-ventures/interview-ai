@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -30,8 +30,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, InterviewType, FaangLevel, INTERVIEW_STYLES, InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, Skill } from "@/lib/constants";
-import type { InterviewSetupData } from "@/lib/types";
+import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, InterviewType, FaangLevel, INTERVIEW_STYLES, InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, Skill, THEMED_INTERVIEW_PACKS } from "@/lib/constants";
+import type { InterviewSetupData, ThemedInterviewPack, ThemedInterviewPackConfig } from "@/lib/types";
 import { summarizeResume } from "@/ai/flows/summarize-resume";
 import type { SummarizeResumeOutput } from "@/ai/flows/summarize-resume";
 import { useToast } from "@/hooks/use-toast";
@@ -51,7 +51,8 @@ const formSchema = z.object({
   resume: z.string().optional(),
   targetedSkills: z.array(z.string()).optional(),
   targetCompany: z.string().optional(),
-  interviewFocus: z.string().optional(), // Added
+  interviewFocus: z.string().optional(),
+  selectedThemeId: z.string().optional(), // For tracking selected theme
 });
 
 export default function InterviewSetupForm() {
@@ -75,7 +76,8 @@ export default function InterviewSetupForm() {
       resume: "",
       targetedSkills: [],
       targetCompany: "",
-      interviewFocus: "", // Added
+      interviewFocus: "",
+      selectedThemeId: "custom", // Default to custom
     },
   });
 
@@ -83,8 +85,10 @@ export default function InterviewSetupForm() {
   const availableSkills = watchedInterviewType ? SKILLS_BY_INTERVIEW_TYPE[watchedInterviewType] : [];
 
   useEffect(() => {
-    // Reset targeted skills when interview type changes
-    form.setValue("targetedSkills", []);
+    // Reset targeted skills when interview type changes, unless a theme is actively setting it
+    if (form.getValues("selectedThemeId") === "custom") {
+      form.setValue("targetedSkills", []);
+    }
   }, [watchedInterviewType, form]);
 
   const handleResumeAnalysis = async () => {
@@ -127,16 +131,10 @@ export default function InterviewSetupForm() {
     if (storedSetup) {
       try {
         const parsedSetup = JSON.parse(storedSetup) as InterviewSetupData;
+        // If there's stored setup, it's considered custom, not a theme override
         form.reset({
-          interviewType: parsedSetup.interviewType,
-          interviewStyle: parsedSetup.interviewStyle,
-          faangLevel: parsedSetup.faangLevel,
-          jobTitle: parsedSetup.jobTitle || "",
-          jobDescription: parsedSetup.jobDescription || "",
-          resume: parsedSetup.resume || "",
-          targetedSkills: parsedSetup.targetedSkills || [],
-          targetCompany: parsedSetup.targetCompany || "",
-          interviewFocus: parsedSetup.interviewFocus || "", // Added
+          ...parsedSetup,
+          selectedThemeId: "custom", 
         });
         if (parsedSetup.resume && parsedSetup.resume.trim() !== "") {
            setSummarizedForResumeText(parsedSetup.resume); 
@@ -148,19 +146,53 @@ export default function InterviewSetupForm() {
     }
   }, [form]);
 
+  const handleThemeChange = (themeId: string) => {
+    form.setValue("selectedThemeId", themeId);
+    if (themeId === "custom") {
+      // Optionally, you could reset to defaults or keep current values
+      // For now, let's keep current values to allow tweaking from a theme
+      return;
+    }
+    const selectedPack = THEMED_INTERVIEW_PACKS.find(pack => pack.id === themeId);
+    if (selectedPack) {
+      const { config } = selectedPack;
+      // Reset form with theme config, but preserve resume
+      const currentResume = form.getValues("resume");
+      const newFormValues: Partial<z.infer<typeof formSchema>> = {
+        interviewType: config.interviewType || INTERVIEW_TYPES[0].value,
+        interviewStyle: config.interviewStyle || INTERVIEW_STYLES[0].value,
+        faangLevel: config.faangLevel || FAANG_LEVELS[1].value,
+        jobTitle: config.jobTitle || "",
+        jobDescription: config.jobDescription || "",
+        targetedSkills: [], // Reset first
+        targetCompany: config.targetCompany || "",
+        interviewFocus: config.interviewFocus || "",
+        resume: currentResume,
+        selectedThemeId: themeId,
+      };
+      form.reset(newFormValues);
+
+      // Set targetedSkills after interviewType is set by reset to ensure availableSkills is up-to-date
+      // This timeout allows the watchedInterviewType effect to run and update availableSkills
+      setTimeout(() => {
+        if (config.interviewType && config.targetedSkills) {
+            const validSkillsForType = SKILLS_BY_INTERVIEW_TYPE[config.interviewType];
+            const validThemeSkills = config.targetedSkills.filter(skillVal => validSkillsForType.some(s => s.value === skillVal));
+            form.setValue("targetedSkills", validThemeSkills);
+        } else {
+             form.setValue("targetedSkills", []);
+        }
+      }, 0);
+    }
+  };
+
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
+    const { selectedThemeId, ...setupDataValues } = values; // Exclude selectedThemeId
     const setupData: InterviewSetupData = {
-      interviewType: values.interviewType,
-      interviewStyle: values.interviewStyle,
-      faangLevel: values.faangLevel,
-      jobTitle: values.jobTitle,
-      jobDescription: values.jobDescription,
-      resume: values.resume,
-      targetedSkills: values.targetedSkills,
-      targetCompany: values.targetCompany,
-      interviewFocus: values.interviewFocus, // Added
+        ...setupDataValues,
+        targetedSkills: values.targetedSkills || [], // Ensure it's an array
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
     localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
@@ -190,12 +222,46 @@ export default function InterviewSetupForm() {
       <CardHeader>
         <CardTitle className="text-3xl font-bold text-center text-primary">Start Your Mock Interview</CardTitle>
         <CardDescription className="text-center text-muted-foreground pt-1">
-          Configure your interview session and let our AI guide you.
+          Configure your interview session or choose a theme to get started quickly.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <FormField
+              control={form.control}
+              name="selectedThemeId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center text-lg">
+                    <PackageSearch className="mr-2 h-5 w-5 text-primary" />
+                    Interview Theme (Optional)
+                  </FormLabel>
+                  <Select onValueChange={handleThemeChange} value={field.value} defaultValue="custom">
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a theme or configure manually" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="custom">
+                        Custom Configuration
+                      </SelectItem>
+                      {THEMED_INTERVIEW_PACKS.map((pack) => (
+                        <SelectItem key={pack.id} value={pack.id} title={pack.description}>
+                          {pack.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Choosing a theme will pre-fill settings below. You can still customize them.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="interviewType"
@@ -205,7 +271,7 @@ export default function InterviewSetupForm() {
                     <Brain className="mr-2 h-5 w-5 text-primary" />
                     Interview Type
                   </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} defaultValue={INTERVIEW_TYPES[0].value}>
+                  <Select onValueChange={field.onChange} value={field.value} >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select an interview type" />
@@ -293,7 +359,7 @@ export default function InterviewSetupForm() {
                     <MessagesSquare className="mr-2 h-5 w-5 text-primary" />
                     Interview Style
                   </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} defaultValue={INTERVIEW_STYLES[0].value}>
+                  <Select onValueChange={field.onChange} value={field.value} >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select an interview style" />
@@ -327,7 +393,7 @@ export default function InterviewSetupForm() {
                     <Star className="mr-2 h-5 w-5 text-primary" />
                     Target FAANG Level
                   </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} defaultValue={FAANG_LEVELS[1].value}>
+                  <Select onValueChange={field.onChange} value={field.value} >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a FAANG level" />
@@ -421,7 +487,7 @@ export default function InterviewSetupForm() {
 
             <FormField
               control={form.control}
-              name="interviewFocus" // Added
+              name="interviewFocus"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center text-lg">
@@ -516,4 +582,3 @@ export default function InterviewSetupForm() {
     </Card>
   );
 }
-

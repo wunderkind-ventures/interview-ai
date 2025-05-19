@@ -10,7 +10,20 @@ export interface InterviewSetupData {
   resume?: string;
   targetedSkills?: string[];
   targetCompany?: string;
-  interviewFocus?: string; // Added
+  interviewFocus?: string;
+}
+
+export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills'>> {
+  // targetedSkills needs to be handled carefully due to dependency on interviewType
+  // We can add specific targetedSkills here, and the form logic will ensure they are valid for the theme's interviewType.
+  targetedSkills?: string[];
+}
+
+export interface ThemedInterviewPack {
+  id: string;
+  label: string;
+  description: string;
+  config: ThemedInterviewPackConfig;
 }
 
 export interface InterviewQuestion {
@@ -60,4 +73,3 @@ export interface InterviewSessionData extends InterviewSetupData {
   feedback?: InterviewFeedback | null;
   deepDives?: Record<string, DeepDiveFeedback>; // Question ID -> DeepDiveFeedback
 }
-

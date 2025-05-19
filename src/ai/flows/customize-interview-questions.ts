@@ -17,7 +17,7 @@ import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { generateTakeHomeAssignment } from './generate-take-home-assignment';
 import type { GenerateTakeHomeAssignmentInput } from './generate-take-home-assignment';
-import { generateCaseStudyQuestions } from './generate-case-study-questions'; // New import
+import { generateCaseStudyQuestions } from './generate-case-study-questions'; 
 // Exporting the schema for use by specialized flows
 export const CustomizeInterviewQuestionsInputSchema = z.object({
   jobTitle: z
@@ -41,7 +41,7 @@ export const CustomizeInterviewQuestionsInputSchema = z.object({
   faangLevel: z
     .string()
     .optional()
-    .describe('The target FAANG level for difficulty adjustment. This is critical for calibrating question complexity.'),
+    .describe('The target FAANG level for difficulty adjustment. This is critical for calibrating question complexity, considering dimensions like ambiguity, scope, impact, execution, and complexity associated with the level.'),
   targetedSkills: z
     .array(z.string())
     .optional()
@@ -93,8 +93,6 @@ export async function customizeInterviewQuestions(
       return { customizedQuestions: ["Failed to generate take-home assignment. The detailed problem statement could not be created. Please ensure all relevant fields like 'Job Title', 'Job Description', and 'Interview Focus' are as specific as possible. You can try configuring a simpler interview style or contact support."] };
     }
   } else if (input.interviewStyle === 'case-study') {
-    // Delegate to the specialized case study flow.
-    // The input schema for generateCaseStudyQuestions is currently CustomizeInterviewQuestionsInput.
     try {
         const caseStudyOutput = await generateCaseStudyQuestions(input);
         return { customizedQuestions: caseStudyOutput.customizedQuestions };
@@ -106,12 +104,12 @@ export async function customizeInterviewQuestions(
     }
   }
   // Default to the main flow for 'simple-qa' or other styles not explicitly handled above
-  return customizeInterviewQuestionsMainFlow(input);
+  return customizeSimpleQAInterviewQuestionsFlow(input);
 }
 
 // This prompt is now specifically for 'simple-qa'
-const mainPrompt = ai.definePrompt({
-  name: 'customizeSimpleQAInterviewQuestionsPrompt', // Renamed for clarity
+const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
+  name: 'customizeSimpleQAInterviewQuestionsPrompt', 
   tools: [getTechnologyBriefTool],
   input: {
     schema: CustomizeInterviewQuestionsInputSchema,
@@ -131,7 +129,12 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
 
 **General Principles for All Questions (for 'simple-qa'):**
 1.  **Relevance & Specificity:** Questions must be directly pertinent to the specified 'interviewType'. If 'jobTitle' and 'jobDescription' are provided, questions must be deeply tailored to the responsibilities, technologies, and domain mentioned.
-2.  **Difficulty Calibration:** All content must be precisely calibrated to the 'faangLevel'.
+2.  **Difficulty Calibration (FAANG Level):** All content must be precisely calibrated to the 'faangLevel'. This means considering the expected dimensions for that level, such as:
+    *   **Ambiguity:** The degree to which the problem is defined (e.g., L3/L4 might get well-defined problems, L5/L6 more ambiguous ones).
+    *   **Complexity:** The intricacy of the problem and the expected solution (e.g., L4 handles 'straightforward' problems, L6 handles 'complex' multi-faceted problems).
+    *   **Scope & Impact:** The breadth of the problem and the expected scale of the solution's impact.
+    *   **Execution:** The expected level of independence, strategic thinking vs. tactical execution. (e.g. L4 focuses on goals where strategy is defined, L6 defines strategy).
+    Adjust the nature of the questions to reflect these expectations. For example, higher levels might require more strategic thinking, dealing with greater ambiguity, or considering larger scale.
 3.  **Clarity & Conciseness:** Questions must be unambiguous, clear, and easy to understand.
 4.  **Skill Assessment:** Design questions to effectively evaluate 'targetedSkills' (if provided) or core competencies expected for the 'interviewType' and 'faangLevel'. If an 'interviewFocus' is provided, this should be a primary theme.
 5.  **Open-Ended:** Questions should encourage detailed, reasoned responses, not simple yes/no answers.
@@ -159,7 +162,7 @@ Targeted Skills:
 {{#if (eq interviewStyle "simple-qa")}}
 **Simple Q&A - Generate 5-10 questions:**
 1.  For the 'simple-qa' style, questions should be direct, standalone, and suitable for a straightforward question-and-answer format.
-2.  Ensure questions are tailored to the 'interviewType', 'jobTitle', 'jobDescription', 'faangLevel', any 'targetedSkills', and particularly the 'interviewFocus' if provided. The 'interviewFocus' should guide the selection or framing of at least some questions.
+2.  Ensure questions are tailored to the 'interviewType', 'jobTitle', 'jobDescription', 'faangLevel' (calibrating for ambiguity, complexity, scope, execution), any 'targetedSkills', and particularly the 'interviewFocus' if provided. The 'interviewFocus' should guide the selection or framing of at least some questions.
 3.  Generate 5-10 diverse questions that cover different facets of the 'interviewType'. For example, for "Product Sense," include questions on strategy, execution, metrics, and user understanding, all potentially colored by the 'interviewFocus'.
 
 {{else}}
@@ -193,23 +196,20 @@ Output the questions as a JSON object with a 'customizedQuestions' key, which is
 });
 
 // This flow is now specifically for 'simple-qa'
-const customizeInterviewQuestionsMainFlow = ai.defineFlow(
+const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
   {
-    name: 'customizeSimpleQAInterviewQuestionsFlow', // Renamed for clarity
+    name: 'customizeSimpleQAInterviewQuestionsFlow', 
     inputSchema: CustomizeInterviewQuestionsInputSchema,
     outputSchema: CustomizeInterviewQuestionsOutputSchema,
   },
   async input => {
     if (input.interviewStyle !== 'simple-qa') {
-        // This flow should only be called for 'simple-qa' by the orchestrator.
-        // If it's called with another style, something went wrong in the orchestration.
         return { customizedQuestions: [`This flow is for 'simple-qa' only. Style '${input.interviewStyle}' should be handled by a specialist.`] };
     }
 
-    const {output} = await mainPrompt(input);
+    const {output} = await customizeSimpleQAInterviewQuestionsPrompt(input);
     if (!output || !output.customizedQuestions || output.customizedQuestions.length === 0) {
         const genericFallback = ["Tell me about yourself.", "Why are you interested in this role?", "Describe a challenging project you worked on.", "What are your strengths?", "What are your weaknesses?"];
-        // For simple-qa, typically 5-10 questions. Let's aim for 7 as a fallback.
         const numQuestions = 7; 
         const selectedFallback = genericFallback.slice(0, Math.min(numQuestions, genericFallback.length));
         return { customizedQuestions: selectedFallback };
@@ -217,3 +217,5 @@ const customizeInterviewQuestionsMainFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    

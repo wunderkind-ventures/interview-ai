@@ -13,7 +13,8 @@ import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 
-export const GenerateTakeHomeAssignmentInputSchema = z.object({
+// Input schema for the flow (NOT EXPORTED)
+const GenerateTakeHomeAssignmentInputSchema = z.object({
   interviewType: z
     .enum(['product sense', 'technical system design', 'behavioral', 'machine learning', 'data structures & algorithms'])
     .describe('The type of interview the take-home assignment is for.'),
@@ -42,28 +43,31 @@ export const GenerateTakeHomeAssignmentInputSchema = z.object({
     .describe('A specific focus area or sub-topic to be the central theme of the assignment.'),
 });
 
-export type GenerateTakeHomeAssignmentInput = z.infer<
+export type GenerateTakeHomeAssignmentInput = z.infer< // EXPORTED (Type)
   typeof GenerateTakeHomeAssignmentInputSchema
 >;
 
-export const GenerateTakeHomeAssignmentOutputSchema = z.object({
+// Output schema for the flow (NOT EXPORTED)
+const GenerateTakeHomeAssignmentOutputSchema = z.object({
   assignmentText: z
     .string()
     .describe('The full text of the generated take-home assignment, formatted with Markdown-like headings.'),
   idealSubmissionCharacteristics: z.array(z.string()).optional().describe("Key characteristics or elements a strong submission for this take-home assignment would demonstrate, considering the problem, deliverables, and FAANG level."),
 });
 
-export type GenerateTakeHomeAssignmentOutput = z.infer<
+export type GenerateTakeHomeAssignmentOutput = z.infer< // EXPORTED (Type)
   typeof GenerateTakeHomeAssignmentOutputSchema
 >;
 
-export async function generateTakeHomeAssignment(
+// Main exported function that calls the flow
+export async function generateTakeHomeAssignment( // EXPORTED (Async Function)
   input: GenerateTakeHomeAssignmentInput
 ): Promise<GenerateTakeHomeAssignmentOutput> {
   return generateTakeHomeAssignmentFlow(input);
 }
 
-const prompt = ai.definePrompt({
+// Internal prompt definition
+const takeHomeAssignmentPrompt = ai.definePrompt({
   name: 'generateTakeHomeAssignmentPrompt',
   tools: [getTechnologyBriefTool],
   input: {
@@ -73,20 +77,14 @@ const prompt = ai.definePrompt({
     schema: GenerateTakeHomeAssignmentOutputSchema,
   },
   customize: (promptDef, callInput) => {
-    // IMPORTANT: This customize function runs BEFORE the prompt is processed by Handlebars.
-    // It replaces the placeholder with the actual list of principles.
-    if (promptDef.prompt && typeof promptDef.prompt === 'string') {
-      const newPromptString = promptDef.prompt.replace(
-        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g, // Use regex for global replacement
+    const populatedPrompt = promptDef.prompt!.replace(
+        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g,
         AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
       );
-      return {
-        ...promptDef,
-        prompt: newPromptString,
-      };
-    }
-    // If prompt is not a string or null/undefined, return original definition
-    return promptDef;
+    return {
+      ...promptDef,
+      prompt: populatedPrompt,
+    };
   },
   prompt: `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate a single, comprehensive, and self-contained take-home assignment based on the provided specifications.
@@ -183,17 +181,17 @@ Output a JSON object with two keys:
 `,
 });
 
+// Internal flow definition
 const generateTakeHomeAssignmentFlow = ai.defineFlow(
   {
     name: 'generateTakeHomeAssignmentFlow',
-    inputSchema: GenerateTakeHomeAssignmentInputSchema,
-    outputSchema: GenerateTakeHomeAssignmentOutputSchema,
+    inputSchema: GenerateTakeHomeAssignmentInputSchema, // Use internal schema
+    outputSchema: GenerateTakeHomeAssignmentOutputSchema, // Use internal schema
   },
   async (input: GenerateTakeHomeAssignmentInput): Promise<GenerateTakeHomeAssignmentOutput> => {
     try {
-      const {output} = await prompt(input); // The 'customize' function in 'prompt' will be applied here
+      const {output} = await takeHomeAssignmentPrompt(input);
       if (!output || !output.assignmentText || !output.idealSubmissionCharacteristics || output.idealSubmissionCharacteristics.length === 0) {
-        
         const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
         const fallbackJobContext = input.jobTitle ? `for the role of ${input.jobTitle}` : `for the specified role`;
         const fallbackCompanyContext = input.targetCompany ? `at ${input.targetCompany}` : `at a leading tech company`;
@@ -230,7 +228,7 @@ A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, 
           "Clear and concise communication of ideas."
         ];
         
-        console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated for input: ${JSON.stringify(input)}. This may be due to an issue with the AI model or prompt.`);
+        console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated. Input: ${JSON.stringify(input)}. This might be due to an issue with the AI model or prompt.`);
 
         return { 
           assignmentText: fallbackText,
@@ -239,7 +237,8 @@ A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, 
       }
       return output;
     } catch (error) {
-        console.error("Error in generateTakeHomeAssignmentFlow:", error);
+        const errMessage = error instanceof Error ? error.message : 'Unknown error during take-home assignment generation.';
+        console.error(`Error in generateTakeHomeAssignmentFlow (input: ${JSON.stringify(input)}):`, error);
         const errorAssignmentText = `## Error Generating Take-Home Assignment
 
 We encountered an error while trying to generate your take-home assignment for:
@@ -248,7 +247,7 @@ We encountered an error while trying to generate your take-home assignment for:
 - Level: ${input.faangLevel || 'Not specified'}
 - Job Title: ${input.jobTitle || 'Not specified'}
 
-Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment. The error was: ${error instanceof Error ? error.message : 'Unknown error'}`;
+Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment. The error was: ${errMessage}`;
         
         const errorCharacteristics = ["Error during generation - please report this."];
         

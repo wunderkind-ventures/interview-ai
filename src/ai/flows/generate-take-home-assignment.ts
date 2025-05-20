@@ -74,8 +74,7 @@ const prompt = ai.definePrompt({
   },
   prompt: `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate a single, comprehensive, and self-contained take-home assignment based on the provided specifications.
-The output MUST be a single 'assignmentText' string containing the full assignment, formatted with Markdown-like headings (e.g., "## Title", "### Goal").
-You MUST also output 'idealSubmissionCharacteristics', a list of 3-5 key elements a strong submission would typically exhibit for this specific assignment.
+The output MUST be a JSON object with 'assignmentText' (string) and 'idealSubmissionCharacteristics' (array of strings). The 'assignmentText' should contain the full assignment, formatted with Markdown-like headings (e.g., "## Title", "### Goal").
 
 **Core Instructions & Persona Nuances:**
 - Your persona is that of a seasoned hiring manager from a top-tier tech company. Your goal is to craft assignments that assess practical skills, problem-solving abilities, and communication clarity.
@@ -85,34 +84,34 @@ You MUST also output 'idealSubmissionCharacteristics', a list of 3-5 key element
 **FAANG Level Calibration:**
 The 'faangLevel' is critical. Calibrate the assignment based on typical expectations for Ambiguity, Complexity, Scope, and Execution for that level.
 The problem scenario, guiding questions, and expected depth of the deliverable MUST reflect these level-specific expectations.
-- For example, an L3/L4 assignment might involve a well-defined problem with a clear expected output.
-- An L5/L6 assignment might present a more ambiguous problem, requiring the candidate to define scope, make assumptions, and propose a more strategic solution with trade-offs.
-- An L7 assignment would typically involve a highly complex, strategic, or organization-wide problem with significant ambiguity.
+- Example: An L3/L4 assignment: well-defined problem, clear expected output.
+- Example: An L5/L6 assignment: more ambiguous problem, requires candidate to define scope, make assumptions, propose a strategic solution with trade-offs.
+- Example: An L7 assignment: highly complex, strategic, or organization-wide problem with significant ambiguity.
 
 **Output Requirement - Ideal Submission Characteristics:**
-For the assignment generated, you MUST also provide a brief list (3-5 bullet points) of 'idealSubmissionCharacteristics'. These are key elements or qualities a strong submission to THIS SPECIFIC assignment would typically exhibit, considering the 'interviewType', 'faangLevel', and 'interviewFocus'.
-- Example for a Product Sense L6 assignment "Develop a GTM strategy for a new AI feature": Ideal characteristics might include "Deep understanding of target user segments", "Clear value proposition and differentiation", "Comprehensive GTM plan with phased rollout", "Data-driven success metrics and KPIs", "Executive-level communication clarity".
-- Example for a DSA L5 assignment "Design an algorithm for a ride-sharing service's dispatch system": Ideal characteristics might include "Correct and efficient algorithmic solution for matching riders and drivers", "Well-justified data structure choices for real-time updates", "Rigorous time/space complexity analysis considering scale", "Thorough handling of edge cases and constraints (e.g., traffic, driver availability)", "Clear explanation of the solution's trade-offs".
+For the assignment generated, you MUST also provide 'idealSubmissionCharacteristics', a list of 3-5 key elements a strong submission would typically exhibit for THIS SPECIFIC assignment, considering the 'interviewType', 'faangLevel', and 'interviewFocus'.
+- Example for Product Sense L6 "Develop GTM strategy": Characteristics like "Deep understanding of target users", "Clear value proposition", "Comprehensive GTM plan", "Data-driven success metrics", "Executive-level communication".
+- Example for DSA L5 "Design ride-sharing dispatch algorithm": Characteristics like "Correct and efficient algorithm", "Justified data structures for real-time updates", "Rigorous time/space complexity analysis", "Thorough edge case handling", "Clear explanation of trade-offs".
 
 **Input Context to Consider:**
 Interview Type: {{{interviewType}}}
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
 {{#if jobDescription}}Job Description Context:
 {{{jobDescription}}}
-(Use the job description to understand the types of problems, technologies, and responsibilities relevant to the role.)
+(Use this to understand relevant problems, technologies, and responsibilities.)
 {{/if}}
 FAANG Level: {{{faangLevel}}}
 {{#if targetCompany}}Target Company: {{{targetCompany}}}{{/if}}
 {{#if targetedSkills.length}}
-Targeted Skills for this assignment:
+Targeted Skills:
 {{#each targetedSkills}}
 - {{{this}}}
 {{/each}}
 {{/if}}
-{{#if interviewFocus}}Specific Focus for this assignment: {{{interviewFocus}}}{{/if}}
+{{#if interviewFocus}}Specific Focus: {{{interviewFocus}}}{{/if}}
 
 **Internal Reflection on Ideal Answer Characteristics (Guiding your assignment generation):**
-Before finalizing the assignment, briefly consider the key characteristics or elements a strong submission would demonstrate (e.g., clear problem definition for Product Sense; robustness, scalability for System Design; sound ML model choice for ML; correct algorithm and complexity analysis for DSA). This internal reflection will help ensure the assignment is well-posed and effectively tests the intended skills for the given 'faangLevel'. You do not need to output *these internal reflections*, focus on generating the assignment text and the overall 'idealSubmissionCharacteristics' array.
+Before finalizing the assignment, briefly consider the key characteristics or elements a strong submission would demonstrate (e.g., clear problem definition for Product Sense; robustness, scalability for System Design; sound ML model choice for ML; correct algorithm and complexity analysis for DSA). This internal reflection will help ensure the assignment is well-posed and effectively tests the intended skills for the given 'faangLevel'.
 
 **Assignment Generation Logic:**
 1.  **Structure Planning:** Mentally outline each section described below. The 'Problem Scenario' must be crafted with care, heavily influenced by 'interviewFocus' and calibrated for 'faangLevel'.
@@ -121,33 +120,33 @@ Before finalizing the assignment, briefly consider the key characteristics or el
     *   **## Title of the Exercise**: Clear, descriptive title. Example: "Take-Home Exercise: [Specific Problem or Domain]"
 
     *   **### Goal / Objective**:
-        *   State the main purpose of the exercise, reflecting the 'faangLevel' and 'interviewType'.
-        *   List 2-4 key skills or characteristics being assessed, clearly aligned with inputs like 'targetedSkills' and 'jobTitle'.
+        *   State the main purpose, reflecting 'faangLevel' and 'interviewType'.
+        *   List 2-4 key skills being assessed, aligned with 'targetedSkills' and 'jobTitle'.
 
     *   **### The Exercise - Problem Scenario**:
         *   Provide a detailed and specific problem scenario. 'interviewFocus' MUST be central.
         *   Calibrate technical depth based on 'interviewType', 'jobTitle', 'jobDescription', and 'faangLevel'.
             *   **For "product sense"**:
-                *   If 'jobTitle' or 'jobDescription' suggest a highly technical PM role (e.g., "PM, Machine Learning Platforms", "Technical Product Manager - API Strategy"), the scenario should involve more technical considerations (e.g., API design choices, data model implications, ML feasibility).
-                *   If the role seems less technically deep (e.g., "Product Manager, Growth & Engagement"), the scenario could be more focused on strategy, user experience, metrics, or a reflective "Product Innovation Story" (like the example: "Describe an innovative product you delivered, focusing on context, journey, impact, and lessons learned.").
-                *   Other examples: a strategic proposal, a market entry analysis, a feature deep-dive, or a metrics definition task.
+                *   If 'jobTitle' or 'jobDescription' suggest a highly technical PM role (e.g., "PM, Machine Learning Platforms"), the scenario should involve more technical considerations (e.g., API design, data model implications, ML feasibility).
+                *   If the role seems less technically deep (e.g., "Product Manager, Growth"), the scenario could be more focused on strategy, user experience, metrics, or a reflective "Product Innovation Story" (e.g., "Describe an innovative product you delivered, focusing on context, journey, impact, and lessons learned.").
+                *   Other examples: strategic proposal, market entry analysis, feature deep-dive, metrics definition.
             *   **For "technical system design"**: A specific technical system design challenge (e.g., "Design a scalable notification system," "Architect a real-time analytics pipeline").
-            *   **For "behavioral"**: A reflective exercise asking the candidate to describe a complex past project, a significant challenge overcome, or a strategic decision they drove. Focus on their role, actions, outcomes, and learnings (STAR method is implicitly encouraged). This is less common for take-homes but possible.
-            *   **For "machine learning"**: A detailed ML system design challenge (e.g., "Design a fraud detection system for e-commerce") or a comprehensive proposal for an ML initiative (e.g., "Propose an ML-based solution to improve user retention").
-            *   **For "data structures & algorithms"**: A comprehensive algorithmic problem requiring detailed textual design, pseudo-code, analysis of complexity, and discussion of edge cases. This should be more involved than a typical live coding problem.
+            *   **For "behavioral"**: A reflective exercise asking the candidate to describe a complex past project, a significant challenge, or a strategic decision they drove. Focus on role, actions, outcomes, learnings (STAR method implicitly encouraged).
+            *   **For "machine learning"**: A detailed ML system design challenge (e.g., "Design a fraud detection system") or a comprehensive proposal for an ML initiative (e.g., "Propose an ML-based solution to improve user retention").
+            *   **For "data structures & algorithms"**: A comprehensive algorithmic problem requiring detailed textual design, pseudo-code, complexity analysis, and discussion of edge cases. More involved than a typical live coding problem.
 
     *   **### Key Aspects to Consider / Guiding Questions**:
-        *   List 5-8 bullet points or explicit questions tailored to the 'Problem Scenario', 'interviewFocus', 'interviewType', and 'faangLevel'. These should prompt for depth and cover various angles of the problem.
-        *   *Example for System Design:* "What are the key components?", "How will it scale?", "What are the potential bottlenecks?", "Discuss trade-offs for data storage."
-        *   *Example for Product Sense:* "Who are the target users?", "What are the key success metrics?", "What are the major risks and how would you mitigate them?", "Outline a potential MVP."
+        *   List 5-8 bullet points or explicit questions tailored to the 'Problem Scenario', 'interviewFocus', 'interviewType', and 'faangLevel'.
+        *   *Example for System Design:* "What are the key components?", "How will it scale?", "Potential bottlenecks?", "Data storage trade-offs."
+        *   *Example for Product Sense:* "Target users?", "Key success metrics?", "Major risks & mitigations?", "Outline MVP."
 
     *   **### Deliverable Requirements**:
-        *   Specify format (e.g., "A written memo," "A slide deck (PDF format)," "A detailed design document," "A structured textual explanation of your algorithm and analysis").
-        *   Provide constraints (e.g., "Maximum 6 pages," "10-12 slides," "Approximately 1000-1500 words").
-        *   Define target audience if relevant (e.g., "for a Product audience," "for technical peers," "for executive review").
+        *   Specify format (e.g., "Written memo," "Slide deck (PDF)," "Detailed design document," "Textual algorithm explanation").
+        *   Provide constraints (e.g., "Max 6 pages," "10-12 slides," "Approx 1000-1500 words").
+        *   Define target audience if relevant (e.g., "Product audience," "Technical peers," "Executive review").
 
     *   **### (Optional) Tips for Success**:
-        *   Provide 1-2 brief, general tips if appropriate (e.g., "Focus on clear communication and structure," "Be explicit about your assumptions and trade-offs").
+        *   Provide 1-2 brief, general tips (e.g., "Focus on clear communication," "Be explicit about assumptions and trade-offs").
 
 {{#if (eq (toLowerCase targetCompany) "amazon")}}
 **Amazon-Specific Considerations (if 'targetCompany' is Amazon):**
@@ -166,7 +165,7 @@ Output a JSON object with two keys:
   customize: (promptDef, callInput) => {
     if (promptDef.prompt && typeof promptDef.prompt === 'string') {
       const newPromptString = promptDef.prompt.replace(
-        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g,
+        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g, // Regex for global replacement
         AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
       );
       return {
@@ -174,6 +173,7 @@ Output a JSON object with two keys:
         prompt: newPromptString,
       };
     }
+    // If prompt is not a string or null/undefined, return original definition
     return promptDef;
   },
 });
@@ -217,7 +217,7 @@ A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, 
         "Clear and concise communication of ideas."
       ];
       
-      console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated for ${input.jobTitle || 'generic role'}. You might want to retry or refine inputs for more detail.`);
+      console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated for input: ${JSON.stringify(input)}. You might want to retry or refine inputs for more detail.`);
 
       return { 
         assignmentText: fallbackText,

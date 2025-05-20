@@ -72,6 +72,20 @@ const prompt = ai.definePrompt({
   output: {
     schema: GenerateTakeHomeAssignmentOutputSchema,
   },
+  customize: (promptDef, callInput) => {
+    if (promptDef.prompt && typeof promptDef.prompt === 'string') {
+      const newPromptString = promptDef.prompt.replace(
+        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g, // Regex for global replacement
+        AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
+      );
+      return {
+        ...promptDef,
+        prompt: newPromptString,
+      };
+    }
+    // If prompt is not a string or null/undefined, return original definition
+    return promptDef;
+  },
   prompt: `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate a single, comprehensive, and self-contained take-home assignment based on the provided specifications.
 The output MUST be a JSON object with 'assignmentText' (string) and 'idealSubmissionCharacteristics' (array of strings). The 'assignmentText' should contain the full assignment, formatted with Markdown-like headings (e.g., "## Title", "### Goal").
@@ -80,6 +94,7 @@ The output MUST be a JSON object with 'assignmentText' (string) and 'idealSubmis
 - Your persona is that of a seasoned hiring manager from a top-tier tech company. Your goal is to craft assignments that assess practical skills, problem-solving abilities, and communication clarity.
 - Ensure every part of the assignment directly reflects the provided inputs.
 - The assignment must be detailed, well-structured, and directly reflect 'interviewType', 'jobTitle', 'jobDescription', 'targetedSkills', 'interviewFocus', and crucially, the 'faangLevel'.
+- For the given 'faangLevel', consider common industry expectations regarding: Ambiguity, Complexity, Scope, and Execution.
 
 **FAANG Level Calibration:**
 The 'faangLevel' is critical. Calibrate the assignment based on typical expectations for Ambiguity, Complexity, Scope, and Execution for that level.
@@ -110,8 +125,8 @@ Targeted Skills:
 {{/if}}
 {{#if interviewFocus}}Specific Focus: {{{interviewFocus}}}{{/if}}
 
-**Internal Reflection on Ideal Answer Characteristics (Guiding your assignment generation):**
-Before finalizing the assignment, briefly consider the key characteristics or elements a strong submission would demonstrate (e.g., clear problem definition for Product Sense; robustness, scalability for System Design; sound ML model choice for ML; correct algorithm and complexity analysis for DSA). This internal reflection will help ensure the assignment is well-posed and effectively tests the intended skills for the given 'faangLevel'.
+**Internal Reflection on Ideal Submission Characteristics (Guiding your assignment generation):**
+Before finalizing the assignment, briefly consider the key characteristics or elements a strong submission would demonstrate (e.g., clear problem definition for Product Sense; robustness, scalability for System Design; sound ML model choice for ML; correct algorithm and complexity analysis for DSA). This internal reflection will help ensure the assignment is well-posed and effectively tests the intended skills for the given 'faangLevel'. You DO need to output these characteristics in the 'idealSubmissionCharacteristics' field.
 
 **Assignment Generation Logic:**
 1.  **Structure Planning:** Mentally outline each section described below. The 'Problem Scenario' must be crafted with care, heavily influenced by 'interviewFocus' and calibrated for 'faangLevel'.
@@ -127,18 +142,20 @@ Before finalizing the assignment, briefly consider the key characteristics or el
         *   Provide a detailed and specific problem scenario. 'interviewFocus' MUST be central.
         *   Calibrate technical depth based on 'interviewType', 'jobTitle', 'jobDescription', and 'faangLevel'.
             *   **For "product sense"**:
-                *   If 'jobTitle' or 'jobDescription' suggest a highly technical PM role (e.g., "PM, Machine Learning Platforms"), the scenario should involve more technical considerations (e.g., API design, data model implications, ML feasibility).
-                *   If the role seems less technically deep (e.g., "Product Manager, Growth"), the scenario could be more focused on strategy, user experience, metrics, or a reflective "Product Innovation Story" (e.g., "Describe an innovative product you delivered, focusing on context, journey, impact, and lessons learned.").
-                *   Other examples: strategic proposal, market entry analysis, feature deep-dive, metrics definition.
-            *   **For "technical system design"**: A specific technical system design challenge (e.g., "Design a scalable notification system," "Architect a real-time analytics pipeline").
-            *   **For "behavioral"**: A reflective exercise asking the candidate to describe a complex past project, a significant challenge, or a strategic decision they drove. Focus on role, actions, outcomes, learnings (STAR method implicitly encouraged).
-            *   **For "machine learning"**: A detailed ML system design challenge (e.g., "Design a fraud detection system") or a comprehensive proposal for an ML initiative (e.g., "Propose an ML-based solution to improve user retention").
-            *   **For "data structures & algorithms"**: A comprehensive algorithmic problem requiring detailed textual design, pseudo-code, complexity analysis, and discussion of edge cases. More involved than a typical live coding problem.
+                *   If 'jobTitle' or 'jobDescription' suggest a highly technical PM role (e.g., "PM, Machine Learning Platforms"), the scenario should involve more technical considerations (e.g., API design, data model implications, ML feasibility). Base the scenario on the 'interviewFocus' if provided.
+                *   If the role seems less technically deep (e.g., "Product Manager, Growth") or if the 'interviewFocus' is on strategy or reflection, generate a "Product Innovation Story" style assignment: ask the candidate to describe an innovative product they delivered, focusing on context, journey, impact, and lessons learned, especially if 'interviewFocus' is about past experiences or achievements.
+                *   Otherwise, default to product strategy, market entry analysis, feature deep-dive, or metrics definition based on 'interviewFocus'.
+            *   **For "technical system design"**: A specific technical system design challenge (e.g., "Design a scalable notification system," "Architect a real-time analytics pipeline"). The problem must be directly related to the 'interviewFocus' if provided.
+            *   **For "behavioral"**: A reflective exercise asking the candidate to describe a complex past project, a significant challenge, or a strategic decision they drove. Focus on role, actions, outcomes, learnings (STAR method implicitly encouraged), especially if 'interviewFocus' aligns with such a reflection.
+            *   **For "machine learning"**: A detailed ML system design challenge (e.g., "Design a fraud detection system") or a comprehensive proposal for an ML initiative (e.g., "Propose an ML-based solution to improve user retention"). The problem should be directly based on 'interviewFocus'.
+            *   **For "data structures & algorithms"**: A comprehensive algorithmic problem requiring detailed textual design, pseudo-code, complexity analysis, and discussion of edge cases. More involved than a typical live coding problem. The problem should relate to 'interviewFocus' if applicable.
 
     *   **### Key Aspects to Consider / Guiding Questions**:
         *   List 5-8 bullet points or explicit questions tailored to the 'Problem Scenario', 'interviewFocus', 'interviewType', and 'faangLevel'.
         *   *Example for System Design:* "What are the key components?", "How will it scale?", "Potential bottlenecks?", "Data storage trade-offs."
         *   *Example for Product Sense:* "Target users?", "Key success metrics?", "Major risks & mitigations?", "Outline MVP."
+        *   *Example for ML:* "What data would you use?", "What's your proposed model architecture?", "How would you evaluate performance?", "Deployment considerations?"
+        *   *Example for DSA:* "Explain your algorithm", "Analyze time/space complexity", "Discuss edge cases and constraints."
 
     *   **### Deliverable Requirements**:
         *   Specify format (e.g., "Written memo," "Slide deck (PDF)," "Detailed design document," "Textual algorithm explanation").
@@ -162,20 +179,6 @@ Output a JSON object with two keys:
 - 'assignmentText': The full assignment text (string, Markdown-like headings).
 - 'idealSubmissionCharacteristics': An array of 3-5 strings describing elements of a strong submission.
 `,
-  customize: (promptDef, callInput) => {
-    if (promptDef.prompt && typeof promptDef.prompt === 'string') {
-      const newPromptString = promptDef.prompt.replace(
-        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g, // Regex for global replacement
-        AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
-      );
-      return {
-        ...promptDef,
-        prompt: newPromptString,
-      };
-    }
-    // If prompt is not a string or null/undefined, return original definition
-    return promptDef;
-  },
 });
 
 const generateTakeHomeAssignmentFlow = ai.defineFlow(
@@ -185,9 +188,10 @@ const generateTakeHomeAssignmentFlow = ai.defineFlow(
     outputSchema: GenerateTakeHomeAssignmentOutputSchema,
   },
   async (input: GenerateTakeHomeAssignmentInput): Promise<GenerateTakeHomeAssignmentOutput> => {
-    const {output} = await prompt(input);
-    if (!output || !output.assignmentText || !output.idealSubmissionCharacteristics || output.idealSubmissionCharacteristics.length === 0) {
-      const fallbackText = `## Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})
+    try {
+      const {output} = await prompt(input);
+      if (!output || !output.assignmentText || !output.idealSubmissionCharacteristics || output.idealSubmissionCharacteristics.length === 0) {
+        const fallbackText = `## Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})
 
 ### Goal
 Demonstrate your ability to analyze a complex problem related to ${input.interviewFocus || input.interviewType} and propose a well-reasoned solution appropriate for a ${input.faangLevel} role for ${input.jobTitle || 'the specified role'}.
@@ -209,21 +213,40 @@ A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, 
 - Be clear and concise in your communication.
 - State any assumptions you've made.`;
 
-      const fallbackCharacteristics = [
-        "Clear problem understanding and scoping.",
-        "Well-reasoned approach and justification of choices.",
-        "Consideration of potential challenges and trade-offs.",
-        `Depth of analysis appropriate for ${input.faangLevel}.`,
-        "Clear and concise communication of ideas."
-      ];
-      
-      console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated for input: ${JSON.stringify(input)}. You might want to retry or refine inputs for more detail.`);
+        const fallbackCharacteristics = [
+          "Clear problem understanding and scoping.",
+          "Well-reasoned approach and justification of choices.",
+          "Consideration of potential challenges and trade-offs.",
+          `Depth of analysis appropriate for ${input.faangLevel}.`,
+          "Clear and concise communication of ideas."
+        ];
+        
+        console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated for input: ${JSON.stringify(input)}. This may be due to an issue with the AI model or prompt.`);
 
-      return { 
-        assignmentText: fallbackText,
-        idealSubmissionCharacteristics: fallbackCharacteristics
-      };
+        return { 
+          assignmentText: fallbackText,
+          idealSubmissionCharacteristics: fallbackCharacteristics
+        };
+      }
+      return output;
+    } catch (error) {
+        console.error("Error in generateTakeHomeAssignmentFlow:", error);
+        // Return a more informative error message or a generic assignment
+        const errorAssignmentText = `## Error Generating Take-Home Assignment
+
+We encountered an error while trying to generate your take-home assignment for:
+- Interview Type: ${input.interviewType}
+- Focus: ${input.interviewFocus || 'Not specified'}
+- Level: ${input.faangLevel}
+
+Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment.`;
+        const errorCharacteristics = ["Error during generation - please report this."];
+        
+        return {
+            assignmentText: errorAssignmentText,
+            idealSubmissionCharacteristics: errorCharacteristics
+        };
     }
-    return output;
   }
 );
+

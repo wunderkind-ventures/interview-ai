@@ -12,7 +12,6 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
-import { useToast } from '@/hooks/use-toast'; // This is a client-side hook, should not be here.
 
 export const GenerateTakeHomeAssignmentInputSchema = z.object({
   interviewType: z
@@ -85,7 +84,7 @@ The assignment must be detailed, well-structured, and directly reflect the 'inte
 - You MUST also output 'idealSubmissionCharacteristics', a list of 3-5 key elements a strong submission would typically exhibit.
 
 **FAANG Level Calibration:**
-The 'faangLevel' is critical. Calibrate the assignment based on typical expectations for Ambiguity, Complexity, Scope, and Execution.
+The 'faangLevel' is critical. Calibrate the assignment based on typical expectations for Ambiguity, Complexity, Scope, and Execution for that level.
 The problem scenario, guiding questions, and expected depth of the deliverable MUST reflect these level-specific expectations.
 
 **Output Requirement - Ideal Submission Characteristics:**
@@ -157,14 +156,18 @@ Output a JSON object with two keys:
 - 'assignmentText': The full assignment text (string, Markdown-like headings).
 - 'idealSubmissionCharacteristics': An array of 3-5 strings describing elements of a strong submission.
 `,
-  customize: (prompt, input) => { // Added customize function
-    return {
-      ...prompt,
-      prompt: prompt.prompt!.replace(
-        '${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}',
+  customize: (promptDef, callInput) => {
+    if (promptDef.prompt && typeof promptDef.prompt === 'string') {
+      const newPromptString = promptDef.prompt.replace(
+        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g, // Use a regex for global replace, just in case
         AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
-      ),
-    };
+      );
+      return {
+        ...promptDef,
+        prompt: newPromptString,
+      };
+    }
+    return promptDef;
   },
 });
 
@@ -177,7 +180,6 @@ const generateTakeHomeAssignmentFlow = ai.defineFlow(
   async (input: GenerateTakeHomeAssignmentInput): Promise<GenerateTakeHomeAssignmentOutput> => {
     const {output} = await prompt(input);
     if (!output || !output.assignmentText) {
-      // Construct a basic fallback
       const fallbackText = `## Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})
 
 ### Goal
@@ -196,9 +198,7 @@ A document (max 5 pages) outlining your approach, analysis, proposed solution, a
         "Clear and concise communication of ideas."
       ];
       
-      // We cannot use useToast here as this is a server-side flow.
-      // Logging to console instead.
-      console.warn(`TOAST (server-side fallback): AI Assignment Generation Fallback - A simplified assignment was generated for ${input.jobTitle || 'generic role'}. You might want to retry or refine inputs for more detail.`);
+      console.warn(`AI Assignment Generation Fallback - A simplified assignment was generated for ${input.jobTitle || 'generic role'}. You might want to retry or refine inputs for more detail.`);
 
       return { 
         assignmentText: fallbackText,
@@ -208,3 +208,5 @@ A document (max 5 pages) outlining your approach, analysis, proposed solution, a
     return output;
   }
 );
+
+    

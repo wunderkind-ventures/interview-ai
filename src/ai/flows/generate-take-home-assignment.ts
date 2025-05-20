@@ -73,9 +73,11 @@ const prompt = ai.definePrompt({
     schema: GenerateTakeHomeAssignmentOutputSchema,
   },
   customize: (promptDef, callInput) => {
+    // IMPORTANT: This customize function runs BEFORE the prompt is processed by Handlebars.
+    // It replaces the placeholder with the actual list of principles.
     if (promptDef.prompt && typeof promptDef.prompt === 'string') {
       const newPromptString = promptDef.prompt.replace(
-        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g, // Regex for global replacement
+        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g, // Use regex for global replacement
         AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
       );
       return {
@@ -189,15 +191,22 @@ const generateTakeHomeAssignmentFlow = ai.defineFlow(
   },
   async (input: GenerateTakeHomeAssignmentInput): Promise<GenerateTakeHomeAssignmentOutput> => {
     try {
-      const {output} = await prompt(input);
+      const {output} = await prompt(input); // The 'customize' function in 'prompt' will be applied here
       if (!output || !output.assignmentText || !output.idealSubmissionCharacteristics || output.idealSubmissionCharacteristics.length === 0) {
-        const fallbackText = `## Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})
+        
+        const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
+        const fallbackJobContext = input.jobTitle ? `for the role of ${input.jobTitle}` : `for the specified role`;
+        const fallbackCompanyContext = input.targetCompany ? `at ${input.targetCompany}` : `at a leading tech company`;
+        const fallbackFocusContext = input.interviewFocus || input.interviewType;
+        const fallbackLevelContext = input.faangLevel || 'a relevant professional';
+
+        const fallbackText = `## ${fallbackTitle}
 
 ### Goal
-Demonstrate your ability to analyze a complex problem related to ${input.interviewFocus || input.interviewType} and propose a well-reasoned solution appropriate for a ${input.faangLevel} role for ${input.jobTitle || 'the specified role'}.
+Demonstrate your ability to analyze a complex problem related to ${fallbackFocusContext} and propose a well-reasoned solution appropriate for a ${fallbackLevelContext} level ${fallbackJobContext} ${fallbackCompanyContext}.
 
 ### Problem Scenario
-Develop a detailed proposal for [a relevant problem based on: ${input.jobTitle || 'the role'}, focusing on ${input.interviewFocus || input.interviewType} at ${input.targetCompany || 'a leading tech company'}]. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${input.faangLevel} expectations].
+Develop a detailed proposal for [a relevant problem based on: ${fallbackJobContext}, focusing on ${fallbackFocusContext}]. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${input.faangLevel} expectations].
 
 ### Key Aspects to Consider
 - What is your overall approach?
@@ -231,15 +240,16 @@ A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, 
       return output;
     } catch (error) {
         console.error("Error in generateTakeHomeAssignmentFlow:", error);
-        // Return a more informative error message or a generic assignment
         const errorAssignmentText = `## Error Generating Take-Home Assignment
 
 We encountered an error while trying to generate your take-home assignment for:
 - Interview Type: ${input.interviewType}
 - Focus: ${input.interviewFocus || 'Not specified'}
-- Level: ${input.faangLevel}
+- Level: ${input.faangLevel || 'Not specified'}
+- Job Title: ${input.jobTitle || 'Not specified'}
 
-Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment.`;
+Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment. The error was: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        
         const errorCharacteristics = ["Error during generation - please report this."];
         
         return {
@@ -250,3 +260,4 @@ Please try configuring your interview again. If the problem persists, the AI mod
   }
 );
 
+    

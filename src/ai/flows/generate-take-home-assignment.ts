@@ -12,6 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
+import { useToast } from '@/hooks/use-toast'; // This is a client-side hook, should not be here.
 
 export const GenerateTakeHomeAssignmentInputSchema = z.object({
   interviewType: z
@@ -106,8 +107,11 @@ Targeted Skills:
 {{/if}}
 {{#if interviewFocus}}Specific Focus: {{{interviewFocus}}}{{/if}}
 
+**Internal Reflection on Ideal Answer Characteristics:**
+Before finalizing the assignment, briefly consider the key characteristics or elements a strong submission would demonstrate (e.g., clear problem definition, strategic thinking for Product Sense; robustness, scalability for System Design; sound ML model choice for ML; correct algorithm and complexity analysis for DSA). This internal reflection will help ensure the assignment is well-posed and effectively tests the intended skills for the given 'faangLevel'. You do not need to output these characteristics for *this step*, focus on generating the assignment text and the overall 'idealSubmissionCharacteristics' array.
+
 **Assignment Generation Logic:**
-1.  **Internal Deliberation (Structure Planning):** Mentally outline each section described below. The 'Problem Scenario' must be crafted with care, heavily influenced by 'interviewFocus' and calibrated for 'faangLevel'.
+1.  **Structure Planning:** Mentally outline each section described below. The 'Problem Scenario' must be crafted with care, heavily influenced by 'interviewFocus' and calibrated for 'faangLevel'.
 2.  **Assignment Structure (Strictly Adhere to this Format for 'assignmentText'):**
 
     *   **## Title of the Exercise**: Clear, descriptive title.
@@ -119,26 +123,29 @@ Targeted Skills:
     *   **### The Exercise - Problem Scenario**:
         *   Provide a detailed and specific problem scenario. 'interviewFocus' MUST be central.
         *   Tailor technical depth based on 'interviewType', 'jobTitle'/'jobDescription', and 'faangLevel'.
-            *   **For "product sense"**: Adapt based on PM role type (Strategic/Technical PM, Reflective/Process PM, Market/User Problem Deep Dive).
+            *   **For "product sense"**:
+                *   Adapt based on PM role type and technical depth indicated by 'jobTitle'/'jobDescription'.
+                *   Could be: a strategic proposal, a market entry analysis, a feature deep-dive, a user problem analysis (like a "Product Innovation Story" for less technical PMs), or a metrics definition task.
+                *   If 'jobDescription' or 'jobTitle' suggest a highly technical PM role (e.g., "PM, Machine Learning Platforms"), the scenario should involve more technical considerations.
             *   **For "technical system design"**: A technical design challenge.
-            *   **For "behavioral"**: A reflective exercise on a complex past project or strategic decision.
-            *   **For "machine learning"**: A detailed ML system design challenge or a comprehensive proposal.
-            *   **For "data structures & algorithms"**: A comprehensive algorithmic problem requiring textual design and analysis.
+            *   **For "behavioral"**: A reflective exercise on a complex past project or strategic decision, or a hypothetical challenging scenario.
+            *   **For "machine learning"**: A detailed ML system design challenge or a comprehensive proposal for an ML initiative.
+            *   **For "data structures & algorithms"**: A comprehensive algorithmic problem requiring detailed textual design, analysis, and edge case consideration.
 
     *   **### Key Aspects to Consider / Guiding Questions**:
-        *   List 5-8 bullet points or explicit questions tailored to the 'Problem Scenario', 'interviewFocus', 'interviewType', and 'faangLevel'.
+        *   List 5-8 bullet points or explicit questions tailored to the 'Problem Scenario', 'interviewFocus', 'interviewType', and 'faangLevel'. These should prompt for depth and cover various angles of the problem.
 
     *   **### Deliverable Requirements**:
-        *   Specify format (e.g., "A written memo," "A slide deck (PDF format)").
-        *   Provide constraints (e.g., "Maximum 6 pages," "10-12 slides").
-        *   Define target audience.
+        *   Specify format (e.g., "A written memo," "A slide deck (PDF format)," "A detailed design document").
+        *   Provide constraints (e.g., "Maximum 6 pages," "10-12 slides," "Approximately 1000 words").
+        *   Define target audience (e.g., "for a Product audience," "for technical peers," "for executive review").
 
     *   **### (Optional) Tips for Success**:
-        *   Provide 1-2 brief, general tips.
+        *   Provide 1-2 brief, general tips if appropriate (e.g., "Focus on clear communication," "Be explicit about your assumptions").
 
 {{#if (eq (toLowerCase targetCompany) "amazon")}}
 **Amazon-Specific Considerations (if 'targetCompany' is Amazon):**
-Subtly weave in opportunities to demonstrate Amazon's Leadership Principles.
+Subtly weave in opportunities to demonstrate Amazon's Leadership Principles, especially if the assignment type allows (e.g., behavioral reflection, or product strategy).
 Amazon's Leadership Principles for your reference:
 {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}
 - {{{this}}}
@@ -150,7 +157,7 @@ Output a JSON object with two keys:
 - 'assignmentText': The full assignment text (string, Markdown-like headings).
 - 'idealSubmissionCharacteristics': An array of 3-5 strings describing elements of a strong submission.
 `,
-  customize: (prompt, input) => {
+  customize: (prompt, input) => { // Added customize function
     return {
       ...prompt,
       prompt: prompt.prompt!.replace(
@@ -189,11 +196,10 @@ A document (max 5 pages) outlining your approach, analysis, proposed solution, a
         "Clear and concise communication of ideas."
       ];
       
-      toast({
-        title: "AI Assignment Generation Fallback",
-        description: "A simplified assignment was generated. You might want to retry or refine inputs for more detail.",
-        variant: "default",
-      });
+      // We cannot use useToast here as this is a server-side flow.
+      // Logging to console instead.
+      console.warn(`TOAST (server-side fallback): AI Assignment Generation Fallback - A simplified assignment was generated for ${input.jobTitle || 'generic role'}. You might want to retry or refine inputs for more detail.`);
+
       return { 
         assignmentText: fallbackText,
         idealSubmissionCharacteristics: fallbackCharacteristics
@@ -202,9 +208,3 @@ A document (max 5 pages) outlining your approach, analysis, proposed solution, a
     return output;
   }
 );
-
-// Helper for toast, as this flow is server-side only. This would typically be handled client-side.
-// For now, this is a placeholder if we were to use toasts server-side (not standard).
-const toast = (options: { title: string; description: string; variant: string }) => {
-  console.warn(`TOAST (server-side): ${options.title} - ${options.description}`);
-};

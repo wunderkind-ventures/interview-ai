@@ -76,16 +76,12 @@ const takeHomeAssignmentPrompt = ai.definePrompt({
   output: {
     schema: GenerateTakeHomeAssignmentOutputSchema,
   },
-  customize: (promptDef, callInput) => {
-    const populatedPrompt = promptDef.prompt!.replace(
-        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g,
-        AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
-      );
-    return {
+  customize: (promptDef, callInput) => ({
       ...promptDef,
-      prompt: populatedPrompt,
-    };
-  },
+    context: {
+      AMAZON_LEADERSHIP_PRINCIPLES,
+    },
+  }),
   prompt: `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate a single, comprehensive, and self-contained take-home assignment based on the provided specifications.
 The output MUST be a JSON object with 'assignmentText' (string) and 'idealSubmissionCharacteristics' (array of strings). The 'assignmentText' should contain the full assignment, formatted with Markdown-like headings (e.g., "## Title", "### Goal").
@@ -169,8 +165,8 @@ Before finalizing the assignment, briefly consider the key characteristics or el
 **Amazon-Specific Considerations (if 'targetCompany' is Amazon):**
 Subtly weave in opportunities to demonstrate Amazon's Leadership Principles, especially if the assignment type allows (e.g., behavioral reflection, or product strategy).
 Amazon's Leadership Principles for your reference:
-{{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}
-- {{{this}}}
+{{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES}")}}
+{{this}}
 {{/each}}
 {{/if}}
 

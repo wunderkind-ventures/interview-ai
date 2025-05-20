@@ -22,47 +22,8 @@ import type { GenerateTakeHomeAssignmentInput, GenerateTakeHomeAssignmentOutput 
 import { generateInitialCaseSetup } from './generate-case-study-questions'; // Renamed to generateInitialCaseSetup
 import type { GenerateInitialCaseSetupInput, GenerateInitialCaseSetupOutput } from './generate-case-study-questions'; // Renamed type
 
+import { CustomizeInterviewQuestionsInputSchema, CustomizeInterviewQuestionsInput } from '../schemas';
 
-export const CustomizeInterviewQuestionsInputSchema = z.object({
-  jobTitle: z
-    .string()
-    .optional()
-    .describe('The job title to customize the interview questions for. This is a key input for tailoring technical depth and focus.'),
-  jobDescription: z
-    .string()
-    .optional()
-    .describe('The job description to customize the interview questions for. Use this to extract key responsibilities and technologies.'),
-  resume: z
-    .string()
-    .optional()
-    .describe("The user resume to provide context about the candidate's background. Use this to subtly angle questions, but do not ask questions directly *about* the resume unless it's a behavioral question about past experiences."),
-  interviewType: z
-    .enum(['product sense', 'technical system design', 'behavioral', 'machine learning', 'data structures & algorithms'])
-    .describe('The type of interview to generate questions for.'),
-  interviewStyle: z
-    .enum(['simple-qa', 'case-study', 'take-home'])
-    .describe('The style of the interview: simple Q&A, multi-turn case study, or take-home assignment.'),
-  faangLevel: z
-    .string()
-    .optional()
-    .describe('The target FAANG level for difficulty adjustment. This is critical for calibrating question complexity, considering dimensions like ambiguity, scope, impact, execution, and complexity associated with the level.'),
-  targetedSkills: z
-    .array(z.string())
-    .optional()
-    .describe('Specific skills the user wants to focus on. Prioritize questions that assess these skills.'),
-  targetCompany: z
-    .string()
-    .optional()
-    .describe('The target company the user is interviewing for (e.g., Amazon, Google). This can influence question style and thematic focus.'),
-  interviewFocus: z
-    .string()
-    .optional()
-    .describe('A specific focus area or sub-topic provided by the user to further narrow down the interview content. This should refine questions within the broader interview type and targeted skills.'),
-});
-
-export type CustomizeInterviewQuestionsInput = z.infer<
-  typeof CustomizeInterviewQuestionsInputSchema
->;
 
 // This schema needs to accommodate the new fields for initial case study questions
 const OrchestratorQuestionOutputSchema = z.object({
@@ -93,7 +54,7 @@ export async function customizeInterviewQuestions(
       interviewType: input.interviewType,
       jobTitle: input.jobTitle,
       jobDescription: input.jobDescription,
-      faangLevel: input.faangLevel || 'L5', // Default if not provided
+      faangLevel: input.faangLevel || 'L6', // Default if not provided
       targetedSkills: input.targetedSkills,
       targetCompany: input.targetCompany,
       interviewFocus: input.interviewFocus,

@@ -16,7 +16,7 @@ import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 // Using CustomizeInterviewQuestionsInputSchema as the input for this specialized flow too,
 // as it contains all necessary context (job title, desc, level, focus, etc.)
-import { CustomizeInterviewQuestionsInputSchema } from './customize-interview-questions';
+import { CustomizeInterviewQuestionsInputSchema } from '../schemas'; // Updated import path
 export type GenerateInitialCaseSetupInput = z.infer<typeof CustomizeInterviewQuestionsInputSchema>;
 
 export const GenerateInitialCaseSetupOutputSchema = z.object({
@@ -56,7 +56,7 @@ const initialCaseSetupPrompt = ai.definePrompt({
   output: {
     schema: GenerateInitialCaseSetupOutputSchema,
   },
-  prompt: `You are an **Expert Case Study Architect AI**, from a top-tier tech company.
+  prompt: `You are an **Expert Case Study Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your task is to design the **initial setup** for a compelling and realistic case study interview.
 This setup includes:
 1.  A 'caseTitle'.
@@ -65,11 +65,17 @@ This setup includes:
 4.  'idealAnswerCharacteristicsForFirstQuestion': 2-3 key elements for a strong answer to that first question.
 5.  'internalNotesForFollowUpGenerator': A concise summary of key themes, challenges, or areas to probe in the case. This will guide another AI in generating dynamic follow-up questions.
 
-**Core Instructions:**
+**Core Instructions & Persona Nuances:**
+- Your persona is that of a seasoned hiring manager. Your goal is to craft case studies that are not just tests but learning experiences, making candidates think critically and reveal their problem-solving process.
 - The scenario must be challenging and allow for multiple valid approaches. It should NOT have an obvious single 'correct' answer.
-- Calibrate the complexity, ambiguity, and scope of the scenario and first question to the 'faangLevel'.
+- Calibrate the complexity, ambiguity, and scope of the scenario and first question to the 'faangLevel'. For the given 'faangLevel', consider typical industry expectations regarding: Ambiguity, Complexity, Scope, and Execution.
+  - Example: L3/L4 cases: more defined problems, clearer scope.
+  - Example: L5/L6 cases: more ambiguous scenarios, candidate needs to define scope and assumptions, solution might involve strategic trade-offs.
+  - Example: L7 cases: highly complex, strategic, or organization-wide problems with significant ambiguity.
 - The 'interviewFocus', 'jobTitle', and 'jobDescription' should heavily influence the theme and specifics of the case.
 - 'internalNotesForFollowUpGenerator' should be brief but informative (e.g., "Key challenges: scaling, data privacy, cross-team collaboration. Core trade-offs: cost vs. performance, speed vs. reliability. Potential areas to probe: user impact, metrics, technical debt.").
+- **Internal Reflection on Ideal Answer Characteristics:** Before finalizing the first question, briefly consider the key characteristics or elements a strong answer would demonstrate. This internal reflection will help ensure the question is well-posed. You DO need to output these characteristics for the 'idealAnswerCharacteristicsForFirstQuestion' field.
+
 
 **Input Context to Consider:**
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
@@ -89,14 +95,14 @@ Targeted Skills:
 
 **Scenario Generation Logic:**
 - **Theme:**
-    {{#if (eq interviewType "technical system design")}}The scenario will be a system to design or a major architectural challenge.{{/if}}
-    {{#if (eq interviewType "product sense")}}A product strategy, market entry, feature design, or problem-solving challenge.{{/if}}
-    {{#if (eq interviewType "behavioral")}}A complex hypothetical workplace situation requiring judgment and principle-based decision-making.{{/if}}
-    {{#if (eq interviewType "machine learning")}}An ML System Design problem or a strategic ML initiative.{{/if}}
-    {{#if (eq interviewType "data structures & algorithms")}}A complex algorithmic problem that requires significant decomposition and discussion before coding. The 'firstQuestionToAsk' might be about understanding requirements or initial approaches.{{/if}}
-- **'fullScenarioDescription'**: Provide enough detail to be immersive but leave room for clarification and assumptions.
-- **'firstQuestionToAsk'**: Should be open-ended, prompting the candidate to frame their approach or ask clarifying questions. Example: "Given this scenario, how would you begin to approach this problem?" or "What are your initial thoughts or clarifying questions about this situation?"
-- **'internalNotesForFollowUpGenerator'**: Extract the core tensions, variables, or success factors of the case.
+    {{#if (eq interviewType "technical system design")}}The scenario will be a system to design or a major architectural challenge. Design a realistic, multi-faceted problem.{{/if}}
+    {{#if (eq interviewType "product sense")}}A product strategy, market entry, feature design, or problem-solving challenge. Ensure it's engaging and requires strategic thinking.{{/if}}
+    {{#if (eq interviewType "behavioral")}}A complex hypothetical workplace situation requiring judgment and principle-based decision-making. Frame it as a leadership challenge if appropriate for the level.{{/if}}
+    {{#if (eq interviewType "machine learning")}}An ML System Design problem or a strategic ML initiative. The scenario should be detailed enough to allow for discussion of data, models, evaluation, and deployment.{{/if}}
+    {{#if (eq interviewType "data structures & algorithms")}}A complex algorithmic problem that requires significant decomposition and discussion before coding. The 'firstQuestionToAsk' might be about understanding requirements or initial approaches for this multi-faceted problem.{{/if}}
+- **'fullScenarioDescription'**: Provide enough detail to be immersive but leave room for clarification and assumptions. Make it rich and multi-layered, especially for higher FAANG levels.
+- **'firstQuestionToAsk'**: Should be open-ended, prompting the candidate to frame their approach, ask clarifying questions, or outline their initial strategy. Example: "Given this scenario, how would you begin to approach this problem, and what are your immediate clarifying questions?" or "What are your initial thoughts on the core challenges and opportunities presented here?"
+- **'internalNotesForFollowUpGenerator'**: Extract the core tensions, variables, success factors, and potential pivot points of the case. Consider what follow-up questions might probe deeper into these aspects.
 
 {{#if (eq (toLowerCase targetCompany) "amazon")}}
 **Amazon-Specific Considerations:**
@@ -111,7 +117,7 @@ Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema.
     return {
       ...prompt,
       prompt: prompt.prompt!.replace(
-        '${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}',
+        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g,
         AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
       ),
     };
@@ -125,19 +131,37 @@ const generateInitialCaseSetupFlow = ai.defineFlow(
     outputSchema: GenerateInitialCaseSetupOutputSchema,
   },
   async (input: GenerateInitialCaseSetupInput): Promise<GenerateInitialCaseSetupOutput> => {
-    const {output} = await initialCaseSetupPrompt(input);
-    if (!output || !output.fullScenarioDescription || !output.firstQuestionToAsk) {
-        // Basic fallback
-        const scenarioType = input.interviewType === "technical system design" ? "system design challenge" :
-                             input.interviewType === "machine learning" ? "ML problem" :
-                             input.interviewType === "data structures & algorithms" ? "algorithmic design task" :
-                             "product strategy scenario";
-        const fallbackTitle = `${input.interviewFocus || scenarioType} Setup`;
-        const fallbackDescription = `You are tasked with addressing a significant ${scenarioType} for a ${input.jobTitle || 'relevant role'} at ${input.targetCompany || 'a leading tech firm'}, focusing on "${input.interviewFocus || input.interviewType}". The complexity is aligned with a ${input.faangLevel || 'senior'} level.`;
-        const fallbackFirstQuestion = "Given this situation, what are your initial thoughts, and what clarifying questions would you ask to better understand the problem space and constraints?";
-        const fallbackIdealChars = ["Problem framing and clarification", "Identification of key ambiguities", "Structured approach to information gathering"];
-        const fallbackInternalNotes = `Case focus: ${input.interviewFocus || scenarioType}. Level: ${input.faangLevel}. Key areas: problem definition, initial strategy, constraints.`;
+    try {
+        const {output} = await initialCaseSetupPrompt(input);
+        if (!output || !output.fullScenarioDescription || !output.firstQuestionToAsk || !output.caseTitle || !output.internalNotesForFollowUpGenerator) {
+            console.warn(`AI Initial Case Setup Fallback Triggered. Input: ${JSON.stringify(input)}`);
+            const scenarioType = input.interviewType === "technical system design" ? "system design challenge" :
+                                 input.interviewType === "machine learning" ? "ML problem" :
+                                 input.interviewType === "data structures & algorithms" ? "algorithmic design task" :
+                                 "product strategy scenario";
+            const fallbackTitle = `${input.interviewFocus || scenarioType} Setup (${input.faangLevel})`;
+            const fallbackDescription = `You are tasked with addressing a significant ${scenarioType} for a ${input.jobTitle || 'relevant role'} at ${input.targetCompany || 'a leading tech firm'}, focusing on "${input.interviewFocus || input.interviewType}". The complexity is aligned with a ${input.faangLevel || 'senior'} level. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${input.faangLevel} expectations for this domain].`;
+            const fallbackFirstQuestion = "Given this situation, what are your initial thoughts, and what clarifying questions would you ask to better understand the problem space and constraints?";
+            const fallbackIdealChars = ["Problem framing and clarification", "Identification of key ambiguities", "Structured approach to information gathering"];
+            const fallbackInternalNotes = `Fallback Case. Focus: ${input.interviewFocus || scenarioType}. Level: ${input.faangLevel}. Key areas: problem definition, initial strategy, constraints.`;
 
+            return {
+                caseTitle: fallbackTitle,
+                fullScenarioDescription: fallbackDescription,
+                firstQuestionToAsk: fallbackFirstQuestion,
+                idealAnswerCharacteristicsForFirstQuestion: fallbackIdealChars,
+                internalNotesForFollowUpGenerator: fallbackInternalNotes,
+            };
+        }
+        return output;
+    } catch (error) {
+        const errMessage = error instanceof Error ? error.message : 'Unknown error during initial case setup generation.';
+        console.error(`Error in generateInitialCaseSetupFlow (input: ${JSON.stringify(input)}):`, error);
+        const fallbackTitle = `Error: ${input.interviewFocus || input.interviewType} Setup (${input.faangLevel})`;
+        const fallbackDescription = `Error generating initial case setup for ${input.jobTitle || 'role'} on ${input.interviewFocus || input.interviewType}. The AI model might be temporarily unavailable or the prompt requires adjustment. Error: ${errMessage}`;
+        const fallbackFirstQuestion = "An error occurred generating the first question. Please try again later or reconfigure your interview.";
+        const fallbackIdealChars = ["Report error."];
+        const fallbackInternalNotes = `Error in generation. Input: ${JSON.stringify(input)}. Error: ${errMessage}`;
         return {
             caseTitle: fallbackTitle,
             fullScenarioDescription: fallbackDescription,
@@ -146,6 +170,7 @@ const generateInitialCaseSetupFlow = ai.defineFlow(
             internalNotesForFollowUpGenerator: fallbackInternalNotes,
         };
     }
-    return output;
   }
 );
+
+    

@@ -14,6 +14,7 @@ import {z} from 'genkit';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { refineInterviewFeedback } from './refine-interview-feedback';
 import type { RefineInterviewFeedbackInput } from './refine-interview-feedback';
+import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema, type GenerateInterviewFeedbackOutput } from '../schemas'; // Import from shared schemas
 
 // Input schema for the data needed by the initial prompt template
 const DraftPromptInputSchema = z.object({
@@ -94,7 +95,7 @@ export const GenerateInterviewFeedbackInputSchema = z.object({
       questionId: z.string(),
       answerText: z.string(),
       timeTakenMs: z.number().optional(),
-      confidenceScore: z.number().min(1).max(5).optional(), // Added confidenceScore
+      confidenceScore: z.number().min(1).max(5).optional(),
     })
   ).describe("The list of answers provided by the user, including time taken and confidence for each."),
   interviewType: z.nativeEnum(
@@ -117,28 +118,7 @@ export type GenerateInterviewFeedbackInput = z.infer<
   typeof GenerateInterviewFeedbackInputSchema
 >;
 
-// Output schema for the exported flow function (matches lib/types.ts)
-export const FeedbackItemSchema = z.object({
-  questionId: z.string(),
-  questionText: z.string(),
-  answerText: z.string(),
-  strengths: z.array(z.string()).optional(),
-  areasForImprovement: z.array(z.string()).optional(),
-  specificSuggestions: z.array(z.string()).optional(),
-  critique: z.string().optional(),
-  idealAnswerPointers: z.array(z.string()).optional(),
-  timeTakenMs: z.number().optional(),
-  confidenceScore: z.number().min(1).max(5).optional(), // Added
-  reflectionPrompts: z.array(z.string()).optional(), // Added
-});
-
-export const GenerateInterviewFeedbackOutputSchema = z.object({
-  feedbackItems: z.array(FeedbackItemSchema),
-  overallSummary: z.string(),
-});
-export type GenerateInterviewFeedbackOutput = z.infer<
-  typeof GenerateInterviewFeedbackOutputSchema
->;
+// Exported type GenerateInterviewFeedbackOutput is already imported from ../schemas
 
 
 export async function generateInterviewFeedback(
@@ -246,7 +226,7 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
   {
     name: 'generateInterviewFeedbackOrchestrationFlow',
     inputSchema: GenerateInterviewFeedbackInputSchema,
-    outputSchema: GenerateInterviewFeedbackOutputSchema,
+    outputSchema: GenerateInterviewFeedbackOutputSchema, // Use the imported schema from ../schemas
   },
   async (input: GenerateInterviewFeedbackInput): Promise<GenerateInterviewFeedbackOutput> => {
     const questionsAndAnswers = input.questions.map((q, index) => {
@@ -258,7 +238,7 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
         timeTakenMs: answer ? answer.timeTakenMs : undefined,
         indexPlusOne: index + 1,
         idealAnswerCharacteristics: q.idealAnswerCharacteristics,
-        confidenceScore: answer ? answer.confidenceScore : undefined, // Pass confidenceScore
+        confidenceScore: answer ? answer.confidenceScore : undefined,
       };
     });
 
@@ -292,8 +272,8 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
         critique: aiItem.critique || "",
         idealAnswerPointers: aiItem.idealAnswerPointers || [],
         timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
-        confidenceScore: originalAnswer ? originalAnswer.confidenceScore : undefined, // Carry over confidenceScore
-        reflectionPrompts: aiItem.reflectionPrompts || [], // Carry over reflectionPrompts
+        confidenceScore: originalAnswer ? originalAnswer.confidenceScore : undefined,
+        reflectionPrompts: aiItem.reflectionPrompts || [],
       };
     });
 

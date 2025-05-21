@@ -15,7 +15,7 @@ import {z} from 'genkit';
 import type { InterviewSetupData } from '@/lib/types'; // For interviewContext
 import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 
-export const GenerateDynamicCaseFollowUpInputSchema = z.object({
+const GenerateDynamicCaseFollowUpInputSchema = z.object({
   internalNotesFromInitialScenario: z
     .string()
     .describe('Concise internal notes, keywords, or key aspects from the initial case setup. This helps the AI stay on topic.'),
@@ -37,7 +37,7 @@ export const GenerateDynamicCaseFollowUpInputSchema = z.object({
 });
 export type GenerateDynamicCaseFollowUpInput = z.infer<typeof GenerateDynamicCaseFollowUpInputSchema>;
 
-export const GenerateDynamicCaseFollowUpOutputSchema = z.object({
+const GenerateDynamicCaseFollowUpOutputSchema = z.object({
   followUpQuestionText: z
     .string()
     .describe('The dynamically generated follow-up question.'),
@@ -115,10 +115,10 @@ LPs: {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES}")}}- {{{this}}} {{/each}}
 
 Output a JSON object matching the GenerateDynamicCaseFollowUpOutputSchema.
 `,
-  customize: (prompt, input) => {
+  customize: (promptDef, callInput) => { // Changed from prompt to promptDef
     return {
-      ...prompt,
-      prompt: prompt.prompt!.replace(
+      ...promptDef, // Use promptDef
+      prompt: promptDef.prompt!.replace( // Use promptDef.prompt
         '${AMAZON_LEADERSHIP_PRINCIPLES}',
         AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
       ),

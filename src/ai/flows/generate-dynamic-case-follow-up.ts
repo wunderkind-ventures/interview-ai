@@ -110,7 +110,7 @@ Candidate's Last Answer: "{{previousUserAnswerText}}"
 {{#if (eq (toLowerCase interviewContext.targetCompany) "amazon")}}
 **Amazon-Specific Considerations:**
 If 'targetCompany' is Amazon, frame your follow-up to provide opportunities to demonstrate Amazon's Leadership Principles.
-LPs: {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}- {{{this}}} {{/each}}
+LPs: {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES}")}}- {{{this}}} {{/each}}
 {{/if}}
 
 Output a JSON object matching the GenerateDynamicCaseFollowUpOutputSchema.
@@ -119,7 +119,7 @@ Output a JSON object matching the GenerateDynamicCaseFollowUpOutputSchema.
     return {
       ...prompt,
       prompt: prompt.prompt!.replace(
-        '${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}',
+        '${AMAZON_LEADERSHIP_PRINCIPLES}',
         AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
       ),
     };

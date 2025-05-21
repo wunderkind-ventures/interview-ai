@@ -16,10 +16,10 @@ import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 // Using CustomizeInterviewQuestionsInputSchema as the input for this specialized flow too,
 // as it contains all necessary context (job title, desc, level, focus, etc.)
-import { CustomizeInterviewQuestionsInputSchema } from '../schemas'; // Updated import path
+import { CustomizeInterviewQuestionsInputSchema } from '../schemas';
 export type GenerateInitialCaseSetupInput = z.infer<typeof CustomizeInterviewQuestionsInputSchema>;
 
-export const GenerateInitialCaseSetupOutputSchema = z.object({
+const GenerateInitialCaseSetupOutputSchema = z.object({
   caseTitle: z.string().describe("A concise, engaging title for the case study (e.g., 'The Profile Gate Challenge', 'Revitalizing a Legacy System')."),
   fullScenarioDescription: z
     .string()
@@ -60,10 +60,10 @@ const initialCaseSetupPrompt = ai.definePrompt({
 Your task is to design the **initial setup** for a compelling and realistic case study interview.
 This setup includes:
 1.  A 'caseTitle'.
-2.  A 'fullScenarioDescription': A detailed narrative that sets the stage.
-3.  The 'firstQuestionToAsk': The very first question for the candidate.
+2.  A 'fullScenarioDescription': A detailed narrative that sets the stage. This should be rich and multi-layered, especially for higher FAANG levels, providing enough detail to be immersive but leaving room for clarification and candidate assumptions.
+3.  The 'firstQuestionToAsk': The very first question for the candidate. This should be open-ended, prompting the candidate to frame their approach, ask clarifying questions, or outline their initial strategy. Example: "Given this scenario, how would you begin to approach this problem, and what are your immediate clarifying questions?" or "What are your initial thoughts on the core challenges and opportunities presented here?"
 4.  'idealAnswerCharacteristicsForFirstQuestion': 2-3 key elements for a strong answer to that first question.
-5.  'internalNotesForFollowUpGenerator': A concise summary of key themes, challenges, or areas to probe in the case. This will guide another AI in generating dynamic follow-up questions.
+5.  'internalNotesForFollowUpGenerator': A concise summary of key themes, challenges, or areas to probe in the case. This will guide another AI in generating dynamic follow-up questions. For example: "Key challenges: scaling, data privacy, cross-team collaboration. Core trade-offs: cost vs. performance, speed vs. reliability. Potential areas to probe: user impact, metrics, technical debt."
 
 **Core Instructions & Persona Nuances:**
 - Your persona is that of a seasoned hiring manager. Your goal is to craft case studies that are not just tests but learning experiences, making candidates think critically and reveal their problem-solving process.
@@ -73,9 +73,7 @@ This setup includes:
   - Example: L5/L6 cases: more ambiguous scenarios, candidate needs to define scope and assumptions, solution might involve strategic trade-offs.
   - Example: L7 cases: highly complex, strategic, or organization-wide problems with significant ambiguity.
 - The 'interviewFocus', 'jobTitle', and 'jobDescription' should heavily influence the theme and specifics of the case.
-- 'internalNotesForFollowUpGenerator' should be brief but informative (e.g., "Key challenges: scaling, data privacy, cross-team collaboration. Core trade-offs: cost vs. performance, speed vs. reliability. Potential areas to probe: user impact, metrics, technical debt.").
 - **Internal Reflection on Ideal Answer Characteristics:** Before finalizing the first question, briefly consider the key characteristics or elements a strong answer would demonstrate. This internal reflection will help ensure the question is well-posed. You DO need to output these characteristics for the 'idealAnswerCharacteristicsForFirstQuestion' field.
-
 
 **Input Context to Consider:**
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
@@ -100,9 +98,6 @@ Targeted Skills:
     {{#if (eq interviewType "behavioral")}}A complex hypothetical workplace situation requiring judgment and principle-based decision-making. Frame it as a leadership challenge if appropriate for the level.{{/if}}
     {{#if (eq interviewType "machine learning")}}An ML System Design problem or a strategic ML initiative. The scenario should be detailed enough to allow for discussion of data, models, evaluation, and deployment.{{/if}}
     {{#if (eq interviewType "data structures & algorithms")}}A complex algorithmic problem that requires significant decomposition and discussion before coding. The 'firstQuestionToAsk' might be about understanding requirements or initial approaches for this multi-faceted problem.{{/if}}
-- **'fullScenarioDescription'**: Provide enough detail to be immersive but leave room for clarification and assumptions. Make it rich and multi-layered, especially for higher FAANG levels.
-- **'firstQuestionToAsk'**: Should be open-ended, prompting the candidate to frame their approach, ask clarifying questions, or outline their initial strategy. Example: "Given this scenario, how would you begin to approach this problem, and what are your immediate clarifying questions?" or "What are your initial thoughts on the core challenges and opportunities presented here?"
-- **'internalNotesForFollowUpGenerator'**: Extract the core tensions, variables, success factors, and potential pivot points of the case. Consider what follow-up questions might probe deeper into these aspects.
 
 {{#if (eq (toLowerCase targetCompany) "amazon")}}
 **Amazon-Specific Considerations:**
@@ -111,14 +106,14 @@ LPs: {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}- {{{this}}} {{/eac
 {{/if}}
 
 **Final Output Format:**
-Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema.
+Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema. Ensure 'caseTitle', 'fullScenarioDescription', 'firstQuestionToAsk', 'idealAnswerCharacteristicsForFirstQuestion', and 'internalNotesForFollowUpGenerator' are all populated with relevant, detailed content.
 `,
-  customize: (prompt, input) => {
+  customize: (promptDef, callInput) => {
     return {
-      ...prompt,
-      prompt: prompt.prompt!.replace(
+      ...promptDef,
+      prompt: promptDef.prompt!.replace(
         /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g,
-        AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
+        JSON.stringify(AMAZON_LEADERSHIP_PRINCIPLES)
       ),
     };
   }
@@ -172,5 +167,3 @@ const generateInitialCaseSetupFlow = ai.defineFlow(
     }
   }
 );
-
-    

@@ -226,7 +226,7 @@ Output a JSON object with a 'customizedQuestions' key. This key holds an array o
       ...prompt,
       prompt: prompt.prompt!.replace(
         '${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}',
-        AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
+        JSON.stringify(AMAZON_LEADERSHIP_PRINCIPLES)
       ),
     };
   }

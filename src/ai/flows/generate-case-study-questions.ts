@@ -102,7 +102,7 @@ Targeted Skills:
 {{#if (eq (toLowerCase targetCompany) "amazon")}}
 **Amazon-Specific Considerations:**
 If 'targetCompany' is Amazon, ensure the scenario and potential follow-ups (guided by your internal notes) provide opportunities to demonstrate Amazon's Leadership Principles.
-LPs: {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}- {{{this}}} {{/each}}
+LPs: {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES}")}}- {{{this}}} {{/each}}
 {{/if}}
 
 **Final Output Format:**

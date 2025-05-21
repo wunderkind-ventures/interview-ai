@@ -19,11 +19,10 @@ import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { generateTakeHomeAssignment } from './generate-take-home-assignment';
 import type { GenerateTakeHomeAssignmentInput, GenerateTakeHomeAssignmentOutput } from './generate-take-home-assignment';
 
-import { generateInitialCaseSetup } from './generate-case-study-questions'; // Renamed to generateInitialCaseSetup
-import type { GenerateInitialCaseSetupInput, GenerateInitialCaseSetupOutput } from './generate-case-study-questions'; // Renamed type
+import { generateInitialCaseSetup } from './generate-case-study-questions';
+import type { GenerateInitialCaseSetupInput, GenerateInitialCaseSetupOutput } from './generate-case-study-questions';
 
-import { CustomizeInterviewQuestionsInputSchema, CustomizeInterviewQuestionsInput } from '../schemas';
-
+import { CustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput } from '../schemas'; // Correctly import type
 
 // This schema needs to accommodate the new fields for initial case study questions
 const OrchestratorQuestionOutputSchema = z.object({
@@ -35,7 +34,8 @@ const OrchestratorQuestionOutputSchema = z.object({
     internalNotesForFollowUpGenerator: z.string().optional().describe("Context for the AI to generate the next dynamic follow-up question in a case study."),
 });
 
-export const CustomizeInterviewQuestionsOutputSchema = z.object({
+// Made this an internal constant
+const CustomizeInterviewQuestionsOutputSchema = z.object({
   customizedQuestions: z
     .array(OrchestratorQuestionOutputSchema)
     .describe('An array of customized interview questions/assignments. For case studies, this will contain only the first question along with context for dynamic follow-ups.'),
@@ -86,7 +86,6 @@ export async function customizeInterviewQuestions(
         };
     } catch (error) {
         console.error("Error generating initial case setup:", error);
-        // Fallback for case study initial setup failure
         const fallbackScenario = `Considering your role as a ${input.jobTitle || 'professional'} and the interview focus on ${input.interviewFocus || input.interviewType}, describe a complex project or challenge you've faced. This will serve as our initial case.`;
         const fallbackFollowUp = "What was the situation, your approach, and the outcome?";
         return {
@@ -95,17 +94,9 @@ export async function customizeInterviewQuestions(
               questionText: fallbackScenario,
               idealAnswerCharacteristics: ["Clarity of situation", "Logical approach", "Measurable outcome"],
               isInitialCaseQuestion: true,
-              fullScenarioDescription: fallbackScenario, // Use the question as description
+              fullScenarioDescription: fallbackScenario, 
               internalNotesForFollowUpGenerator: "Fallback case: focus on project challenge, approach, outcome."
             },
-            // Note: The dynamic follow-up generator is responsible for subsequent questions.
-            // This fallback only provides the *very first* prompt.
-            // Alternatively, provide a simplified first actual question.
-            // Let's use the firstQuestionToAsk as the questionText for the first item.
-            // {
-            //   questionText: fallbackFollowUp,
-            //   idealAnswerCharacteristics: ["Identification of key trade-offs", "Sound decision-making rationale"]
-            // }
           ]
         };
     }
@@ -118,13 +109,11 @@ export async function customizeInterviewQuestions(
 // Output schema for Simple Q&A - includes idealAnswerCharacteristics
 const SimpleQAQuestionsOutputSchema = z.object({
   customizedQuestions: z.array(
-    // Use OrchestratorQuestionOutputSchema here as well for consistency, even if some fields are not used by simple-qa
-    OrchestratorQuestionOutputSchema
+    OrchestratorQuestionOutputSchema 
   ).describe('An array of 5-10 customized Q&A questions, each with text and ideal answer characteristics.'),
 });
 
 
-// This prompt is now specifically for 'simple-qa'
 const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
   name: 'customizeSimpleQAInterviewQuestionsPrompt',
   tools: [getTechnologyBriefTool],
@@ -132,8 +121,6 @@ const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
     schema: CustomizeInterviewQuestionsInputSchema,
   },
   output: {
-    // The AI for simple Q&A will output an array of objects,
-    // each fitting the OrchestratorQuestionOutputSchema structure.
     schema: SimpleQAQuestionsOutputSchema
   },
   prompt: `You are an **Expert Interview Architect AI**, embodying the persona of a **seasoned hiring manager and curriculum designer from a top-tier tech company (e.g., Google, Meta, Amazon)**.
@@ -160,13 +147,10 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
 4.  **Skill Assessment:** Design questions to effectively evaluate 'targetedSkills' or core competencies. 'interviewFocus' should be a primary theme.
 5.  **Open-Ended (Crucial for L4+):** Questions should encourage detailed, reasoned responses.
 6.  **Tool Usage for Clarity:** If technologies are crucial, you may use the \`getTechnologyBriefTool\`. Integrate insights to make questions more specific.
-7.  **Internal Reflection on Ideal Answer Characteristics:** Before finalizing the question(s), briefly consider the key characteristics or elements a strong answer would demonstrate. This internal reflection will help ensure the question is well-posed. You DO need to output these characteristics for each question.
-
-**Output Requirement - Ideal Answer Characteristics:**
-For each question generated, you MUST also provide a brief list (2-4 bullet points) of 'idealAnswerCharacteristics'. These are key elements or qualities a strong answer to THAT SPECIFIC question would typically exhibit, considering the 'interviewType', 'faangLevel', and 'interviewFocus'.
-- Example for a Product Sense L5 question "How would you improve discovery for podcasts?": Ideal characteristics might include "User-centric problem definition", "Data-driven approach for identifying opportunities", "Creative but feasible solutions", "Clear success metrics".
-- Example for a DSA L4 question "Find the median of two sorted arrays": Ideal characteristics might include "Clarification of constraints and edge cases", "Efficient algorithmic approach (e.g., binary search based)", "Correct time/space complexity analysis", "Verbal walkthrough of logic".
-These characteristics will help in later feedback stages.
+7.  **Output Requirement - Ideal Answer Characteristics:** For each question generated, you MUST also provide a brief list (2-4 bullet points) of 'idealAnswerCharacteristics'. These are key elements or qualities a strong answer to THAT SPECIFIC question would typically exhibit, considering the 'interviewType', 'faangLevel', and 'interviewFocus'.
+    - Example for a Product Sense L5 question "How would you improve discovery for podcasts?": Ideal characteristics might include "User-centric problem definition", "Data-driven approach for identifying opportunities", "Creative but feasible solutions", "Clear success metrics".
+    - Example for a DSA L4 question "Find the median of two sorted arrays": Ideal characteristics might include "Clarification of constraints and edge cases", "Efficient algorithmic approach (e.g., binary search based)", "Correct time/space complexity analysis", "Verbal walkthrough of logic".
+    These characteristics will help in later feedback stages.
 
 **Interview Context & Inputs to Consider:**
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
@@ -210,7 +194,7 @@ Pay special attention to Amazon's Leadership Principles.
 1.  **Behavioral:** Many questions MUST provide an opportunity to demonstrate these principles.
 2.  **Other Types:** Frame questions to subtly align with principles like Customer Obsession, Ownership, or Invent and Simplify.
 Amazon's Leadership Principles for your reference:
-{{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}")}}
+{{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES}")}}
 - {{{this}}}
 {{/each}}
 {{/if}}
@@ -225,7 +209,7 @@ Output a JSON object with a 'customizedQuestions' key. This key holds an array o
     return {
       ...prompt,
       prompt: prompt.prompt!.replace(
-        '${AMAZON_LEADERSHIP_PRINCIPLES_JOINED}',
+        '${AMAZON_LEADERSHIP_PRINCIPLES}',
         JSON.stringify(AMAZON_LEADERSHIP_PRINCIPLES)
       ),
     };
@@ -237,10 +221,11 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
   {
     name: 'customizeSimpleQAInterviewQuestionsFlow',
     inputSchema: CustomizeInterviewQuestionsInputSchema,
-    outputSchema: SimpleQAQuestionsOutputSchema,
+    outputSchema: SimpleQAQuestionsOutputSchema, // Use the specific schema for simple Q&A
   },
   async (input): Promise<z.infer<typeof SimpleQAQuestionsOutputSchema>> => {
     if (input.interviewStyle !== 'simple-qa') {
+        // This case should ideally not be hit if the orchestrator is working correctly
         return { customizedQuestions: [{ questionText: `This flow is for 'simple-qa' only. Style '${input.interviewStyle}' should be handled by a specialist.`, idealAnswerCharacteristics: [] }] };
     }
 
@@ -257,16 +242,21 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
         ];
         const numQuestions = input.interviewType === 'data structures & algorithms' ? 5 : 7;
         const selectedFallback = fallbackQuestions.slice(0, Math.min(numQuestions, fallbackQuestions.length));
-        return { customizedQuestions: selectedFallback.map(q => ({...q})) }; // Ensure it matches OrchestratorQuestionOutputSchema
+        // Ensure fallback matches OrchestratorQuestionOutputSchema by adding undefined optional fields
+        return { customizedQuestions: selectedFallback.map(q => ({...q, isInitialCaseQuestion: undefined, fullScenarioDescription: undefined, internalNotesForFollowUpGenerator: undefined })) };
     }
     // Ensure output items conform to OrchestratorQuestionOutputSchema, even if some fields are undefined
     const compliantOutput = output.customizedQuestions.map(q => ({
         questionText: q.questionText,
         idealAnswerCharacteristics: q.idealAnswerCharacteristics,
-        isInitialCaseQuestion: undefined,
-        fullScenarioDescription: undefined,
-        internalNotesForFollowUpGenerator: undefined,
+        isInitialCaseQuestion: undefined, // Not applicable for simple-qa
+        fullScenarioDescription: undefined, // Not applicable for simple-qa
+        internalNotesForFollowUpGenerator: undefined, // Not applicable for simple-qa
     }));
     return { customizedQuestions: compliantOutput };
   }
 );
+
+// Export the types for input and output if they are used by other modules
+// The schemas themselves are internal to this file or imported from ../schemas.
+export type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput as CustomizeInterviewQuestionsOrchestratorOutput };

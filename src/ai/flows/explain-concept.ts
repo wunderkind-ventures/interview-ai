@@ -11,13 +11,13 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const ExplainConceptInputSchema = z.object({
+const ExplainConceptInputSchema = z.object({
   term: z.string().describe('The term or concept to be explained.'),
   interviewContext: z.string().optional().describe('Optional context of the interview (e.g., "technical system design", "product sense") to tailor the explanation if relevant.'),
 });
 export type ExplainConceptInput = z.infer<typeof ExplainConceptInputSchema>;
 
-export const ExplainConceptOutputSchema = z.object({
+const ExplainConceptOutputSchema = z.object({
   explanation: z.string().describe('A concise and clear explanation of the term or concept.'),
 });
 export type ExplainConceptOutput = z.infer<typeof ExplainConceptOutputSchema>;
@@ -58,3 +58,4 @@ const explainConceptFlow = ai.defineFlow(
     return output;
   }
 );
+

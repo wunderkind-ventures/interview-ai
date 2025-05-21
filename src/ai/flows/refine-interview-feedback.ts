@@ -74,11 +74,16 @@ Answer: "{{this.answerText}}"
 {{#if this.confidenceScore}}(User Confidence: {{this.confidenceScore}}/5){{/if}}
 
 Critique (Draft): "{{this.critique}}"
-Strengths (Draft): {{#if this.strengths.length}}{{jsonEncode this.strengths}}{{else}}None listed.{{/if}}
-Areas for Improvement (Draft): {{#if this.areasForImprovement.length}}{{jsonEncode this.areasForImprovement}}{{else}}None listed.{{/if}}
-Specific Suggestions (Draft): {{#if this.specificSuggestions.length}}{{jsonEncode this.specificSuggestions}}{{else}}None listed.{{/if}}
-Ideal Answer Pointers (Draft): {{#if this.idealAnswerPointers.length}}{{jsonEncode this.idealAnswerPointers}}{{else}}None listed.{{/if}}
-Reflection Prompts (Draft): {{#if this.reflectionPrompts.length}}{{jsonEncode this.reflectionPrompts}}{{else}}None listed.{{/if}}
+Strengths (Draft): {{#if this.strengths.length}}{{#each this.strengths}}
+- "{{this}}"{{/each}}{{else}}None listed.{{/if}}
+Areas for Improvement (Draft): {{#if this.areasForImprovement.length}}{{#each this.areasForImprovement}}
+- "{{this}}"{{/each}}{{else}}None listed.{{/if}}
+Specific Suggestions (Draft): {{#if this.specificSuggestions.length}}{{#each this.specificSuggestions}}
+- "{{this}}"{{/each}}{{else}}None listed.{{/if}}
+Ideal Answer Pointers (Draft): {{#if this.idealAnswerPointers.length}}{{#each this.idealAnswerPointers}}
+- "{{this}}"{{/each}}{{else}}None listed.{{/if}}
+Reflection Prompts (Draft): {{#if this.reflectionPrompts.length}}{{#each this.reflectionPrompts}}
+- "{{this}}"{{/each}}{{else}}None listed.{{/if}}
 ---
 {{/each}}
 
@@ -123,6 +128,7 @@ const refineInterviewFeedbackFlow = ai.defineFlow(
     outputSchema: GenerateInterviewFeedbackOutputSchema, // Use the imported schema from ../schemas
   },
   async (input: RefineInterviewFeedbackInput) => {
+    // Ensure arrays exist to prevent handlebars errors if they are undefined
     const processedDraftFeedback = {
       ...input.draftFeedback,
       feedbackItems: input.draftFeedback.feedbackItems.map(item => ({
@@ -139,6 +145,7 @@ const refineInterviewFeedbackFlow = ai.defineFlow(
     if (!output) {
       throw new Error('AI did not return refined feedback.');
     }
+    // Ensure arrays exist in the output as well
     const validatedOutput: RefineInterviewFeedbackOutput = {
         overallSummary: output.overallSummary,
         feedbackItems: output.feedbackItems.map(item => ({
@@ -153,3 +160,4 @@ const refineInterviewFeedbackFlow = ai.defineFlow(
     return validatedOutput;
   }
 );
+

@@ -46,8 +46,8 @@ const DeepDiveOutputSchema = z.object({
 export type GenerateDeepDiveFeedbackOutput = z.infer<typeof DeepDiveOutputSchema>;
 
 
-// Input schema for the exported flow function
-export const GenerateDeepDiveFeedbackInputSchema = z.object({
+// Input schema for the exported flow function - INTERNALIZED
+const GenerateDeepDiveFeedbackInputSchema = z.object({
   questionText: z.string(),
   userAnswerText: z.string(),
   interviewType: z.string(),
@@ -146,10 +146,10 @@ Focus on providing actionable, insightful, and educational content, calibrated t
 const generateDeepDiveFeedbackFlow = ai.defineFlow(
   {
     name: 'generateDeepDiveFeedbackFlow',
-    inputSchema: GenerateDeepDiveFeedbackInputSchema,
+    inputSchema: GenerateDeepDiveFeedbackInputSchema, // Uses the internalized schema
     outputSchema: DeepDiveOutputSchema,
   },
-  async (input: GenerateDeepDiveFeedbackInput) => {
+  async (input: GenerateDeepDiveFeedbackInput) => { // Accepts the exported type
     const promptInput: z.infer<typeof DeepDivePromptInputSchema> = {
       questionText: input.questionText,
       userAnswerText: input.userAnswerText,
@@ -173,3 +173,4 @@ const generateDeepDiveFeedbackFlow = ai.defineFlow(
     return output;
   }
 );
+

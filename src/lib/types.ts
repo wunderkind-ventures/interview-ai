@@ -38,7 +38,7 @@ export interface Answer {
   questionId: string;
   answerText: string;
   timeTakenMs?: number;
-  confidenceScore?: number; // Added
+  confidenceScore?: number;
 }
 
 export interface FeedbackItem {
@@ -51,8 +51,8 @@ export interface FeedbackItem {
   critique?: string;
   idealAnswerPointers?: string[];
   timeTakenMs?: number;
-  confidenceScore?: number; // Added: To store and display with feedback item
-  reflectionPrompts?: string[]; // Added
+  confidenceScore?: number; 
+  reflectionPrompts?: string[];
 }
 
 export interface InterviewFeedback {
@@ -80,4 +80,6 @@ export interface InterviewSessionData extends InterviewSetupData {
   deepDives?: Record<string, DeepDiveFeedback>;
   currentCaseTurnNumber?: number;
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
+  caseStudyNotes?: string; // Added for note-taking
 }
+

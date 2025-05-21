@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-questions";
-import type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
+import type { CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions"; // Corrected path
 import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-follow-up";
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
 import { explainConcept } from "@/ai/flows/explain-concept";
@@ -17,9 +17,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star } from "lucide-react"; // Added Star
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote } from "lucide-react"; // Added Star, StickyNote
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
-import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
+import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types"; // Corrected import path for CustomizeInterviewQuestionsInput
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
@@ -41,6 +41,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   interviewFocus: undefined,
   currentCaseTurnNumber: 0,
   caseConversationHistory: [],
+  caseStudyNotes: "", // Initialize case study notes
 };
 
 export default function InterviewSession() {
@@ -50,7 +51,7 @@ export default function InterviewSession() {
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [currentTime, setCurrentTime] = useState(0);
   const [isGeneratingFollowUp, setIsGeneratingFollowUp] = useState(false);
-  const [currentConfidenceScore, setCurrentConfidenceScore] = useState<number | null>(null); // Added
+  const [currentConfidenceScore, setCurrentConfidenceScore] = useState<number | null>(null);
 
   const [isExplainTermDialogOpen, setIsExplainTermDialogOpen] = useState(false);
   const [termToExplainInput, setTermToExplainInput] = useState("");
@@ -84,6 +85,7 @@ export default function InterviewSession() {
       interviewStyle: setupData.interviewStyle,
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
+      caseStudyNotes: (prev && prev.interviewStyle === 'case-study') ? prev.caseStudyNotes : "", // Preserve notes if already case study
     }));
 
     try {
@@ -111,7 +113,7 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false,
+        isLikelyFinalFollowUp: false, // Default, will be set by dynamic follow-up if applicable
       }));
 
       setSessionData(prev => {
@@ -154,6 +156,7 @@ export default function InterviewSession() {
       if (parsedSession.interviewStyle === 'case-study') {
         parsedSession.currentCaseTurnNumber = parsedSession.currentCaseTurnNumber ?? 0;
         parsedSession.caseConversationHistory = parsedSession.caseConversationHistory ?? [];
+        parsedSession.caseStudyNotes = parsedSession.caseStudyNotes ?? ""; // Load notes
       }
 
       setSessionData(parsedSession);
@@ -219,7 +222,7 @@ export default function InterviewSession() {
       questionId: currentQ.id,
       answerText: currentAnswer,
       timeTakenMs,
-      confidenceScore: currentConfidenceScore ?? undefined, // Add confidence score
+      confidenceScore: currentConfidenceScore ?? undefined,
     };
 
     let updatedAnswers = [...sessionData.answers, newAnswer];
@@ -326,7 +329,7 @@ export default function InterviewSession() {
     }
     setCurrentAnswer("");
     setCurrentTime(0);
-    setCurrentConfidenceScore(null); // Reset confidence score for next question
+    setCurrentConfidenceScore(null);
   };
 
   const handleEndInterview = () => {
@@ -346,7 +349,7 @@ export default function InterviewSession() {
          questionId: currentQ.id,
          answerText: currentAnswer,
          timeTakenMs,
-         confidenceScore: currentConfidenceScore ?? undefined, // Add confidence score
+         confidenceScore: currentConfidenceScore ?? undefined,
         };
        updatedAnswers = [...sessionData.answers, newAnswer];
        if (sessionData.interviewStyle === 'case-study') {
@@ -526,6 +529,32 @@ export default function InterviewSession() {
             <Button variant="ghost" size="sm" onClick={openExplainTermDialog} className="mb-3 text-xs text-muted-foreground hover:text-primary">
               <Lightbulb className="mr-1.5 h-3.5 w-3.5" /> Explain a concept from this question
             </Button>
+
+            {sessionData.interviewStyle === 'case-study' && (
+              <div className="mt-4 mb-6">
+                <label htmlFor="caseStudyNotes" className="block text-sm font-medium text-muted-foreground mb-1 flex items-center">
+                  <StickyNote className="h-4 w-4 mr-2 text-primary" />
+                  Your Notes for this Case Study:
+                </label>
+                <Textarea
+                  id="caseStudyNotes"
+                  placeholder="Jot down your thoughts, calculations, or key points here..."
+                  value={sessionData.caseStudyNotes || ""}
+                  onChange={(e) => {
+                    setSessionData(prev => {
+                      if (!prev) return null;
+                      const newNotes = e.target.value;
+                      const updatedSession = { ...prev, caseStudyNotes: newNotes };
+                      localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+                      return updatedSession;
+                    });
+                  }}
+                  className="min-h-[150px] text-sm bg-secondary/20 border-input"
+                  rows={6}
+                />
+              </div>
+            )}
+
             <Textarea
               placeholder={sessionData.interviewStyle === 'take-home' ? "Paste your full response here..." : "Type your answer here..."}
               value={currentAnswer}
@@ -614,3 +643,4 @@ export default function InterviewSession() {
     </>
   );
 }
+

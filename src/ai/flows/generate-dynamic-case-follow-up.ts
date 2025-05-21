@@ -107,21 +107,27 @@ Candidate's Last Answer: "{{previousUserAnswerText}}"
 - Stakeholder considerations.
 - Prioritization if multiple options were presented.
 
-{{#if (eq (toLowerCase interviewContext.targetCompany) "amazon")}}
+{{#if interviewContext.targetCompany}}
+If the interviewContext.targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
 **Amazon-Specific Considerations:**
-If 'targetCompany' is Amazon, frame your follow-up to provide opportunities to demonstrate Amazon's Leadership Principles.
-LPs: {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES}")}}- {{{this}}} {{/each}}
+Frame your follow-up to provide opportunities to demonstrate Amazon's Leadership Principles.
+The Amazon Leadership Principles are:
+{{{AMAZON_LPS_LIST}}}
 {{/if}}
 
 Output a JSON object matching the GenerateDynamicCaseFollowUpOutputSchema.
 `,
-  customize: (promptDef, callInput) => { // Changed from prompt to promptDef
+  customize: (promptDef, callInput) => {
+    let promptText = promptDef.prompt!;
+    if (callInput.interviewContext?.targetCompany && callInput.interviewContext.targetCompany.toLowerCase() === 'amazon') {
+      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
+      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
+    } else {
+      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
+    }
     return {
-      ...promptDef, // Use promptDef
-      prompt: promptDef.prompt!.replace( // Use promptDef.prompt
-        '${AMAZON_LEADERSHIP_PRINCIPLES}',
-        AMAZON_LEADERSHIP_PRINCIPLES.join('\n- ')
-      ),
+      ...promptDef,
+      prompt: promptText,
     };
   }
 });
@@ -163,3 +169,5 @@ const generateDynamicCaseFollowUpFlow = ai.defineFlow(
     return output;
   }
 );
+
+    

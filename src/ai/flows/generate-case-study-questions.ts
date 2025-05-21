@@ -56,8 +56,8 @@ const initialCaseSetupPrompt = ai.definePrompt({
   output: {
     schema: GenerateInitialCaseSetupOutputSchema,
   },
-  prompt: `You are an **Expert Case Study Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
-Your task is to design the **initial setup** for a compelling and realistic case study interview.
+  prompt: `You are an **Expert Case Study Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**. You excel at designing compelling and realistic case study interviews.
+Your task is to design the **initial setup** for a case study.
 This setup includes:
 1.  A 'caseTitle'.
 2.  A 'fullScenarioDescription': A detailed narrative that sets the stage. This should be rich and multi-layered, especially for higher FAANG levels, providing enough detail to be immersive but leaving room for clarification and candidate assumptions.
@@ -93,28 +93,37 @@ Targeted Skills:
 
 **Scenario Generation Logic:**
 - **Theme:**
-    {{#if (eq interviewType "technical system design")}}The scenario will be a system to design or a major architectural challenge. Design a realistic, multi-faceted problem.{{/if}}
-    {{#if (eq interviewType "product sense")}}A product strategy, market entry, feature design, or problem-solving challenge. Ensure it's engaging and requires strategic thinking.{{/if}}
-    {{#if (eq interviewType "behavioral")}}A complex hypothetical workplace situation requiring judgment and principle-based decision-making. Frame it as a leadership challenge if appropriate for the level.{{/if}}
-    {{#if (eq interviewType "machine learning")}}An ML System Design problem or a strategic ML initiative. The scenario should be detailed enough to allow for discussion of data, models, evaluation, and deployment.{{/if}}
-    {{#if (eq interviewType "data structures & algorithms")}}A complex algorithmic problem that requires significant decomposition and discussion before coding. The 'firstQuestionToAsk' might be about understanding requirements or initial approaches for this multi-faceted problem.{{/if}}
+    If the interviewType is "technical system design": The scenario will be a system to design or a major architectural challenge. Design a realistic, multi-faceted problem.
+    If the interviewType is "product sense": A product strategy, market entry, feature design, or problem-solving challenge. Ensure it's engaging and requires strategic thinking.
+    If the interviewType is "behavioral": A complex hypothetical workplace situation requiring judgment and principle-based decision-making. Frame it as a leadership challenge if appropriate for the level.
+    If the interviewType is "machine learning": An ML System Design problem or a strategic ML initiative. The scenario should be detailed enough to allow for discussion of data, models, evaluation, and deployment.
+    If the interviewType is "data structures & algorithms": A complex algorithmic problem that requires significant decomposition and discussion before coding. The 'firstQuestionToAsk' might be about understanding requirements or initial approaches for this multi-faceted problem.
 
-{{#if (eq (toLowerCase targetCompany) "amazon")}}
+{{#if targetCompany}}
+If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
 **Amazon-Specific Considerations:**
-If 'targetCompany' is Amazon, ensure the scenario and potential follow-ups (guided by your internal notes) provide opportunities to demonstrate Amazon's Leadership Principles.
-LPs: {{#each (raw "${AMAZON_LEADERSHIP_PRINCIPLES}")}}- {{{this}}} {{/each}}
+Ensure the scenario and potential follow-ups (guided by your internal notes) provide opportunities to demonstrate Amazon's Leadership Principles.
+The Amazon Leadership Principles are:
+{{{AMAZON_LPS_LIST}}}
 {{/if}}
 
 **Final Output Format:**
 Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema. Ensure 'caseTitle', 'fullScenarioDescription', 'firstQuestionToAsk', 'idealAnswerCharacteristicsForFirstQuestion', and 'internalNotesForFollowUpGenerator' are all populated with relevant, detailed content.
 `,
   customize: (promptDef, callInput) => {
+    let promptText = promptDef.prompt!;
+    if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
+      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
+      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
+    } else {
+      // Remove the whole Amazon section if not Amazon, or leave it to the LLM to ignore
+      // For simplicity, let's rely on the LLM ignoring it if the condition isn't met in its reasoning
+      // Or, we can remove the placeholder if it's not Amazon.
+      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
+    }
     return {
       ...promptDef,
-      prompt: promptDef.prompt!.replace(
-        /\$\{AMAZON_LEADERSHIP_PRINCIPLES_JOINED\}/g,
-        JSON.stringify(AMAZON_LEADERSHIP_PRINCIPLES)
-      ),
+      prompt: promptText,
     };
   }
 });
@@ -167,3 +176,5 @@ const generateInitialCaseSetupFlow = ai.defineFlow(
     }
   }
 );
+
+    

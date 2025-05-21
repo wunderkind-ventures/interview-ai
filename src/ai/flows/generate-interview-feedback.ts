@@ -19,7 +19,7 @@ import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema, type Generat
 // Input schema for the data needed by the initial prompt template
 const DraftPromptInputSchema = z.object({
   interviewType: z.string(),
-  interviewStyle: z.string(),
+  interviewStyle: z.string(), // Will be used to set boolean flags
   faangLevel: z.string().describe("The target FAANG level, influencing expected depth and quality of answers."),
   jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
@@ -36,6 +36,9 @@ const DraftPromptInputSchema = z.object({
       confidenceScore: z.number().min(1).max(5).optional().describe("User's self-rated confidence (1-5 stars) for their answer."),
     })
   ),
+  // Boolean flags for Handlebars
+  isTakeHomeStyle: z.boolean(),
+  isSimpleQAOrCaseStudyStyle: z.boolean(),
 });
 
 // Schema for what the AI model is expected to return for each feedback item (draft stage)
@@ -81,7 +84,7 @@ const AIDraftOutputSchema = z.object({
     ),
 });
 
-// Input schema for the exported flow function - THIS IS NOW INTERNAL
+// Input schema for the exported flow function
 const GenerateInterviewFeedbackInputSchema = z.object({
   questions: z.array(
     z.object({
@@ -161,7 +164,7 @@ The specific focus for this interview was: {{{interviewFocus}}}
 **Tool Usage Guidance:**
 If the candidate's answer mentions specific technologies and you need a quick, factual summary to help you evaluate their understanding or suggest alternatives, you may use the \`getTechnologyBriefTool\`. Use the tool's output to enrich your feedback.
 
-If the interviewStyle is "take-home":
+{{#if isTakeHomeStyle}}
 This was a take-home assignment. The "question" is the assignment description, and the "answer" is the candidate's submission.
 Question (Assignment Description): {{{questionsAndAnswers.0.questionText}}}
 {{#if questionsAndAnswers.0.idealAnswerCharacteristics.length}}
@@ -185,38 +188,40 @@ Your task is to provide a DRAFT of:
     *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional).
     *   'idealAnswerPointers': Key elements of a strong submission, potentially expanding on or reinforcing the 'Ideal Submission Characteristics'.
     *   'reflectionPrompts': Based on the submission, critique, and confidence, generate 1-2 prompts for self-reflection.
-Else (if interviewStyle is "simple-qa" or "case-study"):
-  Below are the questions asked, the answers provided, ideal answer characteristics, and user confidence for each question.
-  {{#each questionsAndAnswers}}
-  Question {{this.indexPlusOne}} (ID: {{this.questionId}}): {{{this.questionText}}}
-  {{#if this.idealAnswerCharacteristics.length}}
-  Ideal Answer Characteristics for this Question:
-  {{#each this.idealAnswerCharacteristics}}
-  - {{{this}}}
-  {{/each}}
-  {{/if}}
-  Answer: {{{this.answerText}}}
-  {{#if this.timeTakenMs}}
-  (Time taken: {{this.timeTakenMs}} ms)
-  {{/if}}
-  {{#if this.confidenceScore}}
-  User Confidence (1-5 stars): {{this.confidenceScore}}
-  {{/if}}
-  {{/each}}
+{{/if}}
 
-  Your task is to provide a DRAFT of:
-  1.  For each question and answer pair, provide structured feedback in 'feedbackItems'. Each item should include:
-      *   'questionId'.
-      *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional arrays of 1-3 strings).
-      *   'critique': (Optional concise summary). Your critique should be informed by the 'Ideal Answer Characteristics' provided for the question, and subtly acknowledge the user's 'confidenceScore' if available.
-      *   'idealAnswerPointers': (Optional array of 2-4 strings) Key elements of a strong answer, potentially expanding on or reinforcing the provided 'Ideal Answer Characteristics'.
-      *   'reflectionPrompts': Based on the answer, critique, strengths, areas for improvement, AND the user's 'confidenceScore' (if provided), generate 1-2 thoughtful reflection prompts.
-          If confidence aligns with feedback (e.g., high confidence & strong feedback), ask what led to success.
-          If confidence misaligns (e.g., high confidence & weak feedback, or low confidence & strong feedback), prompt user to explore the discrepancy.
-          If no confidence score is available, you may omit reflection prompts or provide very general ones.
-  2.  Provide an 'overallSummary' of performance. Synthesize feedback, identify themes, offer advice. Comment on 'interviewFocus' and how performance aligns with '{{faangLevel}}' expectations (ambiguity, complexity, scope, execution), referencing 'Ideal Answer Characteristics' in general terms if they were commonly met or missed.
-      *   Comment on pacing based on 'timeTakenMs' if available.
-Endif.
+{{#if isSimpleQAOrCaseStudyStyle}}
+Below are the questions asked, the answers provided, ideal answer characteristics, and user confidence for each question.
+{{#each questionsAndAnswers}}
+Question {{this.indexPlusOne}} (ID: {{this.questionId}}): {{{this.questionText}}}
+{{#if this.idealAnswerCharacteristics.length}}
+Ideal Answer Characteristics for this Question:
+{{#each this.idealAnswerCharacteristics}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+Answer: {{{this.answerText}}}
+{{#if this.timeTakenMs}}
+(Time taken: {{this.timeTakenMs}} ms)
+{{/if}}
+{{#if this.confidenceScore}}
+User Confidence (1-5 stars): {{this.confidenceScore}}
+{{/if}}
+{{/each}}
+
+Your task is to provide a DRAFT of:
+1.  For each question and answer pair, provide structured feedback in 'feedbackItems'. Each item should include:
+    *   'questionId'.
+    *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional arrays of 1-3 strings).
+    *   'critique': (Optional concise summary). Your critique should be informed by the 'Ideal Answer Characteristics' provided for the question, and subtly acknowledge the user's 'confidenceScore' if available.
+    *   'idealAnswerPointers': (Optional array of 2-4 strings) Key elements of a strong answer, potentially expanding on or reinforcing the provided 'Ideal Answer Characteristics'.
+    *   'reflectionPrompts': Based on the answer, critique, strengths, areas for improvement, AND the user's 'confidenceScore' (if provided), generate 1-2 thoughtful reflection prompts.
+        If confidence aligns with feedback (e.g., high confidence & strong feedback), ask what led to success.
+        If confidence misaligns (e.g., high confidence & weak feedback, or low confidence & strong feedback), prompt user to explore the discrepancy.
+        If no confidence score is available, you may omit reflection prompts or provide very general ones.
+2.  Provide an 'overallSummary' of performance. Synthesize feedback, identify themes, offer advice. Comment on 'interviewFocus' and how performance aligns with '{{faangLevel}}' expectations (ambiguity, complexity, scope, execution), referencing 'Ideal Answer Characteristics' in general terms if they were commonly met or missed.
+    *   Comment on pacing based on 'timeTakenMs' if available.
+{{/if}}
 
 Output the DRAFT feedback in the specified JSON format.
 Make sure each item in 'feedbackItems' includes the 'questionId' it refers to.
@@ -243,6 +248,9 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
       };
     });
 
+    const isTakeHomeStyle = input.interviewStyle === 'take-home';
+    const isSimpleQAOrCaseStudyStyle = input.interviewStyle === 'simple-qa' || input.interviewStyle === 'case-study';
+
     const draftPromptInput: z.infer<typeof DraftPromptInputSchema> = {
       interviewType: input.interviewType,
       interviewStyle: input.interviewStyle,
@@ -252,6 +260,8 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
       resume: input.resume,
       interviewFocus: input.interviewFocus,
       questionsAndAnswers,
+      isTakeHomeStyle,
+      isSimpleQAOrCaseStudyStyle,
     };
 
     const {output: draftAiOutput} = await draftPrompt(draftPromptInput);

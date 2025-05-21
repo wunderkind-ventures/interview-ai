@@ -81,8 +81,8 @@ const AIDraftOutputSchema = z.object({
     ),
 });
 
-// Input schema for the exported flow function
-export const GenerateInterviewFeedbackInputSchema = z.object({
+// Input schema for the exported flow function - THIS IS NOW INTERNAL
+const GenerateInterviewFeedbackInputSchema = z.object({
   questions: z.array(
     z.object({
       id: z.string(),

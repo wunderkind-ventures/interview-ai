@@ -38,7 +38,7 @@ const CustomizeInterviewQuestionsOutputSchema = z.object({
     .array(OrchestratorQuestionOutputSchema)
     .describe('An array of customized interview questions/assignments. For case studies, this will contain only the first question along with context for dynamic follow-ups.'),
 });
-type CustomizeInterviewQuestionsOutput = z.infer<typeof CustomizeInterviewQuestionsOutputSchema>;
+export type CustomizeInterviewQuestionsOutput = z.infer<typeof CustomizeInterviewQuestionsOutputSchema>;
 
 
 // Main exported orchestrator function
@@ -46,6 +46,7 @@ export async function customizeInterviewQuestions(
   input: CustomizeInterviewQuestionsInput
 ): Promise<CustomizeInterviewQuestionsOutput> {
 
+  // Ensure optional string fields are defaulted to empty strings, and arrays to empty arrays
   const saneInput: CustomizeInterviewQuestionsInput = {
     ...input,
     jobTitle: input.jobTitle || "",
@@ -80,7 +81,8 @@ export async function customizeInterviewQuestions(
       };
     } catch (error) {
       console.error("Error generating take-home assignment:", error);
-      return { customizedQuestions: [{ questionText: "Failed to generate take-home assignment. The detailed problem statement could not be created. Please ensure all relevant fields like 'Job Title', 'Job Description', and 'Interview Focus' are as specific as possible. You can try configuring a simpler interview style or contact support." , idealAnswerCharacteristics: [] }] };
+      const errorMsg = error instanceof Error ? error.message : "Unknown error.";
+      return { customizedQuestions: [{ questionText: `Failed to generate take-home assignment. The detailed problem statement could not be created. Please ensure all relevant fields are filled. Error: ${errorMsg}` , idealAnswerCharacteristics: [] }] };
     }
   } else if (saneInput.interviewStyle === 'case-study') {
     try {
@@ -116,10 +118,22 @@ export async function customizeInterviewQuestions(
   return customizeSimpleQAInterviewQuestionsFlow(saneInput);
 }
 
+// Extended input schema for the Simple Q&A prompt, including boolean flags
+const SimpleQAPromptInputSchema = CustomizeInterviewQuestionsInputSchema.extend({
+    isBehavioral: z.boolean(),
+    isProductSense: z.boolean(),
+    isTechnicalSystemDesign: z.boolean(),
+    isMachineLearning: z.boolean(),
+    isDSA: z.boolean(),
+    isAmazonTarget: z.boolean(),
+    isGeneralInterviewType: z.boolean(),
+});
+type SimpleQAPromptInput = z.infer<typeof SimpleQAPromptInputSchema>;
+
+
 // Schema for the output of the Simple Q&A specialist flow
 const SimpleQAQuestionsOutputSchema = z.object({
   customizedQuestions: z.array(
-    // Output here should also align with OrchestratorQuestionOutputSchema for simplicity, even if some fields aren't used.
     OrchestratorQuestionOutputSchema
   ).describe('An array of 5-10 customized Q&A questions, each with text and ideal answer characteristics.'),
 });
@@ -129,10 +143,10 @@ const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
   name: 'customizeSimpleQAInterviewQuestionsPrompt',
   tools: [getTechnologyBriefTool],
   input: {
-    schema: CustomizeInterviewQuestionsInputSchema, // Uses the main input schema
+    schema: SimpleQAPromptInputSchema, 
   },
   output: {
-    schema: SimpleQAQuestionsOutputSchema // Specific output for simple Q&A
+    schema: SimpleQAQuestionsOutputSchema 
   },
   prompt: `You are an **Expert Interview Architect AI**, embodying the persona of a **seasoned hiring manager and curriculum designer from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate tailored interview content for the 'simple-qa' style ONLY, based on the detailed specifications provided.
@@ -152,7 +166,7 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
     - Example: L5/L6: more ambiguous, complex, strategic.
     - Example: L7: highly complex, strategic, or organization-wide problems with significant ambiguity.
 - **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding to subtly angle questions or understand the candidate's likely exposure to certain topics. Do not generate questions *directly about* the resume content itself unless the 'interviewType' is "behavioral" and the question explicitly asks for past experiences.
-- **Targeted Skills & Focus:** If 'targetedSkills' or 'interviewFocus' are provided, questions MUST actively assess or revolve around these.
+- **Targeted Skills & Focus:** If 'targetedSkills' are provided, questions MUST actively assess or revolve around these. If 'interviewFocus' is provided, it should be a primary theme.
 
 **General Principles for All Questions (for 'simple-qa'):**
 1.  **Relevance & Specificity:** Questions must be directly pertinent to 'interviewType'.
@@ -184,11 +198,8 @@ Targeted Skills:
 
 **Style-Specific Question Generation Logic (for 'simple-qa' ONLY):**
 
-This section is for generating questions when the interviewStyle is "simple-qa".
-Based on the 'interviewType' (which is '{{{interviewType}}}' for this request), proceed as follows:
-
-If the 'interviewType' is "behavioral":
-  If the 'targetCompany' is "Amazon" (perform a case-insensitive check on '{{{targetCompany}}}' in your reasoning and apply the following if true):
+{{#if isBehavioral}}
+  {{#if isAmazonTarget}}
     You are an **Amazon Bar Raiser / Senior Hiring Manager**. Your goal is to generate behavioral questions that specifically assess Amazon's Leadership Principles (LPs).
     1.  Generate 5-7 behavioral questions. Each question should be crafted to give the candidate an opportunity to share specific experiences that demonstrate one or more LPs.
     2.  Use question formats like "Tell me about a time when...", "Give me an example of a situation where...".
@@ -201,7 +212,7 @@ If the 'interviewType' is "behavioral":
         - "Structured response, easy to follow (e.g., using STAR method)."
     The Amazon Leadership Principles for your reference:
 {{{AMAZON_LPS_LIST}}}
-  Else (if 'targetCompany' is not Amazon or not specified, or 'interviewType' is behavioral but not for Amazon):
+  {{else}}
     Generate 5-7 standard behavioral questions.
     1.  Questions should probe for past behaviors and experiences related to common workplace competencies (teamwork, problem-solving, leadership, conflict resolution, etc.), tailored by 'jobTitle', 'faangLevel', and 'targetedSkills'.
     2.  Use formats like "Tell me about a time...", "Describe a situation where...".
@@ -211,51 +222,42 @@ If the 'interviewType' is "behavioral":
         - "Details actions taken and thought process."
         - "Explains the outcome and impact."
         - "Includes reflection or lessons learned."
-  End of "behavioral" type logic.
-
-If the 'interviewType' is "Product Sense":
+  {{/if}}
+{{else if isProductSense}}
   Generate 5-7 product sense questions.
   1. Include questions on product strategy, execution, metrics, user understanding, and problem-solving.
   2. Tailor to 'jobTitle', 'jobDescription', 'faangLevel', 'targetedSkills', and 'interviewFocus'.
   3. Example idealAnswerCharacteristics: "User-centric problem definition", "Data-driven approach", "Creative but feasible solutions", "Clear success metrics", "Considers trade-offs".
-End of "Product Sense" type logic.
-
-If the 'interviewType' is "Technical System Design":
+{{else if isTechnicalSystemDesign}}
   Generate 3-5 technical system design prompts.
   1. Ask about designing specific systems or components, focusing on architecture, trade-offs, scalability, reliability, etc.
   2. Tailor to 'jobTitle', 'jobDescription', 'faangLevel', 'targetedSkills', and 'interviewFocus'.
   3. Example idealAnswerCharacteristics: "Clarifies requirements and constraints", "Proposes a high-level architecture", "Discusses key components and their interactions", "Addresses scalability and performance", "Considers trade-offs and justifies decisions".
-End of "Technical System Design" type logic.
-
-If the 'interviewType' is "Machine Learning":
+{{else if isMachineLearning}}
   Generate 5-7 machine learning questions.
   1. Include a mix of conceptual questions (e.g., "Explain...") and high-level ML system design prompts ("Design a system to...").
   2. Tailor to 'jobTitle', 'jobDescription', 'faangLevel', 'targetedSkills', and 'interviewFocus'.
   3. Example idealAnswerCharacteristics (conceptual): "Accurate definition of concept", "Explains pros and cons", "Provides relevant examples or use cases".
   4. Example idealAnswerCharacteristics (system design): "Problem understanding & scoping", "Data considerations (sources, features, biases)", "Model selection and justification", "Evaluation strategy", "Deployment and operational aspects".
-End of "Machine Learning" type logic.
-
-If the 'interviewType' is "Data Structures & Algorithms":
+{{else if isDSA}}
   Generate 5-7 data structures & algorithms problem statements.
   1. Problems should prompt for clarification, approach description, algorithm design, data structure justification, complexity analysis, and edge case consideration.
   2. Tailor difficulty to 'faangLevel'. 'targetedSkills' might guide problem categories (e.g., "Trees & Graphs").
   3. Example idealAnswerCharacteristics: "Clarification of constraints and edge cases", "Efficient algorithmic approach", "Correct data structure choice and justification", "Accurate time/space complexity analysis", "Walkthrough of logic and edge cases".
-End of "Data Structures & Algorithms" type logic.
-
-If the 'interviewType' is none of the above specific types, or for a general case:
+{{else if isGeneralInterviewType}}
   Generate 5-7 general questions relevant to the 'interviewType' ('{{{interviewType}}}'), 'jobTitle', 'faangLevel', and 'interviewFocus'.
   1. Focus on open-ended questions that encourage detailed responses.
   2. Ensure 'idealAnswerCharacteristics' reflect the core skills being tested for that 'interviewType'.
-End of general/fallback type logic.
+{{/if}}
 
 Output a JSON object with a 'customizedQuestions' key. This key holds an array of objects, where each object has:
 - 'questionText': The question itself (string).
 - 'idealAnswerCharacteristics': An array of 2-5 strings describing elements of a strong answer.
 (Other fields like 'isInitialCaseQuestion', 'fullScenarioDescription', 'internalNotesForFollowUpGenerator' are not relevant for this simple-qa flow and can be omitted by you.)
 `,
-  customize: (promptDef, callInput: CustomizeInterviewQuestionsInput) => {
+  customize: (promptDef, callInput: SimpleQAPromptInput) => {
     let promptText = promptDef.prompt!;
-    if (callInput.interviewType === 'behavioral' && callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
+    if (callInput.isBehavioral && callInput.isAmazonTarget) {
       const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
     } else {
@@ -272,7 +274,7 @@ Output a JSON object with a 'customizedQuestions' key. This key holds an array o
 const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
   {
     name: 'customizeSimpleQAInterviewQuestionsFlow',
-    inputSchema: CustomizeInterviewQuestionsInputSchema,
+    inputSchema: CustomizeInterviewQuestionsInputSchema, // Still takes the general input
     outputSchema: SimpleQAQuestionsOutputSchema,
   },
   async (input: CustomizeInterviewQuestionsInput): Promise<z.infer<typeof SimpleQAQuestionsOutputSchema>> => {
@@ -280,7 +282,20 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
         // This should ideally not be reached if the orchestrator is working correctly.
         return { customizedQuestions: [{ questionText: `This flow is for 'simple-qa' only. Style '${input.interviewStyle}' should be handled by a specialist.`, idealAnswerCharacteristics: [] }] };
     }
-    const {output} = await customizeSimpleQAInterviewQuestionsPrompt(input);
+
+    // Prepare the extended input for the prompt, including boolean flags
+    const promptInput: SimpleQAPromptInput = {
+        ...input,
+        isBehavioral: input.interviewType === 'behavioral',
+        isProductSense: input.interviewType === 'product sense',
+        isTechnicalSystemDesign: input.interviewType === 'technical system design',
+        isMachineLearning: input.interviewType === 'machine learning',
+        isDSA: input.interviewType === 'data structures & algorithms',
+        isAmazonTarget: input.targetCompany?.toLowerCase() === 'amazon',
+        isGeneralInterviewType: !['behavioral', 'product sense', 'technical system design', 'machine learning', 'data structures & algorithms'].includes(input.interviewType),
+    };
+
+    const {output} = await customizeSimpleQAInterviewQuestionsPrompt(promptInput);
     if (!output || !output.customizedQuestions || output.customizedQuestions.length === 0) {
         const fallbackQuestions = [
             { questionText: "Can you describe a challenging project you've worked on and your role in it?", idealAnswerCharacteristics: ["Clear context", "Specific personal contribution", "Quantifiable impact if possible"] },
@@ -311,4 +326,6 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
 );
 
 export type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput as CustomizeInterviewQuestionsOrchestratorOutput };
+    
+
     

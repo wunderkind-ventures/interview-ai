@@ -24,24 +24,20 @@ import type { GenerateInitialCaseSetupInput, GenerateInitialCaseSetupOutput } fr
 
 import { CustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput } from '../schemas'; 
 
-// This schema needs to accommodate the new fields for initial case study questions
 const OrchestratorQuestionOutputSchema = z.object({
     questionText: z.string(),
     idealAnswerCharacteristics: z.array(z.string()).optional().describe("Brief key characteristics or elements a strong answer to this specific question/assignment would demonstrate."),
-    // New fields for initial case study question
     isInitialCaseQuestion: z.boolean().optional(),
     fullScenarioDescription: z.string().optional().describe("The full descriptive text of the case scenario, provided for the first question of a case study."),
     internalNotesForFollowUpGenerator: z.string().optional().describe("Context for the AI to generate the next dynamic follow-up question in a case study."),
 });
 
-// Made this an internal constant
 const CustomizeInterviewQuestionsOutputSchema = z.object({
   customizedQuestions: z
     .array(OrchestratorQuestionOutputSchema)
     .describe('An array of customized interview questions/assignments. For case studies, this will contain only the first question along with context for dynamic follow-ups.'),
 });
-
-export type CustomizeInterviewQuestionsOutput = z.infer<
+type CustomizeInterviewQuestionsOutput = z.infer<
   typeof CustomizeInterviewQuestionsOutputSchema
 >;
 
@@ -50,7 +46,6 @@ export async function customizeInterviewQuestions(
   input: CustomizeInterviewQuestionsInput
 ): Promise<CustomizeInterviewQuestionsOutput> {
 
-  // Defensive defaulting for optional inputs
   const saneInput: CustomizeInterviewQuestionsInput = {
     ...input,
     jobTitle: input.jobTitle || "",
@@ -70,7 +65,7 @@ export async function customizeInterviewQuestions(
       interviewType: saneInput.interviewType,
       jobTitle: saneInput.jobTitle,
       jobDescription: saneInput.jobDescription,
-      faangLevel: saneInput.faangLevel || 'L6', // Default if not provided
+      faangLevel: saneInput.faangLevel,
       targetedSkills: saneInput.targetedSkills,
       targetCompany: saneInput.targetCompany,
       interviewFocus: saneInput.interviewFocus,
@@ -89,7 +84,7 @@ export async function customizeInterviewQuestions(
     }
   } else if (saneInput.interviewStyle === 'case-study') {
     try {
-        const initialCaseInput: GenerateInitialCaseSetupInput = { ...saneInput }; // Pass all context
+        const initialCaseInput: GenerateInitialCaseSetupInput = { ...saneInput }; 
         const initialCaseOutput: GenerateInitialCaseSetupOutput = await generateInitialCaseSetup(initialCaseInput);
         return {
           customizedQuestions: [{
@@ -117,12 +112,9 @@ export async function customizeInterviewQuestions(
         };
     }
   }
-  // Default to the main flow for 'simple-qa'
   return customizeSimpleQAInterviewQuestionsFlow(saneInput);
 }
 
-
-// Output schema for Simple Q&A - includes idealAnswerCharacteristics
 const SimpleQAQuestionsOutputSchema = z.object({
   customizedQuestions: z.array(
     OrchestratorQuestionOutputSchema 
@@ -194,42 +186,99 @@ Targeted Skills:
 
 If the interviewStyle is "simple-qa":
   **Simple Q&A - Generate 5-10 questions, each with 'questionText' and 'idealAnswerCharacteristics':**
-  1.  For the 'simple-qa' style, questions should be direct, standalone, and suitable for a straightforward question-and-answer format, yet promote in-depth responses.
-  2.  Ensure questions are tailored to 'interviewType', 'jobTitle', 'jobDescription', 'faangLevel', any 'targetedSkills', and particularly the 'interviewFocus'.
-  3.  Generate 5-10 diverse questions.
-      If the interviewType is "Product Sense": include questions on strategy, execution, metrics, and user understanding.
-      If the interviewType is "Technical System Design": ask about designing specific systems or components, focusing on architecture, trade-offs, scalability.
-      If the interviewType is "Behavioral": generate situational questions or prompts for examples (e.g., STAR method).
-      If the interviewType is "Machine Learning": generate a mix of conceptual questions and high-level ML system design prompts.
-      If the interviewType is "Data Structures & Algorithms": generate 5-7 problem statements. These questions should prompt the candidate to clarify, describe approach/algorithm, justify data structures, analyze complexity, and consider edge cases.
+  {{#if (eq interviewType "behavioral")}}
+    If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
+        You are an **Amazon Bar Raiser / Senior Hiring Manager**. Your goal is to generate behavioral questions that specifically assess Amazon's Leadership Principles (LPs).
+        1.  Generate 5-7 behavioral questions. Each question should be crafted to give the candidate an opportunity to share specific experiences that demonstrate one or more LPs.
+        2.  Use question formats like "Tell me about a time when...", "Give me an example of a situation where...".
+        3.  Vary the LPs targeted across the questions. If 'targetedSkills' are provided and they match LP names (e.g., "Deliver Results", "Customer Obsession"), prioritize questions for those LPs. Otherwise, aim for a diverse set.
+        4.  For each question, the 'idealAnswerCharacteristics' MUST include:
+            - "Clearly outlines the Situation and Task."
+            - "Details specific Actions taken by the candidate."
+            - "Quantifies Results and impact achieved."
+            - "Effectively demonstrates [Specific LP(s) targeted by this question, e.g., Customer Obsession, Ownership] through the example."
+            - "Structured response, easy to follow (e.g., using STAR method)."
+        The Amazon Leadership Principles for your reference:
+        {{{AMAZON_LPS_LIST}}}
+    Else (if not Amazon or targetCompany is not specified, or interviewType is behavioral but not for Amazon):
+        Generate 5-7 standard behavioral questions.
+        1.  Questions should probe for past behaviors and experiences related to common workplace competencies (teamwork, problem-solving, leadership, conflict resolution, etc.), tailored by 'jobTitle', 'faangLevel', and 'targetedSkills'.
+        2.  Use formats like "Tell me about a time...", "Describe a situation where...".
+        3.  For each question, 'idealAnswerCharacteristics' should reflect general best practices for behavioral answers, such as:
+            - "Provides a specific, relevant example."
+            - "Clearly describes the situation and their role."
+            - "Details actions taken and thought process."
+            - "Explains the outcome and impact."
+            - "Includes reflection or lessons learned."
+    Endif.
+  {{else if (eq interviewType "Product Sense")}}
+    Generate 5-7 product sense questions.
+    1. Include questions on product strategy, execution, metrics, user understanding, and problem-solving.
+    2. Tailor to 'jobTitle', 'jobDescription', 'faangLevel', 'targetedSkills', and 'interviewFocus'.
+    3. Example idealAnswerCharacteristics: "User-centric problem definition", "Data-driven approach", "Creative but feasible solutions", "Clear success metrics", "Considers trade-offs".
+  {{else if (eq interviewType "Technical System Design")}}
+    Generate 3-5 technical system design prompts.
+    1. Ask about designing specific systems or components, focusing on architecture, trade-offs, scalability, reliability, etc.
+    2. Tailor to 'jobTitle', 'jobDescription', 'faangLevel', 'targetedSkills', and 'interviewFocus'.
+    3. Example idealAnswerCharacteristics: "Clarifies requirements and constraints", "Proposes a high-level architecture", "Discusses key components and their interactions", "Addresses scalability and performance", "Considers trade-offs and justifies decisions".
+  {{else if (eq interviewType "Machine Learning")}}
+    Generate 5-7 machine learning questions.
+    1. Include a mix of conceptual questions (e.g., "Explain...") and high-level ML system design prompts ("Design a system to...").
+    2. Tailor to 'jobTitle', 'jobDescription', 'faangLevel', 'targetedSkills', and 'interviewFocus'.
+    3. Example idealAnswerCharacteristics (conceptual): "Accurate definition of concept", "Explains pros and cons", "Provides relevant examples or use cases".
+    4. Example idealAnswerCharacteristics (system design): "Problem understanding & scoping", "Data considerations (sources, features, biases)", "Model selection and justification", "Evaluation strategy", "Deployment and operational aspects".
+  {{else if (eq interviewType "Data Structures & Algorithms")}}
+    Generate 5-7 data structures & algorithms problem statements.
+    1. Problems should prompt for clarification, approach description, algorithm design, data structure justification, complexity analysis, and edge case consideration.
+    2. Tailor difficulty to 'faangLevel'. 'targetedSkills' might guide problem categories (e.g., "Trees & Graphs").
+    3. Example idealAnswerCharacteristics: "Clarification of constraints and edge cases", "Efficient algorithmic approach", "Correct data structure choice and justification", "Accurate time/space complexity analysis", "Walkthrough of logic and edge cases".
+  {{else}}
+    Generate 5-7 general questions relevant to the 'interviewType', 'jobTitle', 'faangLevel', and 'interviewFocus'.
+    1. Focus on open-ended questions that encourage detailed responses.
+    2. Ensure 'idealAnswerCharacteristics' reflect the core skills being tested for that 'interviewType'.
+  Endif.
 Else (if interviewStyle is not "simple-qa"):
   This interview style ({{{interviewStyle}}}) is not directly handled by this prompt. Case studies and Take-home assignments are generated by specialized processes.
 Endif.
 
-{{#if targetCompany}}
-If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
-**Amazon-Specific Considerations:**
-Pay special attention to Amazon's Leadership Principles.
-1.  For "Behavioral" interviewType: Many questions MUST provide an opportunity to demonstrate these principles.
-2.  For other interviewTypes: Frame questions to subtly align with principles like Customer Obsession, Ownership, or Invent and Simplify.
-The Amazon Leadership Principles are:
-{{{AMAZON_LPS_LIST}}}
-{{/if}}
-
-**Final Output Format:**
 Output a JSON object with a 'customizedQuestions' key. This key holds an array of objects, where each object has:
 - 'questionText': The question itself (string).
-- 'idealAnswerCharacteristics': An array of 2-4 strings describing elements of a strong answer.
+- 'idealAnswerCharacteristics': An array of 2-5 strings describing elements of a strong answer.
 (Other fields like 'isInitialCaseQuestion' are not relevant for this simple-qa flow and can be omitted by you.)
 `,
   customize: (promptDef, callInput) => {
     let promptText = promptDef.prompt!;
-    if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
+    // Simplified conditional logic for Handlebars compatibility.
+    // The main logic for interviewType and targetCompany is now handled by plain English in the prompt.
+    if (callInput.interviewType === 'behavioral' && callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
       const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
     } else {
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
+      // Ensure the placeholder is removed if not Amazon behavioral.
+      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company or interview type.');
     }
+
+    // Replace (eq interviewType "...") with plain text for LLM interpretation.
+    // This pattern should be applied for all interview types.
+    const interviewTypePatterns = [
+      "behavioral", 
+      "Product Sense", 
+      "Technical System Design", 
+      "Machine Learning", 
+      "Data Structures & Algorithms"
+    ];
+    interviewTypePatterns.forEach(type => {
+        const regex = new RegExp(`{{#if \\(eq interviewType "${type}"\\)}}`, 'g');
+        promptText = promptText.replace(regex, `If the interviewType is "${type}":`);
+    });
+    promptText = promptText.replace(/{{else if \((eq|ne) [^}]+\)}}/g, 'Else if (some other condition based on interviewType):'); // Simplified for brevity
+    promptText = promptText.replace(/{{else}}/g, 'Else:');
+    promptText = promptText.replace(/{{#if targetCompany}}/g, 'If the targetCompany is provided:'); // Example for targetCompany
+    promptText = promptText.replace(/Endif\./g, ''); // Remove custom Endif. if it was for structure
+    promptText = promptText.replace(/{{#if \(\w+ interviewStyle "[^"]+"\)}}/g, ''); // Remove style checks not for LLM
+    promptText = promptText.replace(/{{#if \(\w+ interviewType "[^"]+"\)}}/g, ''); // Remove type checks not for LLM
+    promptText = promptText.replace(/{{(\/)?if}}/g, ''); // Remove remaining if/endif if they were for structure
+    
     return {
       ...promptDef,
       prompt: promptText,
@@ -237,16 +286,14 @@ Output a JSON object with a 'customizedQuestions' key. This key holds an array o
   }
 });
 
-// This flow is now specifically for 'simple-qa'
 const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
   {
     name: 'customizeSimpleQAInterviewQuestionsFlow',
     inputSchema: CustomizeInterviewQuestionsInputSchema,
-    outputSchema: SimpleQAQuestionsOutputSchema, // Use the specific schema for simple Q&A
+    outputSchema: SimpleQAQuestionsOutputSchema, 
   },
   async (input: CustomizeInterviewQuestionsInput): Promise<z.infer<typeof SimpleQAQuestionsOutputSchema>> => {
     if (input.interviewStyle !== 'simple-qa') {
-        // This case should ideally not be hit if the orchestrator is working correctly
         return { customizedQuestions: [{ questionText: `This flow is for 'simple-qa' only. Style '${input.interviewStyle}' should be handled by a specialist.`, idealAnswerCharacteristics: [] }] };
     }
 
@@ -261,7 +308,7 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
             { questionText: "How do you handle ambiguity in requirements or project goals?", idealAnswerCharacteristics: ["Strategies for clarification", "Proactive communication", "Decision making under uncertainty"] },
             { questionText: "Describe a situation where you had to make a difficult trade-off in a project.", idealAnswerCharacteristics: ["Context of trade-off", "Rationale for decision", "Impact of the decision"] }
         ];
-        const numQuestions = input.interviewType === 'data structures & algorithms' ? 5 : 7;
+        const numQuestions = input.interviewType === 'Data Structures & Algorithms' ? 5 : 7;
         const selectedFallback = fallbackQuestions.slice(0, Math.min(numQuestions, fallbackQuestions.length));
         
         return { customizedQuestions: selectedFallback.map(q => ({...q, isInitialCaseQuestion: undefined, fullScenarioDescription: undefined, internalNotesForFollowUpGenerator: undefined })) };
@@ -269,7 +316,7 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
     
     const compliantOutput = output.customizedQuestions.map(q => ({
         questionText: q.questionText,
-        idealAnswerCharacteristics: q.idealAnswerCharacteristics || [], // Ensure array exists
+        idealAnswerCharacteristics: q.idealAnswerCharacteristics || [], 
         isInitialCaseQuestion: undefined, 
         fullScenarioDescription: undefined, 
         internalNotesForFollowUpGenerator: undefined, 
@@ -278,8 +325,5 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
   }
 );
 
-// Export the types for input and output if they are used by other modules
-// The schemas themselves are internal to this file or imported from ../schemas.
 export type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput as CustomizeInterviewQuestionsOrchestratorOutput };
-
     

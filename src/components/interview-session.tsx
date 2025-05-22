@@ -83,8 +83,8 @@ export default function InterviewSession() {
       interviewStarted: true,
       currentQuestionStartTime: Date.now(),
       interviewStyle: setupData.interviewStyle,
-      currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
-      caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
+      currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined, // Correctly use undefined for non-case-study
+      caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined, // Correctly use undefined
       caseStudyNotes: (prev && prev.interviewStyle === 'case-study' && prev.caseStudyNotes) ? prev.caseStudyNotes : "",
     }));
 
@@ -113,7 +113,7 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false,
+        isLikelyFinalFollowUp: false, // Initial follow-ups are not final by default
       }));
 
       setSessionData(prev => {
@@ -156,6 +156,7 @@ export default function InterviewSession() {
         console.error("Failed to parse stored interview session:", e);
         localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
         storedSession = null; // Treat as if no session was stored
+        toast({ title: "Session Error", description: "Corrupted session data cleared. Please start over.", variant: "destructive"});
       }
     }
 
@@ -164,6 +165,7 @@ export default function InterviewSession() {
         router.replace("/feedback");
         return;
       }
+      // Ensure case study specific fields are initialized if style is case-study
       if (parsedSession.interviewStyle === 'case-study') {
         parsedSession.currentCaseTurnNumber = parsedSession.currentCaseTurnNumber ?? 0;
         parsedSession.caseConversationHistory = parsedSession.caseConversationHistory ?? [];
@@ -171,6 +173,7 @@ export default function InterviewSession() {
       }
 
       setSessionData(parsedSession);
+      // Ensure startTime is set if interview is active but startTime is missing
       if (parsedSession.interviewStarted && !parsedSession.interviewFinished && !parsedSession.currentQuestionStartTime && parsedSession.questions.length > 0) {
         setSessionData(prev => {
           if (!prev) return null;
@@ -180,6 +183,7 @@ export default function InterviewSession() {
         });
       }
 
+      // If questions are empty but session indicates it should have them, try to load again.
       if (parsedSession.interviewStarted && parsedSession.questions.length === 0 && !parsedSession.error && !parsedSession.isLoading) {
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
@@ -194,6 +198,7 @@ export default function InterviewSession() {
         };
         loadInterview(setupData);
       } else if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
+         // If it was already loading, ensure loadInterview is called.
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
           interviewStyle: parsedSession.interviewStyle,
@@ -227,7 +232,7 @@ export default function InterviewSession() {
   }, [loadInterview, router, toast]);
 
   const handleNextQuestion = async () => {
-    if (!sessionData || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
+    if (!sessionData || !sessionData.questions || sessionData.questions.length === 0 || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
     if (isGeneratingFollowUp) return;
 
     const endTime = Date.now();
@@ -249,6 +254,7 @@ export default function InterviewSession() {
       const updatedCaseConversationHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
       const updatedCurrentCaseTurnNumber = (sessionData.currentCaseTurnNumber || 0) + 1;
 
+      // Check if the current question was marked as likely final OR turn limit reached
       const isLastFollowUp = currentQ.isLikelyFinalFollowUp || updatedCurrentCaseTurnNumber > MAX_CASE_FOLLOW_UPS;
 
       if (isLastFollowUp) {
@@ -266,7 +272,7 @@ export default function InterviewSession() {
         try {
           const initialQuestion = sessionData.questions.find(q => q.isInitialCaseQuestion);
           if (!initialQuestion || !initialQuestion.internalNotesForFollowUpGenerator) {
-            throw new Error("Initial case study setup notes not found.");
+            throw new Error("Initial case study setup notes not found for follow-up generation.");
           }
 
           const followUpInput: GenerateDynamicCaseFollowUpInput = {
@@ -295,6 +301,7 @@ export default function InterviewSession() {
             text: followUpResponse.followUpQuestionText,
             idealAnswerCharacteristics: followUpResponse.idealAnswerCharacteristicsForFollowUp,
             isLikelyFinalFollowUp: followUpResponse.isLikelyFinalFollowUp,
+            // Other fields like fullScenarioDescription, internalNotesForFollowUpGenerator are not for follow-ups
           };
 
           newSessionData = {
@@ -311,11 +318,12 @@ export default function InterviewSession() {
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : "Failed to generate follow-up question.";
           toast({ title: "Error", description: errorMessage, variant: "destructive" });
-          newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage };
+          // Keep existing state but show error, don't finish interview prematurely
+          newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage, currentQuestionStartTime: Date.now() };
         }
       }
       setIsGeneratingFollowUp(false);
-    } else {
+    } else { // Not a case study
       if (sessionData.currentQuestionIndex === sessionData.questions.length - 1) {
         newSessionData = {
           ...sessionData,
@@ -354,24 +362,26 @@ export default function InterviewSession() {
     const endTime = Date.now();
     const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
 
-    const currentQ = sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length
-                              ? sessionData.questions[sessionData.currentQuestionIndex]
-                              : undefined;
     let updatedAnswers = sessionData.answers;
     let updatedCaseHistory = sessionData.caseConversationHistory;
 
-    if (currentQ && currentAnswer.trim() !== "") {
-       const newAnswer: Answer = {
-         questionId: currentQ.id,
-         answerText: currentAnswer,
-         timeTakenMs,
-         confidenceScore: currentConfidenceScore ?? undefined,
-        };
-       updatedAnswers = [...sessionData.answers, newAnswer];
-       if (sessionData.interviewStyle === 'case-study') {
-         updatedCaseHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
-       }
+    // Ensure the current answer is captured if not already submitted
+    if (sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length) {
+      const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
+      if (currentAnswer.trim() !== "" || sessionData.answers.findIndex(a => a.questionId === currentQ.id) === -1) {
+         const newAnswer: Answer = {
+           questionId: currentQ.id,
+           answerText: currentAnswer,
+           timeTakenMs,
+           confidenceScore: currentConfidenceScore ?? undefined,
+          };
+         updatedAnswers = [...sessionData.answers.filter(a => a.questionId !== currentQ.id), newAnswer]; // Replace if already exists, or add
+         if (sessionData.interviewStyle === 'case-study') {
+           updatedCaseHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
+         }
+      }
     }
+
 
     const newSessionData: InterviewSessionData = {
       ...sessionData,
@@ -436,7 +446,7 @@ export default function InterviewSession() {
   );
 
 
-  if (!sessionData || (sessionData.isLoading && !sessionData.questions.length && !isGeneratingFollowUp)) {
+  if (!sessionData || (sessionData.isLoading && !sessionData.questions.length && !isGeneratingFollowUp && !sessionData.error)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
@@ -445,18 +455,22 @@ export default function InterviewSession() {
     );
   }
 
-  if (sessionData.error) {
+  if (sessionData.error && !isGeneratingFollowUp) { // Only show critical error if not in process of generating follow-up
     return (
       <Alert variant="destructive" className="max-w-lg mx-auto">
         <XCircle className="h-5 w-5" />
         <AlertTitle>Error</AlertTitle>
         <AlertDescription>{sessionData.error}</AlertDescription>
-        <Button onClick={() => router.push("/")} className="mt-4">Back to Setup</Button>
+        <Button onClick={() => {
+            localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+            router.push("/");
+          }} className="mt-4">Back to Setup</Button>
       </Alert>
     );
   }
 
   if (sessionData.interviewFinished) {
+    // This should ideally be caught by useEffect redirecting, but as a fallback:
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
@@ -464,15 +478,16 @@ export default function InterviewSession() {
       </div>
     );
   }
-
-  // Guard against accessing questions if the array is empty and other states don't catch it.
-  if (!sessionData.questions || sessionData.questions.length === 0) {
+  
+  // Add this check here, after initial loading and error checks
+  if (!isGeneratingFollowUp && (!sessionData.questions || sessionData.questions.length === 0 || sessionData.currentQuestionIndex >= sessionData.questions.length)) {
+    // This state can occur if questions failed to load but didn't set an error, or if session data is corrupted.
     return (
       <Alert variant="destructive" className="max-w-lg mx-auto">
         <XCircle className="h-5 w-5" />
-        <AlertTitle>Interview Setup Incomplete</AlertTitle>
+        <AlertTitle>Interview State Issue</AlertTitle>
         <AlertDescription>
-          No questions were loaded for this interview session. This might be due to an issue during question generation or an incomplete setup. Please try starting a new interview.
+          There's an issue with the current interview session (e.g., no questions loaded or invalid question index). Please try starting a new interview.
         </AlertDescription>
         <Button onClick={() => {
           localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
@@ -482,12 +497,13 @@ export default function InterviewSession() {
     );
   }
 
+
   const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
   const styleLabel = INTERVIEW_STYLES.find(s => s.value === sessionData.interviewStyle)?.label || sessionData.interviewStyle;
 
   const isCaseStudyStyle = sessionData.interviewStyle === 'case-study';
   const progressValue = isCaseStudyStyle
-    ? ((sessionData.currentCaseTurnNumber || 0) / (MAX_CASE_FOLLOW_UPS +1)) * 100
+    ? (((sessionData.currentCaseTurnNumber || 0) + 1) / (MAX_CASE_FOLLOW_UPS + 1)) * 100 // +1 for initial question
     : (sessionData.questions.length > 0 ? ((sessionData.currentQuestionIndex + 1) / sessionData.questions.length) * 100 : 0);
 
 
@@ -598,11 +614,7 @@ export default function InterviewSession() {
             />
             {sessionData.interviewStyle !== 'take-home' && <ConfidenceRating />}
           </div>
-        ) : !isGeneratingFollowUp && (
-          // This case should ideally be caught by the guard above if questions array is empty.
-          // If currentQuestion is somehow undefined even if questions array is not empty, this will show.
-          <p className="text-center text-muted-foreground">Loading question or interview setup is incomplete. Please try refreshing or starting a new interview.</p>
-        )}
+        ) : null }
       </CardContent>
       <CardFooter className="flex justify-between">
         <Button variant="outline" onClick={handleEndInterview} disabled={sessionData.isLoading || isGeneratingFollowUp}>
@@ -610,7 +622,7 @@ export default function InterviewSession() {
         </Button>
         <Button
           onClick={handleNextQuestion}
-          disabled={sessionData.isLoading || !currentAnswer.trim() || isGeneratingFollowUp}
+          disabled={sessionData.isLoading || (!currentAnswer.trim() && sessionData.interviewStyle !== 'case-study') || isGeneratingFollowUp}
           className="bg-accent hover:bg-accent/90"
         >
           {isGeneratingFollowUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -660,7 +672,6 @@ export default function InterviewSession() {
                   {explanation}
                 </AlertDescription>
               </Alert>
-            </Alert>
             )}
           </div>
           <DialogFooter className="sm:justify-end">

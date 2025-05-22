@@ -22,7 +22,7 @@ import type { GenerateTakeHomeAssignmentInput, GenerateTakeHomeAssignmentOutput 
 import { generateInitialCaseSetup } from './generate-case-study-questions';
 import type { GenerateInitialCaseSetupInput, GenerateInitialCaseSetupOutput } from './generate-case-study-questions';
 
-import { CustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput } from '../schemas'; // Correctly import type
+import { CustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput } from '../schemas'; 
 
 // This schema needs to accommodate the new fields for initial case study questions
 const OrchestratorQuestionOutputSchema = z.object({
@@ -49,21 +49,37 @@ export type CustomizeInterviewQuestionsOutput = z.infer<
 export async function customizeInterviewQuestions(
   input: CustomizeInterviewQuestionsInput
 ): Promise<CustomizeInterviewQuestionsOutput> {
-  if (input.interviewStyle === 'take-home') {
+
+  // Defensive defaulting for optional inputs
+  const saneInput: CustomizeInterviewQuestionsInput = {
+    ...input,
+    jobTitle: input.jobTitle || "",
+    jobDescription: input.jobDescription || "",
+    resume: input.resume || "",
+    targetedSkills: input.targetedSkills || [],
+    targetCompany: input.targetCompany || "",
+    interviewFocus: input.interviewFocus || "",
+    previousConversation: input.previousConversation || "",
+    currentQuestion: input.currentQuestion || "",
+    caseStudyNotes: input.caseStudyNotes || "",
+  };
+
+
+  if (saneInput.interviewStyle === 'take-home') {
     const takeHomeInput: GenerateTakeHomeAssignmentInput = {
-      interviewType: input.interviewType,
-      jobTitle: input.jobTitle,
-      jobDescription: input.jobDescription,
-      faangLevel: input.faangLevel || 'L6', // Default if not provided
-      targetedSkills: input.targetedSkills,
-      targetCompany: input.targetCompany,
-      interviewFocus: input.interviewFocus,
+      interviewType: saneInput.interviewType,
+      jobTitle: saneInput.jobTitle,
+      jobDescription: saneInput.jobDescription,
+      faangLevel: saneInput.faangLevel || 'L6', // Default if not provided
+      targetedSkills: saneInput.targetedSkills,
+      targetCompany: saneInput.targetCompany,
+      interviewFocus: saneInput.interviewFocus,
     };
     try {
       const takeHomeOutput: GenerateTakeHomeAssignmentOutput = await generateTakeHomeAssignment(takeHomeInput);
       return {
         customizedQuestions: [{
-          questionText: takeHomeOutput.assignmentText, // The assignment itself is the "question"
+          questionText: takeHomeOutput.assignmentText,
           idealAnswerCharacteristics: takeHomeOutput.idealSubmissionCharacteristics,
         }]
       };
@@ -71,9 +87,9 @@ export async function customizeInterviewQuestions(
       console.error("Error generating take-home assignment:", error);
       return { customizedQuestions: [{ questionText: "Failed to generate take-home assignment. The detailed problem statement could not be created. Please ensure all relevant fields like 'Job Title', 'Job Description', and 'Interview Focus' are as specific as possible. You can try configuring a simpler interview style or contact support." }] };
     }
-  } else if (input.interviewStyle === 'case-study') {
+  } else if (saneInput.interviewStyle === 'case-study') {
     try {
-        const initialCaseInput: GenerateInitialCaseSetupInput = { ...input };
+        const initialCaseInput: GenerateInitialCaseSetupInput = { ...saneInput }; // Pass all context
         const initialCaseOutput: GenerateInitialCaseSetupOutput = await generateInitialCaseSetup(initialCaseInput);
         return {
           customizedQuestions: [{
@@ -86,7 +102,7 @@ export async function customizeInterviewQuestions(
         };
     } catch (error) {
         console.error("Error generating initial case setup:", error);
-        const fallbackScenario = `Considering your role as a ${input.jobTitle || 'professional'} and the interview focus on ${input.interviewFocus || input.interviewType}, describe a complex project or challenge you've faced. This will serve as our initial case.`;
+        const fallbackScenario = `Considering your role as a ${saneInput.jobTitle || 'professional'} and the interview focus on ${saneInput.interviewFocus || saneInput.interviewType}, describe a complex project or challenge you've faced. This will serve as our initial case.`;
         const fallbackFollowUp = "What was the situation, your approach, and the outcome?";
         return {
           customizedQuestions: [
@@ -102,7 +118,7 @@ export async function customizeInterviewQuestions(
     }
   }
   // Default to the main flow for 'simple-qa'
-  return customizeSimpleQAInterviewQuestionsFlow(input);
+  return customizeSimpleQAInterviewQuestionsFlow(saneInput);
 }
 
 
@@ -135,8 +151,11 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
 - AVOID asking questions that can be answered with a simple 'yes' or 'no', especially for L4+ roles.
 
 **Input Utilization & Context:**
-- **Job Title & Description:** Use 'jobTitle' and 'jobDescription' (if provided) to deeply tailor the questions to the responsibilities, technologies, and domain mentioned. The technical depth required should be directly influenced by these.
+- **Job Title & Description:** Use 'jobTitle' and 'jobDescription' (if provided) to deeply tailor the questions to the responsibilities, technologies, and domain mentioned. The technical depth required should be directly influenced by these. For the given 'faangLevel', consider typical industry expectations regarding: Ambiguity, Complexity, Scope, and Execution.
 - **FAANG Level:** All content must be precisely calibrated to the 'faangLevel'. This means considering the expected dimensions for that level: Ambiguity, Complexity, Scope, and Execution.
+    - Example: L3/L4: well-defined problems, clearer scope.
+    - Example: L5/L6: more ambiguous, complex, strategic.
+    - Example: L7: highly complex, strategic, or organization-wide problems with significant ambiguity.
 - **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding to subtly angle questions or understand the candidate's likely exposure to certain topics. Do not generate questions *directly about* the resume content itself unless the 'interviewType' is "behavioral" and the question explicitly asks for past experiences.
 - **Targeted Skills & Focus:** If 'targetedSkills' or 'interviewFocus' are provided, questions MUST actively assess or revolve around these.
 
@@ -152,7 +171,10 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
     - Example for a DSA L4 question "Find the median of two sorted arrays": Ideal characteristics might include "Clarification of constraints and edge cases", "Efficient algorithmic approach (e.g., binary search based)", "Correct time/space complexity analysis", "Verbal walkthrough of logic".
     These characteristics will help in later feedback stages.
 
-**Interview Context & Inputs to Consider:**
+**Internal Reflection on Ideal Answer Characteristics:**
+Before finalizing the question(s), briefly consider the key characteristics or elements a strong answer would demonstrate (e.g., clear problem definition for Product Sense; robustness, scalability for System Design; sound ML model choice for ML; correct algorithm and complexity analysis for DSA). This internal reflection will help ensure the question is well-posed and effectively tests the intended skills for the given 'faangLevel'. You DO need to output these characteristics.
+
+**Input Context to Consider:**
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
 {{#if jobDescription}}Job Description: {{{jobDescription}}}{{/if}}
 {{#if resume}}Candidate Resume Context: {{{resume}}}{{/if}}
@@ -171,17 +193,17 @@ Targeted Skills:
 **Style-Specific Question Generation Logic (for 'simple-qa' ONLY):**
 
 If the interviewStyle is "simple-qa":
-**Simple Q&A - Generate 5-10 questions, each with 'questionText' and 'idealAnswerCharacteristics':**
-1.  For the 'simple-qa' style, questions should be direct, standalone, and suitable for a straightforward question-and-answer format, yet promote in-depth responses.
-2.  Ensure questions are tailored to 'interviewType', 'jobTitle', 'jobDescription', 'faangLevel', any 'targetedSkills', and particularly the 'interviewFocus'.
-3.  Generate 5-10 diverse questions.
-    If the interviewType is "Product Sense": include questions on strategy, execution, metrics, and user understanding.
-    If the interviewType is "Technical System Design": ask about designing specific systems or components, focusing on architecture, trade-offs, scalability.
-    If the interviewType is "Behavioral": generate situational questions or prompts for examples (e.g., STAR method).
-    If the interviewType is "Machine Learning": generate a mix of conceptual questions and high-level ML system design prompts.
-    If the interviewType is "Data Structures & Algorithms": generate 5-7 problem statements. These questions should prompt the candidate to clarify, describe approach/algorithm, justify data structures, analyze complexity, and consider edge cases.
+  **Simple Q&A - Generate 5-10 questions, each with 'questionText' and 'idealAnswerCharacteristics':**
+  1.  For the 'simple-qa' style, questions should be direct, standalone, and suitable for a straightforward question-and-answer format, yet promote in-depth responses.
+  2.  Ensure questions are tailored to 'interviewType', 'jobTitle', 'jobDescription', 'faangLevel', any 'targetedSkills', and particularly the 'interviewFocus'.
+  3.  Generate 5-10 diverse questions.
+      If the interviewType is "Product Sense": include questions on strategy, execution, metrics, and user understanding.
+      If the interviewType is "Technical System Design": ask about designing specific systems or components, focusing on architecture, trade-offs, scalability.
+      If the interviewType is "Behavioral": generate situational questions or prompts for examples (e.g., STAR method).
+      If the interviewType is "Machine Learning": generate a mix of conceptual questions and high-level ML system design prompts.
+      If the interviewType is "Data Structures & Algorithms": generate 5-7 problem statements. These questions should prompt the candidate to clarify, describe approach/algorithm, justify data structures, analyze complexity, and consider edge cases.
 Else (if interviewStyle is not "simple-qa"):
-This interview style ({{{interviewStyle}}}) is not directly handled by this prompt. Case studies and Take-home assignments are generated by specialized processes.
+  This interview style ({{{interviewStyle}}}) is not directly handled by this prompt. Case studies and Take-home assignments are generated by specialized processes.
 Endif.
 
 {{#if targetCompany}}
@@ -241,16 +263,16 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
         ];
         const numQuestions = input.interviewType === 'data structures & algorithms' ? 5 : 7;
         const selectedFallback = fallbackQuestions.slice(0, Math.min(numQuestions, fallbackQuestions.length));
-        // Ensure fallback matches OrchestratorQuestionOutputSchema by adding undefined optional fields
+        
         return { customizedQuestions: selectedFallback.map(q => ({...q, isInitialCaseQuestion: undefined, fullScenarioDescription: undefined, internalNotesForFollowUpGenerator: undefined })) };
     }
-    // Ensure output items conform to OrchestratorQuestionOutputSchema, even if some fields are undefined
+    
     const compliantOutput = output.customizedQuestions.map(q => ({
         questionText: q.questionText,
-        idealAnswerCharacteristics: q.idealAnswerCharacteristics,
-        isInitialCaseQuestion: undefined, // Not applicable for simple-qa
-        fullScenarioDescription: undefined, // Not applicable for simple-qa
-        internalNotesForFollowUpGenerator: undefined, // Not applicable for simple-qa
+        idealAnswerCharacteristics: q.idealAnswerCharacteristics || [], // Ensure array exists
+        isInitialCaseQuestion: undefined, 
+        fullScenarioDescription: undefined, 
+        internalNotesForFollowUpGenerator: undefined, 
     }));
     return { customizedQuestions: compliantOutput };
   }

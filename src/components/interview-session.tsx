@@ -9,6 +9,8 @@ import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-fo
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
 import { explainConcept } from "@/ai/flows/explain-concept";
 import type { ExplainConceptInput, ExplainConceptOutput } from "@/ai/flows/explain-concept";
+import { generateHint } from "@/ai/flows/generate-hint"; // New import
+import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint"; // New import
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +19,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles } from "lucide-react"; // Added Sparkles
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +61,11 @@ export default function InterviewSession() {
   const [isExplainingTerm, setIsExplainingTerm] = useState(false);
   const [explainTermError, setExplainTermError] = useState<string | null>(null);
 
+  const [isHintDialogOpen, setIsHintDialogOpen] = useState(false); // New state for hint dialog
+  const [hintText, setHintText] = useState<string | null>(null); // New state for hint text
+  const [isFetchingHint, setIsFetchingHint] = useState(false); // New state for hint loading
+  const [hintError, setHintError] = useState<string | null>(null); // New state for hint error
+
 
   useEffect(() => {
     let timerInterval: NodeJS.Timeout | undefined;
@@ -75,32 +82,38 @@ export default function InterviewSession() {
 
 
   const loadInterview = useCallback(async (setupData: InterviewSetupData) => {
-    setSessionData(prev => ({
-      ...(prev || setupData),
-      ...setupData,
-      ...initialSessionState,
-      isLoading: true,
-      interviewStarted: true,
-      currentQuestionStartTime: Date.now(),
-      interviewStyle: setupData.interviewStyle,
-      currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined, // Correctly use undefined for non-case-study
-      caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined, // Correctly use undefined
-      caseStudyNotes: (prev && prev.interviewStyle === 'case-study' && prev.caseStudyNotes) ? prev.caseStudyNotes : "",
-    }));
-
-    try {
-      const aiInput: CustomizeInterviewQuestionsInput = {
-        jobTitle: setupData.jobTitle,
+     const saneInput: CustomizeInterviewQuestionsInput = {
+        jobTitle: setupData.jobTitle || "",
         jobDescription: setupData.jobDescription || "",
         resume: setupData.resume || "",
         interviewType: setupData.interviewType,
         interviewStyle: setupData.interviewStyle,
         faangLevel: setupData.faangLevel,
         targetedSkills: setupData.targetedSkills || [],
-        targetCompany: setupData.targetCompany,
-        interviewFocus: setupData.interviewFocus,
+        targetCompany: setupData.targetCompany || "",
+        interviewFocus: setupData.interviewFocus || "",
       };
-      const response: CustomizeInterviewQuestionsOutput = await customizeInterviewQuestions(aiInput);
+
+    setSessionData(prev => ({
+      ...(prev || setupData), // Use existing prev if available, otherwise setupData
+      ...setupData, // Then override with fresh setupData
+      ...initialSessionState, // Then apply initial session state defaults
+      isLoading: true, // Set loading to true
+      interviewStarted: true, // Mark interview as started
+      currentQuestionStartTime: Date.now(), // Set start time
+      interviewStyle: setupData.interviewStyle, // Ensure style is correctly set from setupData
+      currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
+      caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
+      caseStudyNotes: (prev && prev.interviewStyle === 'case-study' && prev.caseStudyNotes) ? prev.caseStudyNotes : "",
+       // Carry over existing targetedSkills, targetCompany, jobTitle, interviewFocus from setupData
+      targetedSkills: setupData.targetedSkills || [],
+      targetCompany: setupData.targetCompany || "",
+      jobTitle: setupData.jobTitle || "",
+      interviewFocus: setupData.interviewFocus || "",
+    }));
+
+    try {
+      const response: CustomizeInterviewQuestionsOutput = await customizeInterviewQuestions(saneInput);
 
       if (!response.customizedQuestions || response.customizedQuestions.length === 0) {
         throw new Error("AI did not return any questions. Please try again.");
@@ -113,11 +126,11 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false, // Initial follow-ups are not final by default
+        isLikelyFinalFollowUp: false,
       }));
 
       setSessionData(prev => {
-        if (!prev) return null;
+        if (!prev) return null; // Should not happen if initial set worked
         const newSession = {
           ...prev,
           questions: questionsWithIds,
@@ -137,7 +150,7 @@ export default function InterviewSession() {
         variant: "destructive",
       });
       setSessionData(prev => {
-        if (!prev) return null;
+        if (!prev) return null; // Should not happen
         const newSession = { ...prev, isLoading: false, error: errorMessage };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSession));
         return newSession;
@@ -155,7 +168,7 @@ export default function InterviewSession() {
       } catch (e) {
         console.error("Failed to parse stored interview session:", e);
         localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
-        storedSession = null; // Treat as if no session was stored
+        storedSession = null; 
         toast({ title: "Session Error", description: "Corrupted session data cleared. Please start over.", variant: "destructive"});
       }
     }
@@ -173,7 +186,6 @@ export default function InterviewSession() {
       }
 
       setSessionData(parsedSession);
-      // Ensure startTime is set if interview is active but startTime is missing
       if (parsedSession.interviewStarted && !parsedSession.interviewFinished && !parsedSession.currentQuestionStartTime && parsedSession.questions.length > 0) {
         setSessionData(prev => {
           if (!prev) return null;
@@ -183,7 +195,6 @@ export default function InterviewSession() {
         });
       }
 
-      // If questions are empty but session indicates it should have them, try to load again.
       if (parsedSession.interviewStarted && parsedSession.questions.length === 0 && !parsedSession.error && !parsedSession.isLoading) {
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
@@ -198,7 +209,6 @@ export default function InterviewSession() {
         };
         loadInterview(setupData);
       } else if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
-         // If it was already loading, ensure loadInterview is called.
          const setupData: InterviewSetupData = {
           interviewType: parsedSession.interviewType,
           interviewStyle: parsedSession.interviewStyle,
@@ -212,7 +222,7 @@ export default function InterviewSession() {
         };
         loadInterview(setupData);
       }
-    } else { // No valid stored session
+    } else { 
       const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
       if (storedSetup) {
         try {
@@ -254,7 +264,6 @@ export default function InterviewSession() {
       const updatedCaseConversationHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
       const updatedCurrentCaseTurnNumber = (sessionData.currentCaseTurnNumber || 0) + 1;
 
-      // Check if the current question was marked as likely final OR turn limit reached
       const isLastFollowUp = currentQ.isLikelyFinalFollowUp || updatedCurrentCaseTurnNumber > MAX_CASE_FOLLOW_UPS;
 
       if (isLastFollowUp) {
@@ -301,7 +310,6 @@ export default function InterviewSession() {
             text: followUpResponse.followUpQuestionText,
             idealAnswerCharacteristics: followUpResponse.idealAnswerCharacteristicsForFollowUp,
             isLikelyFinalFollowUp: followUpResponse.isLikelyFinalFollowUp,
-            // Other fields like fullScenarioDescription, internalNotesForFollowUpGenerator are not for follow-ups
           };
 
           newSessionData = {
@@ -318,12 +326,11 @@ export default function InterviewSession() {
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : "Failed to generate follow-up question.";
           toast({ title: "Error", description: errorMessage, variant: "destructive" });
-          // Keep existing state but show error, don't finish interview prematurely
           newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage, currentQuestionStartTime: Date.now() };
         }
       }
       setIsGeneratingFollowUp(false);
-    } else { // Not a case study
+    } else { 
       if (sessionData.currentQuestionIndex === sessionData.questions.length - 1) {
         newSessionData = {
           ...sessionData,
@@ -365,7 +372,6 @@ export default function InterviewSession() {
     let updatedAnswers = sessionData.answers;
     let updatedCaseHistory = sessionData.caseConversationHistory;
 
-    // Ensure the current answer is captured if not already submitted
     if (sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length) {
       const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
       if (currentAnswer.trim() !== "" || sessionData.answers.findIndex(a => a.questionId === currentQ.id) === -1) {
@@ -375,13 +381,12 @@ export default function InterviewSession() {
            timeTakenMs,
            confidenceScore: currentConfidenceScore ?? undefined,
           };
-         updatedAnswers = [...sessionData.answers.filter(a => a.questionId !== currentQ.id), newAnswer]; // Replace if already exists, or add
+         updatedAnswers = [...sessionData.answers.filter(a => a.questionId !== currentQ.id), newAnswer];
          if (sessionData.interviewStyle === 'case-study') {
            updatedCaseHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
          }
       }
     }
-
 
     const newSessionData: InterviewSessionData = {
       ...sessionData,
@@ -425,6 +430,43 @@ export default function InterviewSession() {
     setIsExplainTermDialogOpen(true);
   };
 
+  const handleFetchHint = async () => {
+    if (!sessionData || !sessionData.questions || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
+    
+    setIsFetchingHint(true);
+    setHintText(null);
+    setHintError(null);
+
+    const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
+    try {
+      const input: GenerateHintInput = {
+        questionText: currentQ.text,
+        interviewType: sessionData.interviewType,
+        faangLevel: sessionData.faangLevel,
+        userAnswerAttempt: currentAnswer,
+        interviewFocus: sessionData.interviewFocus,
+        targetedSkills: sessionData.targetedSkills,
+      };
+      const result: GenerateHintOutput = await generateHint(input);
+      setHintText(result.hintText);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to get hint.";
+      setHintError(errorMsg);
+      toast({ title: "Hint Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsFetchingHint(false);
+    }
+  };
+
+  const openHintDialog = () => {
+    setHintText(null);
+    setHintError(null);
+    setIsHintDialogOpen(true);
+    // Fetch hint immediately when dialog is opened, or confirm first?
+    // For now, let's fetch when "Show Hint" is clicked inside the dialog.
+  };
+
+
   const ConfidenceRating = () => (
     <div className="mt-4">
       <label className="block text-sm font-medium text-muted-foreground mb-2">Rate your confidence in this answer (1-5 stars):</label>
@@ -445,7 +487,6 @@ export default function InterviewSession() {
     </div>
   );
 
-
   if (!sessionData || (sessionData.isLoading && !sessionData.questions.length && !isGeneratingFollowUp && !sessionData.error)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -455,7 +496,7 @@ export default function InterviewSession() {
     );
   }
 
-  if (sessionData.error && !isGeneratingFollowUp) { // Only show critical error if not in process of generating follow-up
+  if (sessionData.error && !isGeneratingFollowUp) { 
     return (
       <Alert variant="destructive" className="max-w-lg mx-auto">
         <XCircle className="h-5 w-5" />
@@ -470,7 +511,6 @@ export default function InterviewSession() {
   }
 
   if (sessionData.interviewFinished) {
-    // This should ideally be caught by useEffect redirecting, but as a fallback:
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
@@ -479,9 +519,7 @@ export default function InterviewSession() {
     );
   }
   
-  // Add this check here, after initial loading and error checks
   if (!isGeneratingFollowUp && (!sessionData.questions || sessionData.questions.length === 0 || sessionData.currentQuestionIndex >= sessionData.questions.length)) {
-    // This state can occur if questions failed to load but didn't set an error, or if session data is corrupted.
     return (
       <Alert variant="destructive" className="max-w-lg mx-auto">
         <XCircle className="h-5 w-5" />
@@ -497,15 +535,13 @@ export default function InterviewSession() {
     );
   }
 
-
   const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
   const styleLabel = INTERVIEW_STYLES.find(s => s.value === sessionData.interviewStyle)?.label || sessionData.interviewStyle;
 
   const isCaseStudyStyle = sessionData.interviewStyle === 'case-study';
   const progressValue = isCaseStudyStyle
-    ? (((sessionData.currentCaseTurnNumber || 0) + 1) / (MAX_CASE_FOLLOW_UPS + 1)) * 100 // +1 for initial question
+    ? (((sessionData.currentCaseTurnNumber || 0) + 1) / (MAX_CASE_FOLLOW_UPS + 1)) * 100 
     : (sessionData.questions.length > 0 ? ((sessionData.currentQuestionIndex + 1) / sessionData.questions.length) * 100 : 0);
-
 
   return (
     <>
@@ -575,9 +611,14 @@ export default function InterviewSession() {
              <p className={`text-lg mb-3 ${sessionData.interviewStyle === 'take-home' ? 'whitespace-pre-wrap p-4 border rounded-md bg-secondary/30' : ''}`}>
                 {currentQuestion.text}
             </p>
-            <Button variant="ghost" size="sm" onClick={openExplainTermDialog} className="mb-3 text-xs text-muted-foreground hover:text-primary">
-              <Lightbulb className="mr-1.5 h-3.5 w-3.5" /> Explain a concept from this question
-            </Button>
+            <div className="flex space-x-2 mb-3">
+                <Button variant="ghost" size="sm" onClick={openExplainTermDialog} className="text-xs text-muted-foreground hover:text-primary">
+                <Lightbulb className="mr-1.5 h-3.5 w-3.5" /> Explain a concept
+                </Button>
+                <Button variant="ghost" size="sm" onClick={openHintDialog} className="text-xs text-muted-foreground hover:text-primary">
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Get a hint
+                </Button>
+            </div>
 
             {sessionData.interviewStyle === 'case-study' && (
               <div className="mt-4 mb-6">
@@ -683,6 +724,54 @@ export default function InterviewSession() {
             <Button type="button" onClick={handleExplainTermSubmit} disabled={isExplainingTerm || !termToExplainInput.trim()}>
               {isExplainingTerm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchCheck className="mr-2 h-4 w-4" /> }
               Get Explanation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isHintDialogOpen} onOpenChange={setIsHintDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <Sparkles className="mr-2 h-5 w-5 text-primary" /> Need a Hint?
+            </DialogTitle>
+            <DialogDescription>
+              Click below to get a hint for the current question.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {isFetchingHint && (
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating your hint...
+              </div>
+            )}
+            {hintError && !isFetchingHint && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Hint Error</AlertTitle>
+                <AlertDescription>{hintError}</AlertDescription>
+              </Alert>
+            )}
+            {hintText && !isFetchingHint && (
+              <Alert variant="default" className="bg-yellow-50 border-yellow-200">
+                 <Lightbulb className="h-4 w-4 text-yellow-600" />
+                <AlertTitle className="text-yellow-700">Hint</AlertTitle>
+                <AlertDescription className="text-yellow-700">
+                  {hintText}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter className="sm:justify-end">
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Close
+              </Button>
+            </DialogClose>
+            <Button type="button" onClick={handleFetchHint} disabled={isFetchingHint || !!hintText}>
+              {isFetchingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              {hintText ? "Hint Received" : "Show Hint"}
             </Button>
           </DialogFooter>
         </DialogContent>

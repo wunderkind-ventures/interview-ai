@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-questions";
 import type { CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
@@ -9,8 +9,8 @@ import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-fo
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
 import { explainConcept } from "@/ai/flows/explain-concept";
 import type { ExplainConceptInput, ExplainConceptOutput } from "@/ai/flows/explain-concept";
-import { generateHint } from "@/ai/flows/generate-hint"; 
-import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint"; 
+import { generateHint } from "@/ai/flows/generate-hint";
+import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,8 +19,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"; // Added Accordion
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, ChevronDown } from "lucide-react"; 
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +47,12 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   caseStudyNotes: "",
 };
 
+interface CustomSpeechRecognition extends SpeechRecognition {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+}
+
 export default function InterviewSession() {
   const router = useRouter();
   const { toast } = useToast();
@@ -62,10 +68,174 @@ export default function InterviewSession() {
   const [isExplainingTerm, setIsExplainingTerm] = useState(false);
   const [explainTermError, setExplainTermError] = useState<string | null>(null);
 
-  const [isHintDialogOpen, setIsHintDialogOpen] = useState(false); 
-  const [hintText, setHintText] = useState<string | null>(null); 
-  const [isFetchingHint, setIsFetchingHint] = useState(false); 
-  const [hintError, setHintError] = useState<string | null>(null); 
+  const [isHintDialogOpen, setIsHintDialogOpen] = useState(false);
+  const [hintText, setHintText] = useState<string | null>(null);
+  const [isFetchingHint, setIsFetchingHint] = useState(false);
+  const [hintError, setHintError] = useState<string | null>(null);
+
+  // Speech-to-text state
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSpeechApiSupported, setIsSpeechApiSupported] = useState(false);
+  const [micPermissionStatus, setMicPermissionStatus] = useState<'idle' | 'pending' | 'granted' | 'denied'>('idle');
+  const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check for Web Speech API support
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognitionAPI) {
+      setIsSpeechApiSupported(true);
+    } else {
+      setIsSpeechApiSupported(false);
+      console.warn("Web Speech API is not supported in this browser.");
+    }
+  }, []);
+  
+  useEffect(() => {
+    if (isSpeechApiSupported && recognitionRef.current) {
+      const recognition = recognitionRef.current;
+      
+      recognition.onstart = () => {
+        setIsRecording(true);
+        setSpeechError(null);
+      };
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let finalTranscriptSegment = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscriptSegment += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscriptSegment) {
+          setCurrentAnswer((prev) => prev + (prev.endsWith(' ') || prev === '' || finalTranscriptSegment.startsWith(' ') ? '' : ' ') + finalTranscriptSegment);
+        }
+      };
+
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.error("Speech recognition error", event.error);
+        let errorMessage = `Speech recognition error: ${event.error}.`;
+        if (event.error === 'no-speech') {
+            errorMessage = 'No speech was detected. Please try again.';
+        } else if (event.error === 'audio-capture') {
+            errorMessage = 'Audio capture failed. Ensure your microphone is working.';
+        } else if (event.error === 'not-allowed') {
+            errorMessage = 'Microphone access was denied. Please enable it in your browser settings.';
+            setMicPermissionStatus('denied');
+        }
+        setSpeechError(errorMessage);
+        toast({ title: "Transcription Error", description: errorMessage, variant: "destructive" });
+        setIsRecording(false); 
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+    }
+  }, [isSpeechApiSupported, toast]); // Removed recognitionRef.current from deps as it's a ref
+
+  // Cleanup recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
+
+
+  const requestMicrophonePermission = async () => {
+    if (micPermissionStatus === 'granted') return true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast({ title: "Unsupported Browser", description: "Microphone access is not supported by your browser.", variant: "destructive" });
+      setMicPermissionStatus('denied'); // or a new state 'unsupported'
+      return false;
+    }
+    setMicPermissionStatus('pending');
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicPermissionStatus('granted');
+      toast({ title: "Microphone Access Granted", description: "You can now record your answers.", variant: "default" });
+      return true;
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      setMicPermissionStatus('denied');
+      toast({
+        variant: 'destructive',
+        title: 'Microphone Access Denied',
+        description: 'Please enable microphone permissions in your browser settings to record answers.',
+      });
+      return false;
+    }
+  };
+
+  const handleToggleRecording = async () => {
+    if (!isSpeechApiSupported) {
+      toast({ title: "Feature Not Supported", description: "Speech-to-text is not supported in your browser.", variant: "destructive" });
+      return;
+    }
+
+    if (isRecording) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsRecording(false);
+    } else {
+      const hasPermission = await requestMicrophonePermission();
+      if (hasPermission) {
+        if (!recognitionRef.current) {
+          const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+          recognitionRef.current = new SpeechRecognitionAPI() as CustomSpeechRecognition;
+          recognitionRef.current.continuous = true;
+          recognitionRef.current.interimResults = false; // Keep false for simpler appending
+          recognitionRef.current.lang = 'en-US';
+          
+          // Re-attach handlers as the instance is new
+          recognitionRef.current.onstart = () => { setIsRecording(true); setSpeechError(null); };
+          recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+            let finalTranscriptSegment = "";
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              if (event.results[i].isFinal) {
+                finalTranscriptSegment += event.results[i][0].transcript;
+              }
+            }
+            if (finalTranscriptSegment) {
+              setCurrentAnswer((prev) => prev + (prev.endsWith(' ') || prev === '' || finalTranscriptSegment.startsWith(' ') ? '' : ' ') + finalTranscriptSegment);
+            }
+          };
+          recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
+            console.error("Speech recognition error", event.error);
+            let errorMessage = `Speech recognition error: ${event.error}.`;
+            if (event.error === 'no-speech') {
+                errorMessage = 'No speech was detected. Please try again.';
+            } else if (event.error === 'audio-capture') {
+                errorMessage = 'Audio capture failed. Ensure your microphone is working.';
+            } else if (event.error === 'not-allowed') {
+                errorMessage = 'Microphone access was denied or revoked.';
+                setMicPermissionStatus('denied');
+            }
+            setSpeechError(errorMessage);
+            toast({ title: "Transcription Error", description: errorMessage, variant: "destructive" });
+            setIsRecording(false);
+          };
+          recognitionRef.current.onend = () => { setIsRecording(false); };
+        }
+        try {
+          recognitionRef.current.start();
+        } catch (e) {
+            // This can happen if start() is called while it's already started or in an error state.
+            console.error("Error starting recognition:", e);
+            toast({title: "Recording Error", description: "Could not start recording. Please try again.", variant: "destructive"});
+            setIsRecording(false); // Ensure state is consistent
+        }
+      }
+    }
+  };
 
 
   useEffect(() => {
@@ -96,13 +266,13 @@ export default function InterviewSession() {
       };
 
     setSessionData(prev => ({
-      ...(prev || setupData), 
-      ...setupData, 
-      ...initialSessionState, 
-      isLoading: true, 
-      interviewStarted: true, 
-      currentQuestionStartTime: Date.now(), 
-      interviewStyle: setupData.interviewStyle, 
+      ...(prev || setupData),
+      ...setupData,
+      ...initialSessionState,
+      isLoading: true,
+      interviewStarted: true,
+      currentQuestionStartTime: Date.now(),
+      interviewStyle: setupData.interviewStyle,
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
       caseStudyNotes: (prev && prev.interviewStyle === 'case-study' && prev.caseStudyNotes) ? prev.caseStudyNotes : "",
@@ -126,11 +296,11 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false, 
+        isLikelyFinalFollowUp: false,
       }));
 
       setSessionData(prev => {
-        if (!prev) return null; 
+        if (!prev) return null;
         const newSession = {
           ...prev,
           questions: questionsWithIds,
@@ -150,7 +320,7 @@ export default function InterviewSession() {
         variant: "destructive",
       });
       setSessionData(prev => {
-        if (!prev) return null; 
+        if (!prev) return null;
         const newSession = { ...prev, isLoading: false, error: errorMessage };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSession));
         return newSession;
@@ -168,7 +338,7 @@ export default function InterviewSession() {
       } catch (e) {
         console.error("Failed to parse stored interview session:", e);
         localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
-        storedSession = null; 
+        storedSession = null;
         toast({ title: "Session Error", description: "Corrupted session data cleared. Please start over.", variant: "destructive"});
       }
     }
@@ -221,7 +391,7 @@ export default function InterviewSession() {
         };
         loadInterview(setupData);
       }
-    } else { 
+    } else {
       const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
       if (storedSetup) {
         try {
@@ -242,7 +412,7 @@ export default function InterviewSession() {
 
   const handleNextQuestion = async () => {
     if (!sessionData || !sessionData.questions || sessionData.questions.length === 0 || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
-    if (isGeneratingFollowUp) return;
+    if (isGeneratingFollowUp || isRecording) return; // Don't proceed if recording
 
     const endTime = Date.now();
     const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
@@ -329,7 +499,7 @@ export default function InterviewSession() {
         }
       }
       setIsGeneratingFollowUp(false);
-    } else { 
+    } else {
       if (sessionData.currentQuestionIndex === sessionData.questions.length - 1) {
         newSessionData = {
           ...sessionData,
@@ -363,7 +533,11 @@ export default function InterviewSession() {
   };
 
   const handleEndInterview = () => {
-    if (!sessionData) return;
+    if (!sessionData || isRecording) return;
+
+    if (recognitionRef.current && isRecording) {
+      recognitionRef.current.stop(); // Stop recording if active
+    }
 
     const endTime = Date.now();
     const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
@@ -431,7 +605,7 @@ export default function InterviewSession() {
 
   const handleFetchHint = async () => {
     if (!sessionData || !sessionData.questions || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
-    
+
     setIsFetchingHint(true);
     setHintText(null);
     setHintError(null);
@@ -493,7 +667,7 @@ export default function InterviewSession() {
     );
   }
 
-  if (sessionData.error && !isGeneratingFollowUp) { 
+  if (sessionData.error && !isGeneratingFollowUp) {
     return (
       <Alert variant="destructive" className="max-w-lg mx-auto">
         <XCircle className="h-5 w-5" />
@@ -515,7 +689,7 @@ export default function InterviewSession() {
       </div>
     );
   }
-  
+
   if (!isGeneratingFollowUp && (!sessionData.questions || sessionData.questions.length === 0 || sessionData.currentQuestionIndex >= sessionData.questions.length)) {
     return (
       <Alert variant="destructive" className="max-w-lg mx-auto">
@@ -525,7 +699,7 @@ export default function InterviewSession() {
           No questions were loaded for this interview session. This might be due to an issue during question generation or an incomplete setup. Please try starting a new interview.
         </AlertDescription>
         <Button onClick={() => {
-          localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
+          localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
           router.push("/");
         }} className="mt-4">Back to Setup</Button>
       </Alert>
@@ -537,8 +711,10 @@ export default function InterviewSession() {
 
   const isCaseStudyStyle = sessionData.interviewStyle === 'case-study';
   const progressValue = isCaseStudyStyle
-    ? (((sessionData.currentCaseTurnNumber || 0) + 1) / (MAX_CASE_FOLLOW_UPS + 1)) * 100 
+    ? (((sessionData.currentCaseTurnNumber || 0) + 1) / (MAX_CASE_FOLLOW_UPS + 1)) * 100
     : (sessionData.questions.length > 0 ? ((sessionData.currentQuestionIndex + 1) / sessionData.questions.length) * 100 : 0);
+
+  const recordButtonDisabled = !isSpeechApiSupported || micPermissionStatus === 'denied' || micPermissionStatus === 'pending';
 
   return (
     <>
@@ -664,26 +840,43 @@ export default function InterviewSession() {
                 />
               </div>
             )}
+            
+            <div className="relative">
+                <Textarea
+                  placeholder={sessionData.interviewStyle === 'take-home' ? "Paste your full response here..." : "Type your answer here or use the microphone..."}
+                  value={currentAnswer}
+                  onChange={(e) => setCurrentAnswer(e.target.value)}
+                  className="min-h-[200px] text-base pr-12" // Added pr-12 for button space
+                  rows={sessionData.interviewStyle === 'take-home' ? 15 : 8}
+                  disabled={isGeneratingFollowUp || isRecording}
+                />
+                {sessionData.interviewStyle !== 'take-home' && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleToggleRecording}
+                        disabled={recordButtonDisabled}
+                        className={`absolute right-2 bottom-2 text-muted-foreground hover:text-primary ${isRecording ? "text-red-500 hover:text-red-600" : ""}`}
+                        aria-label={isRecording ? "Stop recording" : "Record answer"}
+                    >
+                        {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                    </Button>
+                )}
+            </div>
+             {speechError && <Alert variant="destructive" className="mt-2 text-xs"><AlertTriangle className="h-3 w-3" /><AlertDescription>{speechError}</AlertDescription></Alert>}
 
-            <Textarea
-              placeholder={sessionData.interviewStyle === 'take-home' ? "Paste your full response here..." : "Type your answer here..."}
-              value={currentAnswer}
-              onChange={(e) => setCurrentAnswer(e.target.value)}
-              className="min-h-[200px] text-base"
-              rows={sessionData.interviewStyle === 'take-home' ? 15 : 8}
-              disabled={isGeneratingFollowUp}
-            />
+
             {sessionData.interviewStyle !== 'take-home' && <ConfidenceRating />}
           </div>
         ) : null }
       </CardContent>
       <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={handleEndInterview} disabled={sessionData.isLoading || isGeneratingFollowUp}>
+        <Button variant="outline" onClick={handleEndInterview} disabled={sessionData.isLoading || isGeneratingFollowUp || isRecording}>
           End Interview
         </Button>
         <Button
           onClick={handleNextQuestion}
-          disabled={sessionData.isLoading || (!currentAnswer.trim() && sessionData.interviewStyle !== 'case-study') || isGeneratingFollowUp}
+          disabled={sessionData.isLoading || (!currentAnswer.trim() && sessionData.interviewStyle !== 'case-study') || isGeneratingFollowUp || isRecording}
           className="bg-accent hover:bg-accent/90"
         >
           {isGeneratingFollowUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -691,7 +884,7 @@ export default function InterviewSession() {
             ? (currentQuestion?.isLikelyFinalFollowUp || (sessionData.currentCaseTurnNumber || 0) >= MAX_CASE_FOLLOW_UPS ? "Finish Case & View Feedback" : "Submit & Get Next Follow-up")
             : (sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish & View Feedback" : "Next Question")
           }
-          {!isGeneratingFollowUp && <ArrowRight className="ml-2 h-4 w-4" />}
+          {!isGeneratingFollowUp && !isRecording && <ArrowRight className="ml-2 h-4 w-4" />}
         </Button>
       </CardFooter>
     </Card>

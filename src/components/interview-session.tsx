@@ -11,6 +11,9 @@ import { explainConcept } from "@/ai/flows/explain-concept";
 import type { ExplainConceptInput, ExplainConceptOutput } from "@/ai/flows/explain-concept";
 import { generateHint } from "@/ai/flows/generate-hint";
 import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint";
+import { generateSampleAnswer } from "@/ai/flows/generate-sample-answer";
+import type { GenerateSampleAnswerInput, GenerateSampleAnswerOutput } from "@/ai/flows/generate-sample-answer";
+
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +23,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +48,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   currentCaseTurnNumber: 0,
   caseConversationHistory: [],
   caseStudyNotes: "",
+  sampleAnswers: {},
 };
 
 interface CustomSpeechRecognition extends SpeechRecognition {
@@ -72,6 +76,12 @@ export default function InterviewSession() {
   const [hintText, setHintText] = useState<string | null>(null);
   const [isFetchingHint, setIsFetchingHint] = useState(false);
   const [hintError, setHintError] = useState<string | null>(null);
+
+  const [isSampleAnswerDialogOpen, setIsSampleAnswerDialogOpen] = useState(false);
+  const [sampleAnswerText, setSampleAnswerText] = useState<string | null>(null);
+  const [isFetchingSampleAnswer, setIsFetchingSampleAnswer] = useState(false);
+  const [sampleAnswerError, setSampleAnswerError] = useState<string | null>(null);
+
 
   // Speech-to-text state
   const [isRecording, setIsRecording] = useState(false);
@@ -132,7 +142,7 @@ export default function InterviewSession() {
         setIsRecording(false);
       };
     }
-  }, [isSpeechApiSupported, toast]); // Removed recognitionRef.current from deps as it's a ref
+  }, [isSpeechApiSupported, toast]);
 
   // Cleanup recognition on unmount
   useEffect(() => {
@@ -153,7 +163,7 @@ export default function InterviewSession() {
     if (micPermissionStatus === 'granted') return true;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast({ title: "Unsupported Browser", description: "Microphone access is not supported by your browser.", variant: "destructive" });
-      setMicPermissionStatus('denied'); // or a new state 'unsupported'
+      setMicPermissionStatus('denied'); 
       return false;
     }
     setMicPermissionStatus('pending');
@@ -192,10 +202,9 @@ export default function InterviewSession() {
           const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
           recognitionRef.current = new SpeechRecognitionAPI() as CustomSpeechRecognition;
           recognitionRef.current.continuous = true;
-          recognitionRef.current.interimResults = false; // Keep false for simpler appending
+          recognitionRef.current.interimResults = false; 
           recognitionRef.current.lang = 'en-US';
           
-          // Re-attach handlers as the instance is new
           recognitionRef.current.onstart = () => { setIsRecording(true); setSpeechError(null); };
           recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
             let finalTranscriptSegment = "";
@@ -228,10 +237,9 @@ export default function InterviewSession() {
         try {
           recognitionRef.current.start();
         } catch (e) {
-            // This can happen if start() is called while it's already started or in an error state.
             console.error("Error starting recognition:", e);
             toast({title: "Recording Error", description: "Could not start recording. Please try again.", variant: "destructive"});
-            setIsRecording(false); // Ensure state is consistent
+            setIsRecording(false);
         }
       }
     }
@@ -263,23 +271,27 @@ export default function InterviewSession() {
         targetedSkills: setupData.targetedSkills || [],
         targetCompany: setupData.targetCompany || "",
         interviewFocus: setupData.interviewFocus || "",
+        previousConversation: "", 
+        currentQuestion: "",    
+        caseStudyNotes: setupData.interviewStyle === 'case-study' ? (sessionData?.caseStudyNotes || "") : "",
       };
 
     setSessionData(prev => ({
       ...(prev || setupData),
       ...setupData,
-      ...initialSessionState,
+      ...initialSessionState, // Resets questions, answers, etc.
       isLoading: true,
       interviewStarted: true,
       currentQuestionStartTime: Date.now(),
       interviewStyle: setupData.interviewStyle,
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
-      caseStudyNotes: (prev && prev.interviewStyle === 'case-study' && prev.caseStudyNotes) ? prev.caseStudyNotes : "",
+      caseStudyNotes: setupData.interviewStyle === 'case-study' ? (prev?.caseStudyNotes || "") : undefined,
       targetedSkills: setupData.targetedSkills || [],
       targetCompany: setupData.targetCompany || "",
       jobTitle: setupData.jobTitle || "",
       interviewFocus: setupData.interviewFocus || "",
+      sampleAnswers: prev?.sampleAnswers || {}, // Preserve sample answers if reloading setup
     }));
 
     try {
@@ -296,7 +308,7 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false,
+        isLikelyFinalFollowUp: false, 
       }));
 
       setSessionData(prev => {
@@ -326,7 +338,7 @@ export default function InterviewSession() {
         return newSession;
       });
     }
-  }, [toast]);
+  }, [toast, sessionData?.caseStudyNotes]); // Added sessionData.caseStudyNotes as dependency
 
   useEffect(() => {
     let storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
@@ -339,7 +351,7 @@ export default function InterviewSession() {
         console.error("Failed to parse stored interview session:", e);
         localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
         storedSession = null;
-        toast({ title: "Session Error", description: "Corrupted session data cleared. Please start over.", variant: "destructive"});
+        // toast({ title: "Session Error", description: "Corrupted session data cleared. Please start over.", variant: "destructive"});
       }
     }
 
@@ -348,11 +360,12 @@ export default function InterviewSession() {
         router.replace("/feedback");
         return;
       }
-      if (parsedSession.interviewStyle === 'case-study') {
-        parsedSession.currentCaseTurnNumber = parsedSession.currentCaseTurnNumber ?? 0;
-        parsedSession.caseConversationHistory = parsedSession.caseConversationHistory ?? [];
-        parsedSession.caseStudyNotes = parsedSession.caseStudyNotes ?? "";
-      }
+      // Ensure all fields are correctly initialized from parsedSession
+      parsedSession.currentCaseTurnNumber = parsedSession.interviewStyle === 'case-study' ? (parsedSession.currentCaseTurnNumber ?? 0) : undefined;
+      parsedSession.caseConversationHistory = parsedSession.interviewStyle === 'case-study' ? (parsedSession.caseConversationHistory ?? []) : undefined;
+      parsedSession.caseStudyNotes = parsedSession.interviewStyle === 'case-study' ? (parsedSession.caseStudyNotes ?? "") : undefined;
+      parsedSession.sampleAnswers = parsedSession.sampleAnswers ?? {};
+
 
       setSessionData(parsedSession);
       if (parsedSession.interviewStarted && !parsedSession.interviewFinished && !parsedSession.currentQuestionStartTime && parsedSession.questions.length > 0) {
@@ -412,7 +425,7 @@ export default function InterviewSession() {
 
   const handleNextQuestion = async () => {
     if (!sessionData || !sessionData.questions || sessionData.questions.length === 0 || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
-    if (isGeneratingFollowUp || isRecording) return; // Don't proceed if recording
+    if (isGeneratingFollowUp || isRecording) return; 
 
     const endTime = Date.now();
     const timeTakenMs = sessionData.currentQuestionStartTime ? endTime - sessionData.currentQuestionStartTime : undefined;
@@ -431,7 +444,7 @@ export default function InterviewSession() {
     if (sessionData.interviewStyle === 'case-study') {
       setIsGeneratingFollowUp(true);
       const updatedCaseConversationHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
-      const updatedCurrentCaseTurnNumber = (sessionData.currentCaseTurnNumber || 0) + 1;
+      const updatedCurrentCaseTurnNumber = (sessionData.currentCaseTurnNumber ?? 0) + 1;
 
       const isLastFollowUp = currentQ.isLikelyFinalFollowUp || updatedCurrentCaseTurnNumber > MAX_CASE_FOLLOW_UPS;
 
@@ -536,7 +549,7 @@ export default function InterviewSession() {
     if (!sessionData || isRecording) return;
 
     if (recognitionRef.current && isRecording) {
-      recognitionRef.current.stop(); // Stop recording if active
+      recognitionRef.current.stop(); 
     }
 
     const endTime = Date.now();
@@ -637,6 +650,50 @@ export default function InterviewSession() {
     setIsHintDialogOpen(true);
   };
 
+  const handleFetchSampleAnswer = async () => {
+    if (!sessionData || !sessionData.questions || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
+    
+    const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
+    if (sessionData.sampleAnswers && sessionData.sampleAnswers[currentQ.id]) {
+      setSampleAnswerText(sessionData.sampleAnswers[currentQ.id]);
+      setIsSampleAnswerDialogOpen(true);
+      return;
+    }
+
+    setIsFetchingSampleAnswer(true);
+    setSampleAnswerText(null);
+    setSampleAnswerError(null);
+    setIsSampleAnswerDialogOpen(true); // Open dialog immediately to show loading state
+
+    try {
+      const input: GenerateSampleAnswerInput = {
+        questionText: currentQ.text,
+        interviewType: sessionData.interviewType,
+        faangLevel: sessionData.faangLevel,
+        interviewFocus: sessionData.interviewFocus,
+        targetedSkills: sessionData.targetedSkills,
+        idealAnswerCharacteristics: currentQ.idealAnswerCharacteristics,
+      };
+      const result: GenerateSampleAnswerOutput = await generateSampleAnswer(input);
+      setSampleAnswerText(result.sampleAnswerText);
+      // Cache the fetched sample answer
+      setSessionData(prev => {
+        if (!prev) return null;
+        const updatedSampleAnswers = { ...(prev.sampleAnswers || {}), [currentQ.id]: result.sampleAnswerText };
+        const updatedSession = { ...prev, sampleAnswers: updatedSampleAnswers };
+        localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        return updatedSession;
+      });
+
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to get sample answer.";
+      setSampleAnswerError(errorMsg);
+      toast({ title: "Sample Answer Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsFetchingSampleAnswer(false);
+    }
+  };
+
 
   const ConfidenceRating = () => (
     <div className="mt-4">
@@ -690,6 +747,7 @@ export default function InterviewSession() {
     );
   }
 
+  // Add this guard after the initial loading/error/finished checks.
   if (!isGeneratingFollowUp && (!sessionData.questions || sessionData.questions.length === 0 || sessionData.currentQuestionIndex >= sessionData.questions.length)) {
     return (
       <Alert variant="destructive" className="max-w-lg mx-auto">
@@ -699,19 +757,20 @@ export default function InterviewSession() {
           No questions were loaded for this interview session. This might be due to an issue during question generation or an incomplete setup. Please try starting a new interview.
         </AlertDescription>
         <Button onClick={() => {
-          localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+          localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); // Clear potentially problematic session
           router.push("/");
         }} className="mt-4">Back to Setup</Button>
       </Alert>
     );
   }
 
+
   const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
   const styleLabel = INTERVIEW_STYLES.find(s => s.value === sessionData.interviewStyle)?.label || sessionData.interviewStyle;
 
   const isCaseStudyStyle = sessionData.interviewStyle === 'case-study';
   const progressValue = isCaseStudyStyle
-    ? (((sessionData.currentCaseTurnNumber || 0) + 1) / (MAX_CASE_FOLLOW_UPS + 1)) * 100
+    ? (((sessionData.currentCaseTurnNumber ?? 0) + 1) / (MAX_CASE_FOLLOW_UPS + 1)) * 100
     : (sessionData.questions.length > 0 ? ((sessionData.currentQuestionIndex + 1) / sessionData.questions.length) * 100 : 0);
 
   const recordButtonDisabled = !isSpeechApiSupported || micPermissionStatus === 'denied' || micPermissionStatus === 'pending';
@@ -735,7 +794,7 @@ export default function InterviewSession() {
             {isCaseStudyStyle ? (
               <span className="flex items-center">
                 <Layers className="h-4 w-4 mr-1 text-primary" />
-                Turn: {(sessionData.currentCaseTurnNumber || 0) + 1}
+                Turn: {(sessionData.currentCaseTurnNumber ?? 0) + 1}
               </span>
             ) : (
                <span>Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}</span>
@@ -801,7 +860,7 @@ export default function InterviewSession() {
             <h2 className="text-xl font-semibold mb-1 text-foreground">
               {sessionData.interviewStyle === 'take-home' ? 'Take Home Assignment:' :
                currentQuestion.isInitialCaseQuestion ? 'Initial Question:' :
-               isCaseStudyStyle ? `Follow-up Question (Turn ${(sessionData.currentCaseTurnNumber || 0) + 1}):` :
+               isCaseStudyStyle ? `Follow-up Question (Turn ${(sessionData.currentCaseTurnNumber ?? 0) + 1}):` :
                `Question ${sessionData.currentQuestionIndex + 1}:`}
             </h2>
              <p className={`text-lg mb-3 ${sessionData.interviewStyle === 'take-home' ? 'whitespace-pre-wrap p-4 border rounded-md bg-secondary/30' : ''}`}>
@@ -813,6 +872,9 @@ export default function InterviewSession() {
                 </Button>
                 <Button variant="ghost" size="sm" onClick={openHintDialog} className="text-xs text-muted-foreground hover:text-primary">
                     <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Get a hint
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleFetchSampleAnswer} className="text-xs text-muted-foreground hover:text-primary">
+                    <BookOpen className="mr-1.5 h-3.5 w-3.5" /> View Sample Answer
                 </Button>
             </div>
 
@@ -846,7 +908,7 @@ export default function InterviewSession() {
                   placeholder={sessionData.interviewStyle === 'take-home' ? "Paste your full response here..." : "Type your answer here or use the microphone..."}
                   value={currentAnswer}
                   onChange={(e) => setCurrentAnswer(e.target.value)}
-                  className="min-h-[200px] text-base pr-12" // Added pr-12 for button space
+                  className="min-h-[200px] text-base pr-12" 
                   rows={sessionData.interviewStyle === 'take-home' ? 15 : 8}
                   disabled={isGeneratingFollowUp || isRecording}
                 />
@@ -881,7 +943,7 @@ export default function InterviewSession() {
         >
           {isGeneratingFollowUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {sessionData.interviewStyle === 'case-study'
-            ? (currentQuestion?.isLikelyFinalFollowUp || (sessionData.currentCaseTurnNumber || 0) >= MAX_CASE_FOLLOW_UPS ? "Finish Case & View Feedback" : "Submit & Get Next Follow-up")
+            ? (currentQuestion?.isLikelyFinalFollowUp || (sessionData.currentCaseTurnNumber ?? 0) >= MAX_CASE_FOLLOW_UPS ? "Finish Case & View Feedback" : "Submit & Get Next Follow-up")
             : (sessionData.currentQuestionIndex === sessionData.questions.length - 1 ? "Finish & View Feedback" : "Next Question")
           }
           {!isGeneratingFollowUp && !isRecording && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -986,6 +1048,48 @@ export default function InterviewSession() {
               {isFetchingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               {hintText ? "Hint Received" : "Show Hint"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSampleAnswerDialogOpen} onOpenChange={setIsSampleAnswerDialogOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <BookOpen className="mr-2 h-5 w-5 text-primary" /> Sample Answer
+            </DialogTitle>
+            {currentQuestion && <DialogDescription>For question: "{currentQuestion.text}"</DialogDescription>}
+          </DialogHeader>
+          <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto">
+            {isFetchingSampleAnswer && (
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating sample answer...
+              </div>
+            )}
+            {sampleAnswerError && !isFetchingSampleAnswer && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Sample Answer Error</AlertTitle>
+                <AlertDescription>{sampleAnswerError}</AlertDescription>
+              </Alert>
+            )}
+            {sampleAnswerText && !isFetchingSampleAnswer && (
+              <Alert variant="default" className="bg-blue-50 border-blue-200">
+                <BookOpen className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-700">AI Generated Sample Answer</AlertTitle>
+                <AlertDescription className="text-blue-700 whitespace-pre-wrap">
+                  {sampleAnswerText}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter className="sm:justify-end">
+             <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Close
+              </Button>
+            </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -3,13 +3,16 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+// Firebase Firestore imports - assuming Firebase is initialized elsewhere
+import { getFirestore, collection, addDoc, serverTimestamp, getApps } from "firebase/firestore";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download } from "lucide-react"; 
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download } from "lucide-react";
 import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
 import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +68,64 @@ export default function InterviewSummary() {
     includeOverallSummary: true,
   });
 
+  const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData) => {
+    if (getApps().length === 0) {
+      console.warn("Firebase app not initialized. Skipping backend logging. Please ensure Firebase is initialized in your app.");
+      // Potentially set isLoggedToServer to true here to prevent retries, or handle differently
+      setSessionData(prev => {
+        if (!prev) return null;
+        const updatedSession = { ...prev, isLoggedToServer: true }; // Mark as attempted
+        localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        return updatedSession;
+      });
+      return;
+    }
+
+    try {
+      const db = getFirestore(); // Assumes Firebase app is initialized
+      const interviewLog = {
+        ...dataToLog,
+        // Ensure complex objects like 'feedback' are serializable or simplified if needed
+        // For simplicity, we're logging the whole object. Consider data structure for long term.
+        completedAt: serverTimestamp(), // Adds a server-side timestamp
+      };
+      
+      // Remove potentially non-serializable parts or large objects if they cause issues
+      // For this prototype, we'll try logging most of it.
+      // delete interviewLog.deepDives; // Example: if deepDives are too large or complex for a single log
+
+      await addDoc(collection(db, "interviews"), interviewLog);
+      console.log("Interview session logged to backend successfully.");
+      toast({
+        title: "Session Logged",
+        description: "Interview data saved for review.",
+        variant: "default",
+      });
+      // Mark as logged in sessionData and update localStorage
+      setSessionData(prev => {
+        if (!prev) return null;
+        const updatedSession = { ...prev, isLoggedToServer: true };
+        localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        return updatedSession;
+      });
+    } catch (error) {
+      console.error("Error logging interview session to backend:", error);
+      toast({
+        title: "Logging Error",
+        description: "Could not save interview data to backend. See console for details.",
+        variant: "destructive",
+      });
+       // Mark as attempted to avoid retries if desired, or allow retries by not setting flag
+      setSessionData(prev => {
+        if (!prev) return null;
+        const updatedSession = { ...prev, isLoggedToServer: true }; // Mark as attempted
+        localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        return updatedSession;
+      });
+    }
+  }, [toast]);
+
+
   const fetchAndSetFeedback = useCallback(async (currentSession: InterviewSessionData) => {
     if (!currentSession.interviewFinished || currentSession.feedback || isFeedbackLoading) {
       return;
@@ -83,7 +144,7 @@ export default function InterviewSummary() {
         questionId: a.questionId,
         answerText: a.answerText,
         timeTakenMs: a.timeTakenMs,
-        confidenceScore: a.confidenceScore, 
+        confidenceScore: a.confidenceScore,
       }));
 
       const feedbackInput: GenerateInterviewFeedbackInput = {
@@ -112,6 +173,11 @@ export default function InterviewSummary() {
 
         const updatedSession = { ...prev, feedback: {...feedbackResult, feedbackItems: updatedFeedbackItemsWithConfidence } };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        
+        // Trigger backend logging after feedback is successfully set
+        if (updatedSession.interviewFinished && updatedSession.feedback && !updatedSession.isLoggedToServer) {
+            saveInterviewToBackend(updatedSession);
+        }
         return updatedSession;
       });
 
@@ -126,13 +192,15 @@ export default function InterviewSummary() {
     } finally {
       setIsFeedbackLoading(false);
     }
-  }, [toast, isFeedbackLoading]);
+  }, [toast, isFeedbackLoading, saveInterviewToBackend]);
 
   useEffect(() => {
     const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
     if (storedSession) {
       try {
         const parsedSession: InterviewSessionData = JSON.parse(storedSession);
+        parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false; // Initialize if not present
+
         if (!parsedSession.interviewFinished) {
           toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
           const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
@@ -145,8 +213,12 @@ export default function InterviewSummary() {
         }
         setSessionData(parsedSession);
         setIsSessionLoading(false);
+        
         if (!parsedSession.feedback && parsedSession.answers.length > 0) {
           fetchAndSetFeedback(parsedSession);
+        } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer) {
+          // If feedback already exists but wasn't logged, try logging it now
+          saveInterviewToBackend(parsedSession);
         } else if (parsedSession.answers.length === 0) {
           setIsFeedbackLoading(false);
         }
@@ -162,7 +234,7 @@ export default function InterviewSummary() {
       router.replace("/");
       setIsSessionLoading(false);
     }
-  }, [router, toast, fetchAndSetFeedback]);
+  }, [router, toast, fetchAndSetFeedback, saveInterviewToBackend]);
 
   const handleOpenDeepDive = async (questionId: string) => {
     if (!sessionData) return;

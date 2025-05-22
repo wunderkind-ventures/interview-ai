@@ -51,7 +51,7 @@ export interface FeedbackItem {
   critique?: string;
   idealAnswerPointers?: string[];
   timeTakenMs?: number;
-  confidenceScore?: number; 
+  confidenceScore?: number;
   reflectionPrompts?: string[];
 }
 
@@ -78,9 +78,10 @@ export interface InterviewSessionData extends InterviewSetupData {
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
   deepDives?: Record<string, DeepDiveFeedback>;
-  sampleAnswers?: Record<string, string>; // Added to store fetched sample answers
+  sampleAnswers?: Record<string, string>;
   currentCaseTurnNumber?: number;
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
-  caseStudyNotes?: string; 
+  caseStudyNotes?: string;
+  isLoggedToServer?: boolean; // Added flag to track if logged
 }
 

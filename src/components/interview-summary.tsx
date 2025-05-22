@@ -3,8 +3,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-// Firebase Firestore imports - assuming Firebase is initialized elsewhere
-import { getFirestore, collection, addDoc, serverTimestamp, getApps } from "firebase/firestore";
+// Firebase Firestore imports
+import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc } from "firebase/firestore"; 
+import { useAuth } from "@/contexts/auth-context"; // Import useAuth
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ interface ExportOptions {
 export default function InterviewSummary() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user: authUser, loading: authLoading } = useAuth(); // Get user from AuthContext
   const [sessionData, setSessionData] = useState<InterviewSessionData | null>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
@@ -70,8 +72,7 @@ export default function InterviewSummary() {
 
   const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData) => {
     if (getApps().length === 0) {
-      console.warn("Firebase app not initialized. Skipping backend logging. Please ensure Firebase is initialized in your app.");
-      // Potentially set isLoggedToServer to true here to prevent retries, or handle differently
+      console.warn("Firebase app not initialized. Skipping backend logging.");
       setSessionData(prev => {
         if (!prev) return null;
         const updatedSession = { ...prev, isLoggedToServer: true }; // Mark as attempted
@@ -81,27 +82,41 @@ export default function InterviewSummary() {
       return;
     }
 
+    if (!authUser) {
+      console.log("User not logged in. Skipping backend save of interview session.");
+      // Optionally, mark as "attempted" or handle anonymous saves differently if desired later
+      // For now, we only save if a user is logged in.
+      setSessionData(prev => {
+        if (!prev) return null;
+        const updatedSession = { ...prev, isLoggedToServer: true }; // Mark so we don't retry for this anonymous session
+        localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        return updatedSession;
+      });
+      return;
+    }
+
     try {
-      const db = getFirestore(); // Assumes Firebase app is initialized
+      const db = getFirestore();
+      // Generate a unique ID for the interview session if it's new, or use an existing one if re-logging
+      // For simplicity, let's assume a new document is created each time.
+      // A more robust system might use a session ID stored within sessionData.
       const interviewLog = {
         ...dataToLog,
-        // Ensure complex objects like 'feedback' are serializable or simplified if needed
-        // For simplicity, we're logging the whole object. Consider data structure for long term.
-        completedAt: serverTimestamp(), // Adds a server-side timestamp
+        userId: authUser.uid, // Associate with the logged-in user
+        completedAt: serverTimestamp(),
       };
-      
-      // Remove potentially non-serializable parts or large objects if they cause issues
-      // For this prototype, we'll try logging most of it.
-      // delete interviewLog.deepDives; // Example: if deepDives are too large or complex for a single log
 
-      await addDoc(collection(db, "interviews"), interviewLog);
-      console.log("Interview session logged to backend successfully.");
+      // Remove potentially non-serializable parts or large objects that might cause issues,
+      // or that are better stored separately (like full resume text if very large).
+      // For this prototype, logging most of it.
+      const docRef = await addDoc(collection(db, "users", authUser.uid, "interviews"), interviewLog);
+      console.log("Interview session logged to user's collection successfully:", docRef.id);
       toast({
         title: "Session Logged",
-        description: "Interview data saved for review.",
+        description: "Your interview data has been saved to your account.",
         variant: "default",
       });
-      // Mark as logged in sessionData and update localStorage
+      
       setSessionData(prev => {
         if (!prev) return null;
         const updatedSession = { ...prev, isLoggedToServer: true };
@@ -112,18 +127,19 @@ export default function InterviewSummary() {
       console.error("Error logging interview session to backend:", error);
       toast({
         title: "Logging Error",
-        description: "Could not save interview data to backend. See console for details.",
+        description: "Could not save interview data to your account. See console for details.",
         variant: "destructive",
       });
-       // Mark as attempted to avoid retries if desired, or allow retries by not setting flag
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true }; // Mark as attempted
+        // Mark as attempted to avoid retries for this specific error event,
+        // or implement more sophisticated retry logic later.
+        const updatedSession = { ...prev, isLoggedToServer: true }; 
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
     }
-  }, [toast]);
+  }, [toast, authUser]);
 
 
   const fetchAndSetFeedback = useCallback(async (currentSession: InterviewSessionData) => {
@@ -174,8 +190,7 @@ export default function InterviewSummary() {
         const updatedSession = { ...prev, feedback: {...feedbackResult, feedbackItems: updatedFeedbackItemsWithConfidence } };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         
-        // Trigger backend logging after feedback is successfully set
-        if (updatedSession.interviewFinished && updatedSession.feedback && !updatedSession.isLoggedToServer) {
+        if (updatedSession.interviewFinished && updatedSession.feedback && !updatedSession.isLoggedToServer && !authLoading) {
             saveInterviewToBackend(updatedSession);
         }
         return updatedSession;
@@ -192,14 +207,19 @@ export default function InterviewSummary() {
     } finally {
       setIsFeedbackLoading(false);
     }
-  }, [toast, isFeedbackLoading, saveInterviewToBackend]);
+  }, [toast, isFeedbackLoading, saveInterviewToBackend, authLoading]);
 
   useEffect(() => {
+    if (authLoading) { // Wait for auth state to be determined
+      setIsSessionLoading(true);
+      return;
+    }
+
     const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
     if (storedSession) {
       try {
         const parsedSession: InterviewSessionData = JSON.parse(storedSession);
-        parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false; // Initialize if not present
+        parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false; 
 
         if (!parsedSession.interviewFinished) {
           toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
@@ -217,7 +237,6 @@ export default function InterviewSummary() {
         if (!parsedSession.feedback && parsedSession.answers.length > 0) {
           fetchAndSetFeedback(parsedSession);
         } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer) {
-          // If feedback already exists but wasn't logged, try logging it now
           saveInterviewToBackend(parsedSession);
         } else if (parsedSession.answers.length === 0) {
           setIsFeedbackLoading(false);
@@ -234,7 +253,7 @@ export default function InterviewSummary() {
       router.replace("/");
       setIsSessionLoading(false);
     }
-  }, [router, toast, fetchAndSetFeedback, saveInterviewToBackend]);
+  }, [router, toast, fetchAndSetFeedback, saveInterviewToBackend, authLoading, authUser]); // Added authUser to dependencies
 
   const handleOpenDeepDive = async (questionId: string) => {
     if (!sessionData) return;
@@ -459,7 +478,7 @@ export default function InterviewSummary() {
   };
 
 
-  if (isSessionLoading) {
+  if (isSessionLoading || authLoading) { // Check authLoading as well
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />

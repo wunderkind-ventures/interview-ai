@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-questions";
-import type { CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions"; // Corrected path
+import type { CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
 import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-follow-up";
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
 import { explainConcept } from "@/ai/flows/explain-concept";
@@ -17,15 +17,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote } from "lucide-react"; // Added Star, StickyNote
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
-import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types"; // Corrected import path for CustomizeInterviewQuestionsInput
+import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
 const MAX_CASE_FOLLOW_UPS = 4;
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, caseStudyNotes?: string } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -41,7 +41,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   interviewFocus: undefined,
   currentCaseTurnNumber: 0,
   caseConversationHistory: [],
-  caseStudyNotes: "", // Initialize case study notes
+  caseStudyNotes: "",
 };
 
 export default function InterviewSession() {
@@ -85,7 +85,7 @@ export default function InterviewSession() {
       interviewStyle: setupData.interviewStyle,
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
-      caseStudyNotes: (prev && prev.interviewStyle === 'case-study') ? prev.caseStudyNotes : "", // Preserve notes if already case study
+      caseStudyNotes: (prev && prev.interviewStyle === 'case-study' && prev.caseStudyNotes) ? prev.caseStudyNotes : "",
     }));
 
     try {
@@ -113,7 +113,7 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false, // Default, will be set by dynamic follow-up if applicable
+        isLikelyFinalFollowUp: false,
       }));
 
       setSessionData(prev => {
@@ -146,9 +146,20 @@ export default function InterviewSession() {
   }, [toast]);
 
   useEffect(() => {
-    const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+    let storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+    let parsedSession: InterviewSessionData | null = null;
+
     if (storedSession) {
-      const parsedSession: InterviewSessionData = JSON.parse(storedSession);
+      try {
+        parsedSession = JSON.parse(storedSession);
+      } catch (e) {
+        console.error("Failed to parse stored interview session:", e);
+        localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+        storedSession = null; // Treat as if no session was stored
+      }
+    }
+
+    if (parsedSession) {
       if (parsedSession.interviewFinished) {
         router.replace("/feedback");
         return;
@@ -156,7 +167,7 @@ export default function InterviewSession() {
       if (parsedSession.interviewStyle === 'case-study') {
         parsedSession.currentCaseTurnNumber = parsedSession.currentCaseTurnNumber ?? 0;
         parsedSession.caseConversationHistory = parsedSession.caseConversationHistory ?? [];
-        parsedSession.caseStudyNotes = parsedSession.caseStudyNotes ?? ""; // Load notes
+        parsedSession.caseStudyNotes = parsedSession.caseStudyNotes ?? "";
       }
 
       setSessionData(parsedSession);
@@ -196,13 +207,18 @@ export default function InterviewSession() {
         };
         loadInterview(setupData);
       }
-
-
-    } else {
+    } else { // No valid stored session
       const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
       if (storedSetup) {
-        const setupData: InterviewSetupData = JSON.parse(storedSetup);
-        loadInterview(setupData);
+        try {
+          const setupData: InterviewSetupData = JSON.parse(storedSetup);
+          loadInterview(setupData);
+        } catch (e) {
+            console.error("Failed to parse stored interview setup:", e);
+            localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
+            toast({ title: "Setup required", description: "Corrupted setup data. Please configure your interview again.", variant: "destructive"});
+            router.replace("/");
+        }
       } else {
         toast({ title: "Setup required", description: "Please configure your interview first.", variant: "destructive"});
         router.replace("/");
@@ -449,6 +465,23 @@ export default function InterviewSession() {
     );
   }
 
+  // Guard against accessing questions if the array is empty and other states don't catch it.
+  if (!sessionData.questions || sessionData.questions.length === 0) {
+    return (
+      <Alert variant="destructive" className="max-w-lg mx-auto">
+        <XCircle className="h-5 w-5" />
+        <AlertTitle>Interview Setup Incomplete</AlertTitle>
+        <AlertDescription>
+          No questions were loaded for this interview session. This might be due to an issue during question generation or an incomplete setup. Please try starting a new interview.
+        </AlertDescription>
+        <Button onClick={() => {
+          localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+          router.push("/");
+        }} className="mt-4">Back to Setup</Button>
+      </Alert>
+    );
+  }
+
   const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
   const styleLabel = INTERVIEW_STYLES.find(s => s.value === sessionData.interviewStyle)?.label || sessionData.interviewStyle;
 
@@ -566,7 +599,9 @@ export default function InterviewSession() {
             {sessionData.interviewStyle !== 'take-home' && <ConfidenceRating />}
           </div>
         ) : !isGeneratingFollowUp && (
-          <p>No questions available or loading follow-up. This might be an error if not in a case study.</p>
+          // This case should ideally be caught by the guard above if questions array is empty.
+          // If currentQuestion is somehow undefined even if questions array is not empty, this will show.
+          <p className="text-center text-muted-foreground">Loading question or interview setup is incomplete. Please try refreshing or starting a new interview.</p>
         )}
       </CardContent>
       <CardFooter className="flex justify-between">
@@ -625,6 +660,7 @@ export default function InterviewSession() {
                   {explanation}
                 </AlertDescription>
               </Alert>
+            </Alert>
             )}
           </div>
           <DialogFooter className="sm:justify-end">
@@ -643,4 +679,3 @@ export default function InterviewSession() {
     </>
   );
 }
-

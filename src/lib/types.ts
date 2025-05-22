@@ -78,8 +78,9 @@ export interface InterviewSessionData extends InterviewSetupData {
   interviewFinished: boolean;
   feedback?: InterviewFeedback | null;
   deepDives?: Record<string, DeepDiveFeedback>;
+  sampleAnswers?: Record<string, string>; // Added to store fetched sample answers
   currentCaseTurnNumber?: number;
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
-  caseStudyNotes?: string; // Added for note-taking
+  caseStudyNotes?: string; 
 }
 

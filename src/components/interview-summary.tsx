@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info } from "lucide-react"; // Added Info, Star, HelpCircle
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked } from "lucide-react"; 
 import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
 import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,8 @@ import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedbac
 import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
 import { generateDeepDiveFeedback } from "@/ai/flows/generate-deep-dive-feedback";
 import type { GenerateDeepDiveFeedbackInput, GenerateDeepDiveFeedbackOutput } from "@/ai/flows/generate-deep-dive-feedback";
+import { generateSampleAnswer } from "@/ai/flows/generate-sample-answer"; // New import
+import type { GenerateSampleAnswerInput, GenerateSampleAnswerOutput } from "@/ai/flows/generate-sample-answer"; // New import
 import { formatMilliseconds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -31,6 +33,11 @@ export default function InterviewSummary() {
   const [deepDiveContent, setDeepDiveContent] = useState<DeepDiveFeedback | null>(null);
   const [isDeepDiveLoading, setIsDeepDiveLoading] = useState(false);
   const [deepDiveError, setDeepDiveError] = useState<string | null>(null);
+
+  const [activeSampleAnswerQuestionId, setActiveSampleAnswerQuestionId] = useState<string | null>(null); // New state
+  const [sampleAnswerContent, setSampleAnswerContent] = useState<string | null>(null); // New state
+  const [isSampleAnswerLoading, setIsSampleAnswerLoading] = useState(false); // New state
+  const [sampleAnswerError, setSampleAnswerError] = useState<string | null>(null); // New state
 
 
   const fetchAndSetFeedback = useCallback(async (currentSession: InterviewSessionData) => {
@@ -51,7 +58,7 @@ export default function InterviewSummary() {
         questionId: a.questionId,
         answerText: a.answerText,
         timeTakenMs: a.timeTakenMs,
-        confidenceScore: a.confidenceScore, // Pass confidence score
+        confidenceScore: a.confidenceScore, 
       }));
 
       const feedbackInput: GenerateInterviewFeedbackInput = {
@@ -70,7 +77,6 @@ export default function InterviewSummary() {
 
       setSessionData(prev => {
         if (!prev) return null;
-        // Merge confidenceScore back into feedback items for display
         const updatedFeedbackItemsWithConfidence = feedbackResult.feedbackItems.map(item => {
           const originalAnswer = currentSession.answers.find(ans => ans.questionId === item.questionId);
           return {
@@ -100,23 +106,31 @@ export default function InterviewSummary() {
   useEffect(() => {
     const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
     if (storedSession) {
-      const parsedSession: InterviewSessionData = JSON.parse(storedSession);
-      if (!parsedSession.interviewFinished) {
-        toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
-        const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
-        if (storedSetup && parsedSession.interviewStarted && parsedSession.questions.length > 0) {
-             router.replace("/interview");
-        } else {
-            router.replace("/");
+      try {
+        const parsedSession: InterviewSessionData = JSON.parse(storedSession);
+        if (!parsedSession.interviewFinished) {
+          toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
+          const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
+          if (storedSetup && parsedSession.interviewStarted && parsedSession.questions.length > 0) {
+               router.replace("/interview");
+          } else {
+              router.replace("/");
+          }
+          return;
         }
+        setSessionData(parsedSession);
+        setIsSessionLoading(false);
+        if (!parsedSession.feedback && parsedSession.answers.length > 0) {
+          fetchAndSetFeedback(parsedSession);
+        } else if (parsedSession.answers.length === 0) {
+          setIsFeedbackLoading(false);
+        }
+      } catch (e) {
+        console.error("Error parsing session data:", e);
+        toast({ title: "Session Error", description: "Could not load session data. Please start a new interview.", variant: "destructive"});
+        localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+        router.replace("/");
         return;
-      }
-      setSessionData(parsedSession);
-      setIsSessionLoading(false);
-      if (!parsedSession.feedback && parsedSession.answers.length > 0) {
-        fetchAndSetFeedback(parsedSession);
-      } else if (parsedSession.answers.length === 0) {
-        setIsFeedbackLoading(false);
       }
     } else {
       toast({ title: "No Interview Data", description: "Please start an interview first.", variant: "destructive"});
@@ -175,6 +189,51 @@ export default function InterviewSummary() {
       toast({ title: "Deep Dive Error", description: errorMessage, variant: "destructive" });
     } finally {
       setIsDeepDiveLoading(false);
+    }
+  };
+
+  const handleOpenSampleAnswer = async (questionId: string) => {
+    if (!sessionData) return;
+    const question = sessionData.questions.find(q => q.id === questionId);
+    if (!question) {
+        toast({ title: "Error", description: "Question not found.", variant: "destructive" });
+        return;
+    }
+
+    setActiveSampleAnswerQuestionId(questionId);
+    setSampleAnswerContent(null);
+    setSampleAnswerError(null);
+
+    if (sessionData.sampleAnswers && sessionData.sampleAnswers[questionId]) {
+      setSampleAnswerContent(sessionData.sampleAnswers[questionId]);
+      return;
+    }
+
+    setIsSampleAnswerLoading(true);
+    try {
+      const input: GenerateSampleAnswerInput = {
+        questionText: question.text,
+        interviewType: sessionData.interviewType,
+        faangLevel: sessionData.faangLevel,
+        interviewFocus: sessionData.interviewFocus,
+        targetedSkills: sessionData.targetedSkills,
+        idealAnswerCharacteristics: question.idealAnswerCharacteristics,
+      };
+      const result: GenerateSampleAnswerOutput = await generateSampleAnswer(input);
+      setSampleAnswerContent(result.sampleAnswerText);
+      setSessionData(prev => {
+        if (!prev) return null;
+        const updatedSampleAnswers = { ...(prev.sampleAnswers || {}), [questionId]: result.sampleAnswerText };
+        const updatedSession = { ...prev, sampleAnswers: updatedSampleAnswers };
+        localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        return updatedSession;
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to generate sample answer.";
+      setSampleAnswerError(errorMessage);
+      toast({ title: "Sample Answer Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setIsSampleAnswerLoading(false);
     }
   };
 
@@ -255,6 +314,8 @@ export default function InterviewSummary() {
 
   const currentDeepDiveQuestionText = activeDeepDiveQuestionId ? sessionData.questions.find(q => q.id === activeDeepDiveQuestionId)?.text : "";
   const currentDeepDiveUserAnswerText = activeDeepDiveQuestionId ? getAnswerInfoForQuestion(activeDeepDiveQuestionId).answerText : "";
+  const currentSampleAnswerQuestionText = activeSampleAnswerQuestionId ? sessionData.questions.find(q => q.id === activeSampleAnswerQuestionId)?.text : "";
+
 
   return (
     <Card className="w-full max-w-3xl mx-auto shadow-xl">
@@ -306,7 +367,7 @@ export default function InterviewSummary() {
                                 <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{question.text}</p>
                                 {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
                                   <div className="mt-2 p-2 rounded-md bg-blue-50 border border-blue-200">
-                                    <h5 className="text-xs font-semibold text-blue-700 mb-1 flex items-center"><Info className="h-3.5 w-3.5 mr-1.5"/>AI's Ideal Submission Characteristics (for Assignment Design):</h5>
+                                    <h5 className="text-xs font-semibold text-blue-700 mb-1 flex items-center"><Info className="h-3.5 w-3.5 mr-1.5"/>AI's Ideal Answer Characteristics (for Assignment Design):</h5>
                                     <ul className="list-disc list-inside pl-1 space-y-0.5">
                                       {question.idealAnswerCharacteristics.map((char, idx) => (
                                         <li key={idx} className="text-xs text-blue-600">{char}</li>
@@ -338,15 +399,25 @@ export default function InterviewSummary() {
                                     {renderFeedbackSection("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, "secondary")}
                                     {renderFeedbackSection("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, "secondary")}
                                     {renderFeedbackSection("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, "secondary", "text-sm")}
-                                    <Button
-                                        onClick={() => handleOpenDeepDive(question.id)}
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-4 bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
-                                        disabled={!feedbackItem}
-                                    >
-                                        <Layers className="mr-2 h-4 w-4" /> Deep Dive on this Assignment
-                                    </Button>
+                                    <div className="flex space-x-2 mt-4">
+                                        <Button
+                                            onClick={() => handleOpenDeepDive(question.id)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
+                                            disabled={!feedbackItem}
+                                        >
+                                            <Layers className="mr-2 h-4 w-4" /> Deep Dive
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleOpenSampleAnswer(question.id)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
+                                        >
+                                            <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -415,15 +486,25 @@ export default function InterviewSummary() {
                                     {renderFeedbackSection("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, "secondary")}
                                     {renderFeedbackSection("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, "secondary")}
                                     {renderFeedbackSection("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, "secondary", "text-sm")}
-                                    <Button
-                                        onClick={() => handleOpenDeepDive(question.id)}
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-4 bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
-                                        disabled={!feedbackItem}
-                                    >
-                                        <Layers className="mr-2 h-4 w-4" /> Deep Dive
-                                    </Button>
+                                    <div className="flex space-x-2 mt-4">
+                                        <Button
+                                            onClick={() => handleOpenDeepDive(question.id)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
+                                            disabled={!feedbackItem}
+                                        >
+                                            <Layers className="mr-2 h-4 w-4" /> Deep Dive
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleOpenSampleAnswer(question.id)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
+                                        >
+                                            <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </AccordionContent>
@@ -535,6 +616,55 @@ export default function InterviewSummary() {
         </Dialog>
       )}
 
+      {activeSampleAnswerQuestionId && (
+        <Dialog open={!!activeSampleAnswerQuestionId} onOpenChange={(open) => { if(!open) setActiveSampleAnswerQuestionId(null); }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-2xl text-primary flex items-center">
+                <BookMarked className="mr-3 h-7 w-7" /> Sample Answer
+              </DialogTitle>
+              <DialogDescription className="pt-2">
+                For question: <span className="font-semibold">"{currentSampleAnswerQuestionText}"</span>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+              {isSampleAnswerLoading && (
+                <div className="flex flex-col items-center justify-center py-10">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary mb-3" />
+                  <p className="text-muted-foreground">Generating sample answer...</p>
+                </div>
+              )}
+              {sampleAnswerError && !isSampleAnswerLoading && (
+                 <Alert variant="destructive">
+                  <AlertTriangle className="h-5 w-5" />
+                  <AlertTitle>Sample Answer Error</AlertTitle>
+                  <AlertDescription>
+                    {sampleAnswerError}
+                     <Button
+                        onClick={() => activeSampleAnswerQuestionId && handleOpenSampleAnswer(activeSampleAnswerQuestionId)}
+                        variant="link"
+                        className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80"
+                    >
+                        Retry
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {sampleAnswerContent && !isSampleAnswerLoading && !sampleAnswerError && (
+                <div className="whitespace-pre-wrap bg-blue-500/5 p-4 rounded-md border border-blue-500/20 text-sm text-foreground/90">
+                    {sampleAnswerContent}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+                <DialogClose asChild>
+                    <Button variant="outline">Close</Button>
+                </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <CardFooter>
         <Button onClick={() => {
             localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
@@ -549,5 +679,3 @@ export default function InterviewSummary() {
     </Card>
   );
 }
-
-    

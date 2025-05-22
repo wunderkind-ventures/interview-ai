@@ -9,8 +9,8 @@ import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-fo
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
 import { explainConcept } from "@/ai/flows/explain-concept";
 import type { ExplainConceptInput, ExplainConceptOutput } from "@/ai/flows/explain-concept";
-import { generateHint } from "@/ai/flows/generate-hint"; // New import
-import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint"; // New import
+import { generateHint } from "@/ai/flows/generate-hint"; 
+import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint"; 
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +19,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles } from "lucide-react"; // Added Sparkles
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"; // Added Accordion
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, ChevronDown } from "lucide-react"; 
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -61,10 +62,10 @@ export default function InterviewSession() {
   const [isExplainingTerm, setIsExplainingTerm] = useState(false);
   const [explainTermError, setExplainTermError] = useState<string | null>(null);
 
-  const [isHintDialogOpen, setIsHintDialogOpen] = useState(false); // New state for hint dialog
-  const [hintText, setHintText] = useState<string | null>(null); // New state for hint text
-  const [isFetchingHint, setIsFetchingHint] = useState(false); // New state for hint loading
-  const [hintError, setHintError] = useState<string | null>(null); // New state for hint error
+  const [isHintDialogOpen, setIsHintDialogOpen] = useState(false); 
+  const [hintText, setHintText] = useState<string | null>(null); 
+  const [isFetchingHint, setIsFetchingHint] = useState(false); 
+  const [hintError, setHintError] = useState<string | null>(null); 
 
 
   useEffect(() => {
@@ -95,17 +96,16 @@ export default function InterviewSession() {
       };
 
     setSessionData(prev => ({
-      ...(prev || setupData), // Use existing prev if available, otherwise setupData
-      ...setupData, // Then override with fresh setupData
-      ...initialSessionState, // Then apply initial session state defaults
-      isLoading: true, // Set loading to true
-      interviewStarted: true, // Mark interview as started
-      currentQuestionStartTime: Date.now(), // Set start time
-      interviewStyle: setupData.interviewStyle, // Ensure style is correctly set from setupData
+      ...(prev || setupData), 
+      ...setupData, 
+      ...initialSessionState, 
+      isLoading: true, 
+      interviewStarted: true, 
+      currentQuestionStartTime: Date.now(), 
+      interviewStyle: setupData.interviewStyle, 
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
       caseStudyNotes: (prev && prev.interviewStyle === 'case-study' && prev.caseStudyNotes) ? prev.caseStudyNotes : "",
-       // Carry over existing targetedSkills, targetCompany, jobTitle, interviewFocus from setupData
       targetedSkills: setupData.targetedSkills || [],
       targetCompany: setupData.targetCompany || "",
       jobTitle: setupData.jobTitle || "",
@@ -126,11 +126,11 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false,
+        isLikelyFinalFollowUp: false, 
       }));
 
       setSessionData(prev => {
-        if (!prev) return null; // Should not happen if initial set worked
+        if (!prev) return null; 
         const newSession = {
           ...prev,
           questions: questionsWithIds,
@@ -150,7 +150,7 @@ export default function InterviewSession() {
         variant: "destructive",
       });
       setSessionData(prev => {
-        if (!prev) return null; // Should not happen
+        if (!prev) return null; 
         const newSession = { ...prev, isLoading: false, error: errorMessage };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(newSession));
         return newSession;
@@ -178,7 +178,6 @@ export default function InterviewSession() {
         router.replace("/feedback");
         return;
       }
-      // Ensure case study specific fields are initialized if style is case-study
       if (parsedSession.interviewStyle === 'case-study') {
         parsedSession.currentCaseTurnNumber = parsedSession.currentCaseTurnNumber ?? 0;
         parsedSession.caseConversationHistory = parsedSession.caseConversationHistory ?? [];
@@ -462,8 +461,6 @@ export default function InterviewSession() {
     setHintText(null);
     setHintError(null);
     setIsHintDialogOpen(true);
-    // Fetch hint immediately when dialog is opened, or confirm first?
-    // For now, let's fetch when "Show Hint" is clicked inside the dialog.
   };
 
 
@@ -523,12 +520,12 @@ export default function InterviewSession() {
     return (
       <Alert variant="destructive" className="max-w-lg mx-auto">
         <XCircle className="h-5 w-5" />
-        <AlertTitle>Interview State Issue</AlertTitle>
+        <AlertTitle>Interview Setup Incomplete</AlertTitle>
         <AlertDescription>
-          There's an issue with the current interview session (e.g., no questions loaded or invalid question index). Please try starting a new interview.
+          No questions were loaded for this interview session. This might be due to an issue during question generation or an incomplete setup. Please try starting a new interview.
         </AlertDescription>
         <Button onClick={() => {
-          localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+          localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
           router.push("/");
         }} className="mt-4">Back to Setup</Button>
       </Alert>
@@ -588,6 +585,29 @@ export default function InterviewSession() {
         <Progress value={progressValue} className="mt-2" />
       </CardHeader>
       <CardContent className="space-y-6">
+        {isCaseStudyStyle && sessionData.caseConversationHistory && sessionData.caseConversationHistory.length > 0 && (
+            <Accordion type="single" collapsible className="w-full mb-6 border rounded-md shadow-sm">
+                <AccordionItem value="history">
+                    <AccordionTrigger className="px-4 py-3 hover:no-underline bg-secondary/30 rounded-t-md">
+                        <div className="flex items-center text-sm font-medium text-muted-foreground">
+                            <History className="h-4 w-4 mr-2 text-primary" />
+                            View Case Study History (Previous Turns)
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-4 py-3 space-y-3 text-sm bg-background rounded-b-md">
+                        {sessionData.caseConversationHistory.map((turn, index) => (
+                            <div key={index} className="pb-2 mb-2 border-b last:border-b-0 last:pb-0 last:mb-0">
+                                <p className="font-semibold text-primary">Interviewer (Turn {index + 1}):</p>
+                                <p className="ml-2 whitespace-pre-wrap text-foreground/90">{turn.questionText}</p>
+                                <p className="font-semibold text-accent mt-1.5">Your Answer:</p>
+                                <p className="ml-2 whitespace-pre-wrap text-foreground/90">{turn.answerText}</p>
+                            </div>
+                        ))}
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
+        )}
+
         {isGeneratingFollowUp && (
           <div className="flex flex-col items-center justify-center min-h-[100px]">
             <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />

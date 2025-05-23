@@ -65,14 +65,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!auth) {
-      console.error("Firebase Auth instance is not available. Auth features will be disabled.");
+      console.error("Firebase Auth instance is not available. This is likely because Firebase App initialization failed due to missing/incorrect environment variables (e.g., NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_API_KEY in .env.local). Please check your setup and restart the dev server. Auth features will be disabled.");
       setAuthInitializationFailed(true);
       setLoading(false);
       return;
     }
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setAuthInitializationFailed(false); // Reset if auth becomes available later (e.g. hot reload with env vars fixed)
+      setAuthInitializationFailed(false); 
       setLoading(false);
     });
     return () => unsubscribe();
@@ -82,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!auth) {
         toast({
             title: "Authentication Error",
-            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables.",
+            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables in .env.local and restart the server.",
             variant: "destructive"
         });
         console.error("Attempted to sign in, but Firebase Auth is not initialized.");
@@ -103,7 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!auth) {
         toast({
             title: "Authentication Error",
-            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables.",
+            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables in .env.local and restart the server.",
             variant: "destructive"
         });
         console.error("Attempted to sign out, but Firebase Auth is not initialized.");

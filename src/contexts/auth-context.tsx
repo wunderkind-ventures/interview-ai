@@ -65,7 +65,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!auth) {
-      console.error("Firebase Auth instance is not available. This is likely because Firebase App initialization failed due to missing/incorrect environment variables (e.g., NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_API_KEY in .env.local). Please check your setup and restart the dev server. Auth features will be disabled.");
+      console.error(
+        "Firebase Auth instance is not available. This is likely because Firebase App initialization failed due to missing/incorrect environment variables " +
+        "(e.g., NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_API_KEY in .env.local). " +
+        "Please check your setup and restart the dev server. Auth features will be disabled."
+      );
       setAuthInitializationFailed(true);
       setLoading(false);
       return;
@@ -93,9 +97,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signInWithPopup(auth, provider);
       toast({ title: "Signed In", description: "Successfully signed in with Google.", variant: "default"});
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in with Google:", error);
-      toast({ title: "Sign In Error", description: "Could not sign in with Google. Please try again.", variant: "destructive"});
+      let description = "Could not sign in with Google. Please try again.";
+      if (error.code === 'auth/operation-not-allowed' || 
+          (error.message && (error.message.includes('auth/operation-not-allowed') || error.message.includes('The identity provider configuration is not found')))) {
+        description = "Google Sign-In may not be enabled for this project in the Firebase console. Please check your Authentication settings.";
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        description = "Sign-in popup was closed before completing. Please try again.";
+      } else if (error.code === 'auth/unauthorized-domain') {
+        description = "This domain is not authorized for Firebase Authentication. Please check your authorized domains in the Firebase console.";
+      } else if (error.code) {
+        description = `Could not sign in with Google (Error: ${error.code}). Please try again.`;
+      }
+      toast({ title: "Sign In Error", description, variant: "destructive"});
     }
   };
 

@@ -6,6 +6,8 @@ import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signO
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { getApps, initializeApp, getApp } from 'firebase/app';
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 // Ensure Firebase is initialized
 // IMPORTANT: For this to work, you MUST create a .env.local file in the root of your project
@@ -50,6 +52,7 @@ interface AuthContextType {
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
+  authInitializationFailed: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,16 +60,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authInitializationFailed, setAuthInitializationFailed] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (!auth) {
       console.error("Firebase Auth instance is not available. Auth features will be disabled.");
+      setAuthInitializationFailed(true);
       setLoading(false);
       return;
     }
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setAuthInitializationFailed(false); // Reset if auth becomes available later (e.g. hot reload with env vars fixed)
       setLoading(false);
     });
     return () => unsubscribe();
@@ -80,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             variant: "destructive"
         });
         console.error("Attempted to sign in, but Firebase Auth is not initialized.");
+        setAuthInitializationFailed(true);
         return;
     }
     const provider = new GoogleAuthProvider();
@@ -100,6 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             variant: "destructive"
         });
         console.error("Attempted to sign out, but Firebase Auth is not initialized.");
+        setAuthInitializationFailed(true);
         return;
     }
     try {
@@ -112,7 +120,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, loading, signInWithGoogle, logout, authInitializationFailed }}>
+      {authInitializationFailed && (
+        <div className="sticky top-0 z-[10000] w-full bg-background p-2 shadow-md">
+          <Alert variant="destructive" className="container mx-auto">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertTitle>Firebase Authentication Error</AlertTitle>
+            <AlertDescription>
+              Firebase Authentication could not be initialized. Please ensure your Firebase project configuration (API Key, Project ID, etc.) is correctly set up in your <code>.env.local</code> file and that you have <strong>restarted your development server</strong>. Authentication features will be unavailable until this is resolved.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
       {children}
     </AuthContext.Provider>
   );

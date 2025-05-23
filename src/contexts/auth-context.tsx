@@ -106,7 +106,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (error.code === 'auth/popup-closed-by-user') {
         description = "Sign-in popup was closed before completing. Please try again.";
       } else if (error.code === 'auth/unauthorized-domain') {
-        description = "This domain is not authorized for Firebase Authentication. Please check your authorized domains in the Firebase console.";
+        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'your current domain';
+        description = `The domain '${currentDomain}' is not authorized for Firebase Authentication. Please add it to the 'Authorized domains' list in your Firebase project's Authentication settings.`;
       } else if (error.code) {
         description = `Could not sign in with Google (Error: ${error.code}). Please try again.`;
       }
@@ -159,3 +160,4 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+

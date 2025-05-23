@@ -5,8 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2, UploadCloud } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +64,8 @@ export default function InterviewSetupForm() {
   const [isSummarizingResume, setIsSummarizingResume] = useState(false);
   const [resumeSummaryError, setResumeSummaryError] = useState<string | null>(null);
   const [summarizedForResumeText, setSummarizedForResumeText] = useState<string | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -167,10 +169,15 @@ export default function InterviewSetupForm() {
         targetedSkills: [], // Reset first
         targetCompany: config.targetCompany || "",
         interviewFocus: config.interviewFocus || "",
-        resume: currentResume,
+        resume: currentResume, // Preserve resume, but clear analysis states
         selectedThemeId: themeId,
       };
       form.reset(newFormValues);
+      setResumeSummary(null);
+      setResumeSummaryError(null);
+      setSummarizedForResumeText(currentResume); // Re-set this to trigger re-analysis if resume exists
+      setSelectedFileName(null); // Clear selected file name on theme change
+
 
       // Set targetedSkills after interviewType is set by reset to ensure availableSkills is up-to-date
       // This timeout allows the watchedInterviewType effect to run and update availableSkills
@@ -186,6 +193,55 @@ export default function InterviewSetupForm() {
     }
   };
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setSelectedFileName(null);
+      return;
+    }
+
+    if (file.type !== "text/plain") {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload a .txt file for your resume.",
+        variant: "destructive",
+      });
+      setSelectedFileName(null);
+      if(fileInputRef.current) fileInputRef.current.value = ""; // Reset file input
+      return;
+    }
+
+    setSelectedFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const textContent = e.target?.result as string;
+      if (textContent) {
+        form.setValue("resume", textContent);
+        // Manually trigger resume analysis as if onBlur happened
+        handleResumeAnalysis(); 
+        toast({
+          title: "Resume Uploaded",
+          description: `${file.name} has been read successfully.`,
+        });
+      } else {
+        toast({
+          title: "File Read Error",
+          description: "Could not read the content of the resume file.",
+          variant: "destructive",
+        });
+         setSelectedFileName(null);
+      }
+    };
+    reader.onerror = () => {
+      toast({
+        title: "File Read Error",
+        description: "An error occurred while trying to read the resume file.",
+        variant: "destructive",
+      });
+      setSelectedFileName(null);
+    };
+    reader.readAsText(file);
+  };
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -515,21 +571,46 @@ export default function InterviewSetupForm() {
               name="resume"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="flex items-center text-lg">
-                    <UserCircle className="mr-2 h-5 w-5 text-primary" />
-                    Your Resume (Optional)
-                  </FormLabel>
+                  <div className="flex items-center justify-between">
+                    <FormLabel className="flex items-center text-lg">
+                      <UserCircle className="mr-2 h-5 w-5 text-primary" />
+                      Your Resume (Optional)
+                    </FormLabel>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <UploadCloud className="mr-2 h-4 w-4" />
+                      Upload .txt
+                    </Button>
+                  </div>
                   <FormControl>
                     <Textarea
-                      placeholder="Paste your resume content here for further personalization..."
+                      placeholder="Paste your resume content here or upload a .txt file..."
                       className="resize-y min-h-[120px]"
                       {...field}
-                      onBlur={handleResumeAnalysis}
+                      onBlur={handleResumeAnalysis} // Keep onBlur analysis for pasted text
                     />
                   </FormControl>
-                  <FormDescription>
-                    Your resume can help the AI ask more relevant questions and provide key insights below.
-                  </FormDescription>
+                   <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".txt"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <div className="flex justify-between items-center">
+                    <FormDescription>
+                      Paste resume or upload a .txt file. Helps AI ask relevant questions.
+                    </FormDescription>
+                    {selectedFileName && (
+                      <span className="text-xs text-muted-foreground">
+                        Selected: {selectedFileName}
+                      </span>
+                    )}
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

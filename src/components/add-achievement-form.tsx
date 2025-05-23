@@ -1,6 +1,7 @@
 
 "use client";
 
+import React from "react"; // Added missing React import
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -291,4 +292,3 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
     </Form>
   );
 }
-

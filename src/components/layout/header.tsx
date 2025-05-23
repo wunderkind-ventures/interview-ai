@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { BotMessageSquare, LogIn, LogOut, UserCircle } from 'lucide-react';
+import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy } from 'lucide-react'; // Added Trophy
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -53,8 +53,13 @@ export default function Header() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {/* Add links to profile, settings etc. here later */}
-                {/* <DropdownMenuItem>Profile</DropdownMenuItem> */}
+                <DropdownMenuItem asChild>
+                  <Link href="/achievements" className="flex items-center w-full"> {/* Ensure link takes full width for clickability */}
+                    <Trophy className="mr-2 h-4 w-4" />
+                    <span>My Achievements</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Log out</span>

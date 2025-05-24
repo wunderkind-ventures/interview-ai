@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from "@/components/ui/card"; // Renamed CardTitle to avoid conflict
+import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from "@/components/ui/card";
 import { CalendarIcon, Loader2, Save, Sparkles, AlertTriangle, Lightbulb, CheckSquare, X } from "lucide-react";
 import { format, parseISO } from 'date-fns';
 import { cn } from "@/lib/utils";
@@ -62,6 +62,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
   const [aiGuidance, setAiGuidance] = useState<GetAchievementComponentGuidanceOutput | null>(null);
   const [isFetchingAiGuidance, setIsFetchingAiGuidance] = useState(false);
   const [aiGuidanceError, setAiGuidanceError] = useState<string | null>(null);
+  const aiAssistancePanelRef = useRef<HTMLDivElement>(null);
 
 
   const defaultValues: Partial<AchievementFormValues> = existingAchievement
@@ -90,6 +91,12 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
     defaultValues,
     mode: "onChange",
   });
+
+  useEffect(() => {
+    if (activeHelpComponent && aiGuidance && !isFetchingAiGuidance && aiAssistancePanelRef.current) {
+      aiAssistancePanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [aiGuidance, activeHelpComponent, isFetchingAiGuidance]);
 
   const handleAiAssist = async (component: StarComponentType) => {
     setActiveHelpComponent(component);
@@ -363,7 +370,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
 
           {/* AI Assistance Panel */}
           {activeHelpComponent && (aiGuidance || isFetchingAiGuidance || aiGuidanceError) && (
-            <Card className="mt-6 mb-4 border-primary/50 shadow-md">
+            <Card ref={aiAssistancePanelRef} className="mt-6 mb-4 border-primary/50 shadow-md">
               <CardHeader className="py-3 px-4 bg-primary/10">
                 <div className="flex items-center justify-between">
                     <UiCardTitle className="text-base font-semibold text-primary flex items-center">
@@ -443,3 +450,5 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
     </>
   );
 }
+
+    

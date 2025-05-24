@@ -18,6 +18,7 @@ import '@/ai/flows/clarify-feedback.ts';
 import '@/ai/flows/analyze-resume-standalone.ts'; // New flow for standalone resume analysis
 import '@/ai/flows/tailor-resume-for-jd.ts'; // New flow for resume tailoring to JD
 import '@/ai/flows/generate-cover-letter.ts'; // New flow for cover letter generation
+import '@/ai/flows/clarify-interview-question.ts'; // New flow for clarifying interview questions
 import '@/ai/tools/technology-tools.ts';
 
     

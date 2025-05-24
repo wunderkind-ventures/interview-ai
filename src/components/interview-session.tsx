@@ -13,6 +13,8 @@ import { generateHint } from "@/ai/flows/generate-hint";
 import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint";
 import { generateSampleAnswer } from "@/ai/flows/generate-sample-answer";
 import type { GenerateSampleAnswerInput, GenerateSampleAnswerOutput } from "@/ai/flows/generate-sample-answer";
+import { clarifyInterviewQuestion } from "@/ai/flows/clarify-interview-question"; // New import
+import type { ClarifyInterviewQuestionInput, ClarifyInterviewQuestionOutput } from "@/ai/flows/clarify-interview-question"; // New import
 
 
 import { Button } from "@/components/ui/button";
@@ -24,7 +26,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical, UserCheck2 } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical, UserCheck2, MessageCircleQuestion } from "lucide-react"; // Added MessageCircleQuestion
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEWER_PERSONAS } from "@/lib/constants";
 import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer, InterviewerPersona } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -83,6 +85,13 @@ export default function InterviewSession() {
   const [sampleAnswerText, setSampleAnswerText] = useState<string | null>(null);
   const [isFetchingSampleAnswer, setIsFetchingSampleAnswer] = useState(false);
   const [sampleAnswerError, setSampleAnswerError] = useState<string | null>(null);
+
+  // New state for Clarify Interview Question
+  const [isClarifyQuestionDialogOpen, setIsClarifyQuestionDialogOpen] = useState(false);
+  const [userClarifyingQuestionInput, setUserClarifyingQuestionInput] = useState("");
+  const [clarificationForQuestion, setClarificationForQuestion] = useState<string | null>(null);
+  const [isFetchingQuestionClarification, setIsFetchingQuestionClarification] = useState(false);
+  const [questionClarificationError, setQuestionClarificationError] = useState<string | null>(null);
 
 
   // Speech-to-text state
@@ -312,7 +321,7 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false, 
+        isLikelyFinalFollowUp: q.isLikelyFinalFollowUp || false, 
       }));
 
       setSessionData(prev => {
@@ -353,6 +362,7 @@ export default function InterviewSession() {
         parsedSession = JSON.parse(storedSession);
       } catch (e) {
         console.error("Failed to parse stored interview session:", e);
+        toast({ title: "Session Error", description: "Corrupted session data. Please configure your interview again.", variant: "destructive"});
         localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
         storedSession = null;
       }
@@ -701,6 +711,50 @@ export default function InterviewSession() {
     }
   };
 
+  // New: Handle Clarify Interview Question
+  const openClarifyQuestionDialog = () => {
+    setUserClarifyingQuestionInput("");
+    setClarificationForQuestion(null);
+    setQuestionClarificationError(null);
+    setIsClarifyQuestionDialogOpen(true);
+  };
+
+  const handleFetchQuestionClarification = async () => {
+    if (!userClarifyingQuestionInput.trim() || !sessionData || !sessionData.questions || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
+    
+    setIsFetchingQuestionClarification(true);
+    setClarificationForQuestion(null);
+    setQuestionClarificationError(null);
+
+    const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
+    try {
+      const input: ClarifyInterviewQuestionInput = {
+        interviewQuestionText: currentQ.text,
+        userClarificationRequest: userClarifyingQuestionInput,
+        interviewContext: {
+          interviewType: sessionData.interviewType,
+          interviewStyle: sessionData.interviewStyle,
+          faangLevel: sessionData.faangLevel,
+          jobTitle: sessionData.jobTitle,
+          jobDescription: sessionData.jobDescription,
+          resume: sessionData.resume,
+          targetedSkills: sessionData.targetedSkills,
+          targetCompany: sessionData.targetCompany,
+          interviewFocus: sessionData.interviewFocus,
+          interviewerPersona: sessionData.interviewerPersona,
+        },
+      };
+      const result: ClarifyInterviewQuestionOutput = await clarifyInterviewQuestion(input);
+      setClarificationForQuestion(result.clarificationText);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to get clarification.";
+      setQuestionClarificationError(errorMsg);
+      toast({ title: "Clarification Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsFetchingQuestionClarification(false);
+    }
+  };
+
 
   const ConfidenceRating = () => (
     <div className="mt-4">
@@ -800,7 +854,7 @@ export default function InterviewSession() {
               </span>
             )}
             <span>Level: {sessionData.faangLevel}</span>
-             {sessionData.interviewerPersona && sessionData.interviewerPersona !== 'standard' && (
+             {sessionData.interviewerPersona && (
               <span className="flex items-center">
                 <UserCheck2 className="h-4 w-4 mr-1 text-primary" /> Persona: {personaLabel}
               </span>
@@ -888,6 +942,9 @@ export default function InterviewSession() {
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={openClarifyQuestionDialog}> {/* New Item */}
+                            <MessageCircleQuestion className="mr-2 h-4 w-4" /> Clarify This Question
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={openExplainTermDialog}>
                             <Lightbulb className="mr-2 h-4 w-4" /> Explain a concept
                         </DropdownMenuItem>
@@ -974,6 +1031,7 @@ export default function InterviewSession() {
       </CardFooter>
     </Card>
 
+    {/* Explain Term Dialog */}
     <Dialog open={isExplainTermDialogOpen} onOpenChange={setIsExplainTermDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1027,6 +1085,7 @@ export default function InterviewSession() {
         </DialogContent>
       </Dialog>
 
+      {/* Get Hint Dialog */}
       <Dialog open={isHintDialogOpen} onOpenChange={setIsHintDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1075,6 +1134,7 @@ export default function InterviewSession() {
         </DialogContent>
       </Dialog>
 
+      {/* Sample Answer Dialog */}
       <Dialog open={isSampleAnswerDialogOpen} onOpenChange={setIsSampleAnswerDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
@@ -1116,7 +1176,57 @@ export default function InterviewSession() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Clarify Interview Question Dialog (New) */}
+      <Dialog open={isClarifyQuestionDialogOpen} onOpenChange={setIsClarifyQuestionDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <MessageCircleQuestion className="mr-2 h-5 w-5 text-primary" /> Clarify Interview Question
+            </DialogTitle>
+            {currentQuestion && <DialogDescription>Original Question: "{currentQuestion.text}"</DialogDescription>}
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <Input
+              placeholder="Type your question about the AI's question..."
+              value={userClarifyingQuestionInput}
+              onChange={(e) => setUserClarifyingQuestionInput(e.target.value)}
+              disabled={isFetchingQuestionClarification}
+            />
+            {isFetchingQuestionClarification && (
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Getting clarification...
+              </div>
+            )}
+            {questionClarificationError && !isFetchingQuestionClarification && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{questionClarificationError}</AlertDescription>
+              </Alert>
+            )}
+            {clarificationForQuestion && !isFetchingQuestionClarification && (
+              <Alert variant="default" className="bg-sky-50 border-sky-200">
+                <Lightbulb className="h-4 w-4 text-sky-600" />
+                <AlertTitle className="text-sky-700">AI Clarification:</AlertTitle>
+                <AlertDescription className="text-sky-700 whitespace-pre-wrap">
+                  {clarificationForQuestion}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter className="sm:justify-end">
+             <DialogClose asChild>
+              <Button type="button" variant="secondary">Close</Button>
+            </DialogClose>
+            <Button type="button" onClick={handleFetchQuestionClarification} disabled={isFetchingQuestionClarification || !userClarifyingQuestionInput.trim()}>
+              {isFetchingQuestionClarification ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              Get Clarification
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
-

@@ -13,6 +13,7 @@ import '@/ai/flows/refine-interview-feedback.ts';
 import '@/ai/flows/explain-concept.ts';
 import '@/ai/flows/generate-hint.ts';
 import '@/ai/flows/generate-sample-answer.ts';
-import '@/ai/flows/get-achievement-component-guidance.ts'; // Added new flow
+import '@/ai/flows/get-achievement-component-guidance.ts';
+import '@/ai/flows/clarify-feedback.ts'; // Added new flow
 import '@/ai/tools/technology-tools.ts';
 

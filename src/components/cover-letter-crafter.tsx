@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getFirestore, collection, query, orderBy, getDocs, doc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/auth-context';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Loader2, Sparkles, FileText, ClipboardCopy, AlertTriangle, Building, User, Edit3, MailPlus, List, Trash2, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateCoverLetter, type GenerateCoverLetterInput, type GenerateCoverLetterOutput } from '@/ai/flows/generate-cover-letter';
-import type { SavedJobDescription } from '@/lib/types';
+import type { SavedJobDescription, SavedResume } from '@/lib/types';
 
 type CoverLetterTone = "professional" | "enthusiastic" | "formal" | "slightly-informal";
 
@@ -43,15 +43,21 @@ export default function CoverLetterCrafter() {
   const [generatedDraft, setGeneratedDraft] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  // State for Job Description Load
+  // State for Job Description Load/Save
   const [isLoadJobDescriptionDialogOpen, setIsLoadJobDescriptionDialogOpen] = useState(false);
   const [savedJobDescriptions, setSavedJobDescriptions] = useState<SavedJobDescription[]>([]);
   const [isLoadingJobDescriptions, setIsLoadingJobDescriptions] = useState(false);
-
-  // State for Job Description Save
   const [isSaveJobDescriptionDialogOpen, setIsSaveJobDescriptionDialogOpen] = useState(false);
   const [newJobDescriptionTitle, setNewJobDescriptionTitle] = useState("");
   const [isSavingJobDescription, setIsSavingJobDescription] = useState(false);
+
+  // State for Resume Load/Save
+  const [isLoadResumeDialogOpen, setIsLoadResumeDialogOpen] = useState(false);
+  const [savedResumes, setSavedResumes] = useState<SavedResume[]>([]);
+  const [isLoadingResumes, setIsLoadingResumes] = useState(false);
+  const [isSaveResumeDialogOpen, setIsSaveResumeDialogOpen] = useState(false);
+  const [newResumeTitle, setNewResumeTitle] = useState("");
+  const [isSavingResume, setIsSavingResume] = useState(false);
 
 
   const handleGenerateCoverLetter = async () => {
@@ -111,6 +117,7 @@ export default function CoverLetterCrafter() {
     }
   };
 
+  // Job Description Save/Load Logic
   const fetchSavedJobDescriptions = async () => {
     if (!user) return;
     setIsLoadingJobDescriptions(true);
@@ -198,6 +205,94 @@ export default function CoverLetterCrafter() {
     }
   };
 
+  // Resume Save/Load Logic
+  const fetchSavedResumes = async () => {
+    if (!user) return;
+    setIsLoadingResumes(true);
+    try {
+      const db = getFirestore();
+      const resumesCol = collection(db, 'users', user.uid, 'resumes');
+      const q = query(resumesCol, orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const fetchedResumes: SavedResume[] = [];
+      querySnapshot.forEach((docSnap) => {
+        fetchedResumes.push({ id: docSnap.id, ...docSnap.data() } as SavedResume);
+      });
+      setSavedResumes(fetchedResumes);
+    } catch (error) {
+      console.error("Error fetching resumes:", error);
+      toast({ title: "Error", description: "Could not load saved resumes.", variant: "destructive" });
+    } finally {
+      setIsLoadingResumes(false);
+    }
+  };
+
+  const handleOpenLoadResumeDialog = () => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to load saved resumes.", variant: "default" });
+      return;
+    }
+    fetchSavedResumes();
+    setIsLoadResumeDialogOpen(true);
+  };
+
+  const handleSaveCurrentResume = async () => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to save your resume.", variant: "default" });
+      return;
+    }
+    if (!newResumeTitle.trim()) {
+      toast({ title: "Title Required", description: "Please enter a title for your resume.", variant: "destructive" });
+      return;
+    }
+    if (!resumeText.trim()) {
+      toast({ title: "No Content", description: "Resume content is empty. Nothing to save.", variant: "default" });
+      return;
+    }
+
+    setIsSavingResume(true);
+    try {
+      const db = getFirestore();
+      const resumeData: Omit<SavedResume, 'id'> = {
+        userId: user.uid,
+        title: newResumeTitle,
+        content: resumeText,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      await addDoc(collection(db, 'users', user.uid, 'resumes'), resumeData);
+      toast({ title: "Resume Saved", description: `"${newResumeTitle}" has been saved.` });
+      setIsSaveResumeDialogOpen(false);
+      setNewResumeTitle("");
+      if(isLoadResumeDialogOpen) fetchSavedResumes();
+    } catch (error) {
+      console.error("Error saving resume:", error);
+      const description = error instanceof Error ? error.message : "Could not save resume.";
+      toast({ title: "Error Saving Resume", description, variant: "destructive" });
+    } finally {
+      setIsSavingResume(false);
+    }
+  };
+  
+  const handleLoadResume = (resume: SavedResume) => {
+    setResumeText(resume.content);
+    toast({ title: "Resume Loaded", description: `"${resume.title}" has been loaded.` });
+    setIsLoadResumeDialogOpen(false);
+  };
+
+  const handleDeleteResume = async (resumeId: string) => {
+    if (!user || !resumeId) return;
+    try {
+      const db = getFirestore();
+      await deleteDoc(doc(db, 'users', user.uid, 'resumes', resumeId));
+      toast({ title: "Resume Deleted", description: "The resume has been deleted." });
+      fetchSavedResumes(); 
+    } catch (error) {
+      console.error("Error deleting resume:", error);
+      toast({ title: "Error", description: "Could not delete resume.", variant: "destructive" });
+    }
+  };
+
 
   if (authLoading) {
     return (
@@ -225,7 +320,7 @@ export default function CoverLetterCrafter() {
               <AlertTriangle className="h-5 w-5 text-yellow-600" />
               <AlertTitle>Login Required</AlertTitle>
               <AlertDescription>
-                Please log in to use the Cover Letter Crafter.
+                Please log in to use the Cover Letter Crafter and save/load your documents.
               </AlertDescription>
             </Alert>
           )}
@@ -360,7 +455,59 @@ export default function CoverLetterCrafter() {
           </div>
 
           <div>
-            <label htmlFor="resumeText" className="block text-sm font-medium text-foreground mb-1">Your Resume *</label>
+            <div className="flex items-center justify-between mb-1">
+                <label htmlFor="resumeText" className="block text-sm font-medium text-foreground">Your Resume *</label>
+                <div className="flex items-center space-x-2">
+                    <Dialog open={isSaveResumeDialogOpen} onOpenChange={setIsSaveResumeDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button type="button" variant="outline" size="sm" disabled={!user || !resumeText.trim()} onClick={() => setNewResumeTitle("")}>
+                                <Save className="mr-2 h-4 w-4" /> Save this Resume
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader><DialogTitle>Save Resume</DialogTitle><DialogDescription>Enter a title for this resume.</DialogDescription></DialogHeader>
+                            <Input placeholder="e.g., My FAANG Resume, Data Science Resume v3" value={newResumeTitle} onChange={(e) => setNewResumeTitle(e.target.value)} className="my-4" />
+                            <DialogFooter>
+                                <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                <Button onClick={handleSaveCurrentResume} disabled={isSavingResume || !newResumeTitle.trim()}>
+                                    {isSavingResume && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                    <Dialog open={isLoadResumeDialogOpen} onOpenChange={setIsLoadResumeDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadResumeDialog}>
+                                <List className="mr-2 h-4 w-4" /> Load Saved Resume
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader><DialogTitle>Load Saved Resume</DialogTitle><DialogDescription>Select a resume to load.</DialogDescription></DialogHeader>
+                            {isLoadingResumes ? <div className="flex justify-center items-center h-32"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                            : savedResumes.length > 0 ? (
+                                <ScrollArea className="h-[200px] my-4">
+                                    <div className="space-y-2 pr-2">
+                                    {savedResumes.map((res) => (
+                                        <Card key={res.id} className="p-3 flex justify-between items-center hover:bg-secondary/50">
+                                        <div><p className="font-medium text-sm">{res.title}</p><p className="text-xs text-muted-foreground">Saved: {res.createdAt?.toDate ? res.createdAt.toDate().toLocaleDateString() : 'N/A'}</p></div>
+                                        <div className="flex items-center space-x-1">
+                                            <Button variant="ghost" size="sm" onClick={() => handleLoadResume(res)}>Load</Button>
+                                            <AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button></AlertDialogTrigger>
+                                            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Resume?</AlertDialogTitle><AlertDialogDescription>Delete "{res.title}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteResume(res.id!)} className={buttonVariants({ variant: "destructive" })}>Delete</AlertDialogAction></AlertDialogFooter>
+                                            </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
+                                        </Card>
+                                    ))}
+                                    </div>
+                                </ScrollArea>
+                            ) : <p className="text-sm text-muted-foreground text-center py-4">No saved resumes.</p>}
+                            <DialogFooter><DialogClose asChild><Button variant="outline">Close</Button></DialogClose></DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            </div>
             <Textarea
               id="resumeText"
               placeholder="Paste your full resume content here..."
@@ -369,7 +516,7 @@ export default function CoverLetterCrafter() {
               className="min-h-[200px] text-sm"
               rows={10}
             />
-            <p className="text-xs text-muted-foreground mt-1">Min. 100 characters.</p>
+            <p className="text-xs text-muted-foreground mt-1">Min. 100 characters. {!user && <span className="text-amber-600">(Login to save/load resumes)</span>}</p>
           </div>
 
           <div>
@@ -452,5 +599,3 @@ export default function CoverLetterCrafter() {
     </div>
   );
 }
-
-    

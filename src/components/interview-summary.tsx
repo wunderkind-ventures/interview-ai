@@ -133,6 +133,7 @@ function InterviewSummaryContent() {
         isLoading: _iL,
         isLoggedToServer: _iLTS,
         error: _clientError, // Not saving this UI error state to Firestore
+        // firestoreDocId is handled by `documentId`
         firestoreDocId: _fDI,
         // Complex objects to be processed/mapped
         questions: dataQuestions,
@@ -167,7 +168,7 @@ function InterviewSummaryContent() {
         interviewFinished: coreSessionProps.interviewFinished,
         currentQuestionStartTime: coreSessionProps.currentQuestionStartTime === undefined ? null : coreSessionProps.currentQuestionStartTime,
         currentCaseTurnNumber: coreSessionProps.currentCaseTurnNumber === undefined ? null : coreSessionProps.currentCaseTurnNumber,
-        caseStudyNotes: coreSessionProps.caseStudyNotes === undefined ? null : coreSessionProps.caseStudyNotes,
+        caseStudyNotes: coreSessionProps.caseStudyNotes ?? null,
       };
       
       payloadToSave.questions = (dataQuestions || []).map(q => {
@@ -207,6 +208,8 @@ function InterviewSummaryContent() {
             return cleanItem;
           }),
         };
+      } else {
+        payloadToSave.feedback = null;
       }
 
       if (dataDeepDives && Object.keys(dataDeepDives).length > 0) {
@@ -222,9 +225,13 @@ function InterviewSummaryContent() {
             };
           }
         }
+      } else {
+        payloadToSave.deepDives = {};
       }
       if (dataSampleAnswers && Object.keys(dataSampleAnswers).length > 0) {
         payloadToSave.sampleAnswers = { ...dataSampleAnswers }; // Shallow copy is fine for string values
+      } else {
+        payloadToSave.sampleAnswers = {};
       }
       if (dataAdminFeedback && dataAdminFeedback.length > 0) {
         payloadToSave.adminFeedback = dataAdminFeedback.map(fb => {
@@ -238,22 +245,37 @@ function InterviewSummaryContent() {
           if (fb.targetQuestionId) cleanFb.targetQuestionId = fb.targetQuestionId;
           return cleanFb;
         });
+      } else {
+         payloadToSave.adminFeedback = [];
       }
+
       if (dataCaseConversationHistory && dataCaseConversationHistory.length > 0) {
         payloadToSave.caseConversationHistory = dataCaseConversationHistory.map(turn => ({
             questionText: turn.questionText,
             answerText: turn.answerText,
         }));
+      } else {
+        payloadToSave.caseConversationHistory = [];
       }
+      
+      // Remove any top-level undefined properties before saving
+      Object.keys(payloadToSave).forEach(key => {
+        if (payloadToSave[key] === undefined) {
+          delete payloadToSave[key];
+        }
+      });
       
       await setDoc(doc(db, "users", authUser.uid, "interviews", documentId), payloadToSave, { merge: true });
 
       console.log("Interview session logged/updated successfully:", documentId);
-      toast({
-        title: "Session Logged",
-        description: "Your interview data has been saved to your account.",
-        variant: "default",
-      });
+      setTimeout(() => {
+        toast({
+          title: "Session Logged",
+          description: "Your interview data has been saved to your account.",
+          variant: "default",
+        });
+      }, 0);
+
 
       setSessionData(prev => {
         if (!prev) return null;
@@ -262,15 +284,17 @@ function InterviewSummaryContent() {
         return updatedSession;
       });
     } catch (error: any) {
-      console.error("Error logging interview session to backend:", error, "Payload attempted:", dataToLog); // Log the original data for debugging
-      toast({
-        title: "Logging Error",
-        description: `Could not save interview data: ${error.message || "Unknown error. Check console."}`,
-        variant: "destructive",
-      });
+      console.error("Error logging interview session to backend:", error, "Payload attempted:", payloadToSave); 
+      setTimeout(() => {
+        toast({
+          title: "Logging Error",
+          description: `Could not save interview data: ${error.message || "Unknown error. Check console."}`,
+          variant: "destructive",
+        });
+      }, 0);
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; // Still mark as attempt
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -332,13 +356,15 @@ function InterviewSummaryContent() {
         return updatedSession;
       });
 
-    } catch (err) {
+    } catch (err: any) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred while generating feedback.";
-      toast({
-        title: "Error generating feedback",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setTimeout(() => {
+        toast({
+          title: "Error generating feedback",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }, 0);
       setFeedbackError(errorMessage);
     } finally {
       setIsFeedbackLoading(false);
@@ -379,15 +405,15 @@ function InterviewSummaryContent() {
                 interviewFocus: firestoreData.interviewFocus || "",
                 deepDives: firestoreData.deepDives || {},
                 sampleAnswers: firestoreData.sampleAnswers || {},
-                caseStudyNotes: firestoreData.caseStudyNotes === undefined ? null : firestoreData.caseStudyNotes,
+                caseStudyNotes: firestoreData.caseStudyNotes ?? null,
                 caseConversationHistory: firestoreData.caseConversationHistory || [],
                 adminFeedback: firestoreData.adminFeedback || [],
                 isLoading: false,
                 error: null,
                 isLoggedToServer: true,
                 firestoreDocId: docSnap.id,
-                interviewerPersona: firestoreData.interviewerPersona || INTERVIEWER_PERSONAS[0].value, // Ensure default
-                selectedThemeId: firestoreData.selectedThemeId || "custom", // Ensure default
+                interviewerPersona: firestoreData.interviewerPersona || INTERVIEWER_PERSONAS[0].value, 
+                selectedThemeId: firestoreData.selectedThemeId || "custom", 
             };
             setSessionData(loadedSessionData);
             localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData));
@@ -397,12 +423,17 @@ function InterviewSummaryContent() {
             }
 
           } else {
-            toast({ title: "Session Not Found", description: "Could not find the specified interview session. Loading last local session.", variant: "destructive"});
+            setTimeout(() => {
+              toast({ title: "Session Not Found", description: "Could not find the specified interview session. Loading last local session.", variant: "destructive"});
+            }, 0);
             loadFromLocalStorage();
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching session from Firestore:", error);
-          toast({ title: "Error Loading Session", description: "Failed to load session from history. Loading last local session.", variant: "destructive"});
+          const errorMsg = error.code ? `Error loading session: ${error.code} - ${error.message}` : `Error loading session: ${error.message || "Unknown Firebase error."}`;
+          setTimeout(() => {
+            toast({ title: "Error Loading Session", description: errorMsg, variant: "destructive"});
+          }, 0);
           loadFromLocalStorage();
         } finally {
           setIsSessionLoading(false);
@@ -421,7 +452,7 @@ function InterviewSummaryContent() {
             parsedSession.firestoreDocId = parsedSession.firestoreDocId ?? undefined;
             parsedSession.deepDives = parsedSession.deepDives || {};
             parsedSession.sampleAnswers = parsedSession.sampleAnswers || {};
-            parsedSession.caseStudyNotes = parsedSession.caseStudyNotes === undefined ? null : parsedSession.caseStudyNotes;
+            parsedSession.caseStudyNotes = parsedSession.caseStudyNotes ?? null;
             parsedSession.caseConversationHistory = parsedSession.caseConversationHistory || [];
             parsedSession.adminFeedback = parsedSession.adminFeedback || [];
             parsedSession.interviewerPersona = parsedSession.interviewerPersona || INTERVIEWER_PERSONAS[0].value;
@@ -429,7 +460,9 @@ function InterviewSummaryContent() {
 
 
             if (!parsedSession.interviewFinished) {
-              toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
+              setTimeout(() => {
+                toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
+              }, 0);
               router.replace(parsedSession.questions?.length > 0 ? "/interview" : "/");
               return;
             }
@@ -440,14 +473,18 @@ function InterviewSummaryContent() {
             } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer && authUser) {
               saveInterviewToBackend(parsedSession, parsedSession.firestoreDocId);
             }
-          } catch (e) {
+          } catch (e: any) {
             console.error("Error parsing session data:", e);
-            toast({ title: "Session Error", description: "Could not load session data. Please start a new interview.", variant: "destructive"});
+            setTimeout(() => {
+              toast({ title: "Session Error", description: "Could not load session data. Please start a new interview.", variant: "destructive"});
+            }, 0);
             localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
             router.replace("/");
           }
         } else {
-          toast({ title: "No Interview Data", description: "Please start an interview first.", variant: "destructive"});
+          setTimeout(() => {
+            toast({ title: "No Interview Data", description: "Please start an interview first.", variant: "destructive"});
+          }, 0);
           router.replace("/");
         }
         setIsSessionLoading(false);
@@ -505,10 +542,12 @@ function InterviewSummaryContent() {
         }
         return updatedSession;
       });
-    } catch (err) {
+    } catch (err: any) {
       const errorMessage = err instanceof Error ? err.message : "Failed to generate deep dive feedback.";
       setDeepDiveError(errorMessage);
-      toast({ title: "Deep Dive Error", description: errorMessage, variant: "destructive" });
+      setTimeout(() => {
+        toast({ title: "Deep Dive Error", description: errorMessage, variant: "destructive" });
+      },0);
     } finally {
       setIsDeepDiveLoading(false);
     }
@@ -518,7 +557,9 @@ function InterviewSummaryContent() {
     if (!sessionData) return;
     const question = sessionData.questions.find(q => q.id === questionId);
     if (!question) {
-        toast({ title: "Error", description: "Question not found.", variant: "destructive" });
+        setTimeout(() => {
+            toast({ title: "Error", description: "Question not found.", variant: "destructive" });
+        }, 0);
         return;
     }
 
@@ -554,10 +595,12 @@ function InterviewSummaryContent() {
         }
         return updatedSession;
       });
-    } catch (err) {
+    } catch (err: any) {
       const errorMessage = err instanceof Error ? err.message : "Failed to generate sample answer.";
       setSampleAnswerError(errorMessage);
-      toast({ title: "Sample Answer Error", description: errorMessage, variant: "destructive" });
+      setTimeout(() => {
+        toast({ title: "Sample Answer Error", description: errorMessage, variant: "destructive" });
+      }, 0);
     } finally {
       setIsSampleAnswerLoading(false);
     }
@@ -602,10 +645,12 @@ function InterviewSummaryContent() {
       };
       const result: ClarifyFeedbackOutput = await clarifyFeedback(input);
       setClarificationResponse(result.clarificationText);
-    } catch (err) {
+    } catch (err: any) {
       const errorMsg = err instanceof Error ? err.message : "Failed to get clarification.";
       setClarificationError(errorMsg);
-      toast({ title: "Clarification Error", description: errorMsg, variant: "destructive" });
+      setTimeout(() => {
+        toast({ title: "Clarification Error", description: errorMsg, variant: "destructive" });
+      }, 0);
     } finally {
       setIsFetchingClarification(false);
     }
@@ -733,12 +778,16 @@ function InterviewSummaryContent() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     setIsExportDialogOpen(false);
-    toast({ title: "Export Successful", description: "Your interview summary has been downloaded." });
+    setTimeout(() => {
+      toast({ title: "Export Successful", description: "Your interview summary has been downloaded." });
+    }, 0);
   };
 
   const handleAdminFeedbackSubmit = async () => {
     if (!adminFeedbackText.trim() || !sessionData || !sessionData.firestoreDocId || !authUser) {
-        toast({ title: "Error", description: "Missing data to submit admin feedback.", variant: "destructive"});
+        setTimeout(() => {
+            toast({ title: "Error", description: "Missing data to submit admin feedback.", variant: "destructive"});
+        }, 0);
         return;
     }
     setIsSubmittingAdminFeedback(true);
@@ -769,10 +818,14 @@ function InterviewSummaryContent() {
         setAdminFeedbackText("");
         setAdminFeedbackTargetType('overall_session');
         setAdminFeedbackTargetQuestionId("");
-        toast({ title: "Admin Feedback Submitted", description: "Your feedback has been recorded."});
-    } catch (error) {
+        setTimeout(() => {
+            toast({ title: "Admin Feedback Submitted", description: "Your feedback has been recorded."});
+        }, 0);
+    } catch (error: any) {
         console.error("Error submitting admin feedback:", error);
-        toast({ title: "Admin Feedback Error", description: "Could not submit feedback. See console.", variant: "destructive"});
+        setTimeout(() => {
+            toast({ title: "Admin Feedback Error", description: `Could not submit feedback: ${error.message || 'Unknown error'}. See console.`, variant: "destructive"});
+        }, 0);
     } finally {
         setIsSubmittingAdminFeedback(false);
     }

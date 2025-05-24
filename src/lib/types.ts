@@ -1,5 +1,7 @@
 
-import type { InterviewType, FaangLevel, InterviewStyle } from './constants';
+import type { InterviewType, FaangLevel, InterviewStyle, Skill } from './constants';
+import type { Timestamp } from 'firebase/firestore';
+
 
 export interface InterviewSetupData {
   interviewType: InterviewType;
@@ -11,9 +13,10 @@ export interface InterviewSetupData {
   targetedSkills?: string[];
   targetCompany?: string;
   interviewFocus?: string;
+  selectedThemeId?: string;
 }
 
-export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills'>> {
+export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId'>> {
   targetedSkills?: string[];
 }
 
@@ -82,6 +85,63 @@ export interface InterviewSessionData extends InterviewSetupData {
   currentCaseTurnNumber?: number;
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
   caseStudyNotes?: string;
-  isLoggedToServer?: boolean; // Added flag to track if logged
+  isLoggedToServer?: boolean;
+  firestoreDocId?: string; // To store the Firestore document ID of the logged session
+  completedAt?: Timestamp; // To store the server timestamp when it's logged
+}
+
+export interface Achievement {
+  id?: string;
+  userId?: string;
+  title: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  skillsDemonstrated?: string[];
+  quantifiableImpact?: string;
+  dateAchieved?: string | null;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface SavedItem {
+  id?: string;
+  userId?: string;
+  title: string;
+  content: string;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface SavedResume extends SavedItem {}
+export interface SavedJobDescription extends SavedItem {}
+
+export interface SavedInterviewSetup {
+  id?: string;
+  userId?: string;
+  title: string;
+  config: InterviewSetupData; // The actual setup data
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+
+// Types for Resume Lab AI Flows
+export interface ResumeAnalysis {
+  strengths: string[];
+  areasForImprovement: string[];
+  clarityScore: number; // 1-5
+  impactScore: number; // 1-5
+  overallFeedback: string;
+  actionableSuggestions: string[];
+}
+
+export interface ResumeTailoringSuggestions {
+  keywordsFromJD: string[];
+  missingKeywordsInResume: string[];
+  relevantExperiencesToHighlight: string[];
+  suggestionsForTailoring: string[];
+  overallFitAssessment: string;
 }
 

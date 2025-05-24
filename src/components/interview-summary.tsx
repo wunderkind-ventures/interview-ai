@@ -1,20 +1,20 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-// Firebase Firestore imports
-import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc } from "firebase/firestore"; 
-import { useAuth } from "@/contexts/auth-context"; // Import useAuth
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
+import { useAuth } from "@/contexts/auth-context";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download } from "lucide-react";
-import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download, MessageSquarePlus } from "lucide-react";
+import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEW_TYPES, FAANG_LEVELS } from "@/lib/constants";
 import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
@@ -23,10 +23,11 @@ import { generateDeepDiveFeedback } from "@/ai/flows/generate-deep-dive-feedback
 import type { GenerateDeepDiveFeedbackInput, GenerateDeepDiveFeedbackOutput } from "@/ai/flows/generate-deep-dive-feedback";
 import { generateSampleAnswer } from "@/ai/flows/generate-sample-answer";
 import type { GenerateSampleAnswerInput, GenerateSampleAnswerOutput } from "@/ai/flows/generate-sample-answer";
+import { clarifyFeedback } from "@/ai/flows/clarify-feedback";
+import type { ClarifyFeedbackInput, ClarifyFeedbackOutput } from "@/ai/flows/clarify-feedback";
 import { formatMilliseconds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-
 
 interface ExportOptions {
   includeSetupDetails: boolean;
@@ -39,10 +40,18 @@ interface ExportOptions {
   includeOverallSummary: boolean;
 }
 
-export default function InterviewSummary() {
+interface ClarificationContext {
+  questionText: string;
+  userAnswerText: string;
+  feedbackItemText: string;
+  feedbackItemType: 'areaForImprovement' | 'specificSuggestion' | 'critique' | 'strength' | 'idealAnswerPointer' | 'reflectionPrompt';
+}
+
+function InterviewSummaryContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user: authUser, loading: authLoading } = useAuth(); // Get user from AuthContext
+  const { user: authUser, loading: authLoading } = useAuth();
   const [sessionData, setSessionData] = useState<InterviewSessionData | null>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
@@ -58,6 +67,14 @@ export default function InterviewSummary() {
   const [isSampleAnswerLoading, setIsSampleAnswerLoading] = useState(false);
   const [sampleAnswerError, setSampleAnswerError] = useState<string | null>(null);
 
+  const [isClarifyFeedbackDialogOpen, setIsClarifyFeedbackDialogOpen] = useState(false);
+  const [clarificationContext, setClarificationContext] = useState<ClarificationContext | null>(null);
+  const [userClarificationRequestInput, setUserClarificationRequestInput] = useState("");
+  const [clarificationResponse, setClarificationResponse] = useState<string | null>(null);
+  const [isFetchingClarification, setIsFetchingClarification] = useState(false);
+  const [clarificationError, setClarificationError] = useState<string | null>(null);
+
+
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     includeSetupDetails: true,
@@ -70,12 +87,12 @@ export default function InterviewSummary() {
     includeOverallSummary: true,
   });
 
-  const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData) => {
+  const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData, docId?: string) => {
     if (getApps().length === 0) {
       console.warn("Firebase app not initialized. Skipping backend logging.");
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true }; // Mark as attempted
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -84,11 +101,9 @@ export default function InterviewSummary() {
 
     if (!authUser) {
       console.log("User not logged in. Skipping backend save of interview session.");
-      // Optionally, mark as "attempted" or handle anonymous saves differently if desired later
-      // For now, we only save if a user is logged in.
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true }; // Mark so we don't retry for this anonymous session
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -97,29 +112,31 @@ export default function InterviewSummary() {
 
     try {
       const db = getFirestore();
-      // Generate a unique ID for the interview session if it's new, or use an existing one if re-logging
-      // For simplicity, let's assume a new document is created each time.
-      // A more robust system might use a session ID stored within sessionData.
       const interviewLog = {
         ...dataToLog,
-        userId: authUser.uid, // Associate with the logged-in user
-        completedAt: serverTimestamp(),
+        userId: authUser.uid,
+        completedAt: dataToLog.completedAt instanceof Timestamp ? dataToLog.completedAt : serverTimestamp(),
       };
 
-      // Remove potentially non-serializable parts or large objects that might cause issues,
-      // or that are better stored separately (like full resume text if very large).
-      // For this prototype, logging most of it.
-      const docRef = await addDoc(collection(db, "users", authUser.uid, "interviews"), interviewLog);
-      console.log("Interview session logged to user's collection successfully:", docRef.id);
+      delete interviewLog.isLoading;
+      delete interviewLog.isLoggedToServer;
+      delete interviewLog.error;
+
+
+      const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
+
+      await setDoc(doc(db, "users", authUser.uid, "interviews", documentId), interviewLog, { merge: true });
+
+      console.log("Interview session logged/updated successfully:", documentId);
       toast({
         title: "Session Logged",
         description: "Your interview data has been saved to your account.",
         variant: "default",
       });
-      
+
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true };
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: documentId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -132,9 +149,7 @@ export default function InterviewSummary() {
       });
       setSessionData(prev => {
         if (!prev) return null;
-        // Mark as attempted to avoid retries for this specific error event,
-        // or implement more sophisticated retry logic later.
-        const updatedSession = { ...prev, isLoggedToServer: true }; 
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -189,9 +204,9 @@ export default function InterviewSummary() {
 
         const updatedSession = { ...prev, feedback: {...feedbackResult, feedbackItems: updatedFeedbackItemsWithConfidence } };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
-        
-        if (updatedSession.interviewFinished && updatedSession.feedback && !updatedSession.isLoggedToServer && !authLoading) {
-            saveInterviewToBackend(updatedSession);
+
+        if (updatedSession.interviewFinished && updatedSession.feedback && !updatedSession.isLoggedToServer && !authLoading && authUser) {
+            saveInterviewToBackend(updatedSession, updatedSession.firestoreDocId);
         }
         return updatedSession;
       });
@@ -207,53 +222,102 @@ export default function InterviewSummary() {
     } finally {
       setIsFeedbackLoading(false);
     }
-  }, [toast, isFeedbackLoading, saveInterviewToBackend, authLoading]);
+  }, [toast, isFeedbackLoading, saveInterviewToBackend, authLoading, authUser]);
 
   useEffect(() => {
-    if (authLoading) { // Wait for auth state to be determined
+    if (authLoading) {
       setIsSessionLoading(true);
       return;
     }
 
-    const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
-    if (storedSession) {
-      try {
-        const parsedSession: InterviewSessionData = JSON.parse(storedSession);
-        parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false; 
+    const sessionIdFromQuery = searchParams.get('sessionId');
 
-        if (!parsedSession.interviewFinished) {
-          toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
-          const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
-          if (storedSetup && parsedSession.interviewStarted && parsedSession.questions.length > 0) {
-               router.replace("/interview");
+    const loadSession = async () => {
+      if (sessionIdFromQuery && authUser) {
+        setIsSessionLoading(true);
+        try {
+          const db = getFirestore();
+          const interviewDocRef = doc(db, 'users', authUser.uid, 'interviews', sessionIdFromQuery);
+          const docSnap = await getDoc(interviewDocRef);
+
+          if (docSnap.exists()) {
+            const firestoreData = docSnap.data() as Omit<InterviewSessionData, 'completedAt'> & { completedAt: Timestamp, firestoreDocId?: string };
+            const loadedSessionData: InterviewSessionData = {
+                ...firestoreData,
+                jobTitle: firestoreData.jobTitle || "",
+                jobDescription: firestoreData.jobDescription || "",
+                resume: firestoreData.resume || "",
+                targetedSkills: firestoreData.targetedSkills || [],
+                targetCompany: firestoreData.targetCompany || "",
+                interviewFocus: firestoreData.interviewFocus || "",
+                deepDives: firestoreData.deepDives || {},
+                sampleAnswers: firestoreData.sampleAnswers || {},
+                caseStudyNotes: firestoreData.caseStudyNotes || "",
+                isLoading: false,
+                error: null,
+                isLoggedToServer: true,
+                firestoreDocId: docSnap.id,
+                completedAt: firestoreData.completedAt,
+            };
+            setSessionData(loadedSessionData);
+            localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData));
+
+            if (!loadedSessionData.feedback && loadedSessionData.answers.length > 0) {
+              fetchAndSetFeedback(loadedSessionData);
+            }
+
           } else {
-              router.replace("/");
+            toast({ title: "Session Not Found", description: "Could not find the specified interview session. Loading last local session.", variant: "destructive"});
+            loadFromLocalStorage();
           }
-          return;
+        } catch (error) {
+          console.error("Error fetching session from Firestore:", error);
+          toast({ title: "Error Loading Session", description: "Failed to load session from history. Loading last local session.", variant: "destructive"});
+          loadFromLocalStorage();
+        } finally {
+          setIsSessionLoading(false);
         }
-        setSessionData(parsedSession);
-        setIsSessionLoading(false);
-        
-        if (!parsedSession.feedback && parsedSession.answers.length > 0) {
-          fetchAndSetFeedback(parsedSession);
-        } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer) {
-          saveInterviewToBackend(parsedSession);
-        } else if (parsedSession.answers.length === 0) {
-          setIsFeedbackLoading(false);
-        }
-      } catch (e) {
-        console.error("Error parsing session data:", e);
-        toast({ title: "Session Error", description: "Could not load session data. Please start a new interview.", variant: "destructive"});
-        localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
-        router.replace("/");
-        return;
+      } else {
+        loadFromLocalStorage();
       }
-    } else {
-      toast({ title: "No Interview Data", description: "Please start an interview first.", variant: "destructive"});
-      router.replace("/");
-      setIsSessionLoading(false);
-    }
-  }, [router, toast, fetchAndSetFeedback, saveInterviewToBackend, authLoading, authUser]); // Added authUser to dependencies
+    };
+
+    const loadFromLocalStorage = () => {
+        const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+        if (storedSession) {
+          try {
+            const parsedSession: InterviewSessionData = JSON.parse(storedSession);
+            parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false;
+            parsedSession.firestoreDocId = parsedSession.firestoreDocId ?? undefined;
+
+            if (!parsedSession.interviewFinished) {
+              toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
+              router.replace(parsedSession.questions?.length > 0 ? "/interview" : "/");
+              return;
+            }
+            setSessionData(parsedSession);
+
+            if (!parsedSession.feedback && parsedSession.answers.length > 0) {
+              fetchAndSetFeedback(parsedSession);
+            } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer && authUser) {
+              saveInterviewToBackend(parsedSession, parsedSession.firestoreDocId);
+            }
+          } catch (e) {
+            console.error("Error parsing session data:", e);
+            toast({ title: "Session Error", description: "Could not load session data. Please start a new interview.", variant: "destructive"});
+            localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+            router.replace("/");
+          }
+        } else {
+          toast({ title: "No Interview Data", description: "Please start an interview first.", variant: "destructive"});
+          router.replace("/");
+        }
+        setIsSessionLoading(false);
+    };
+
+    loadSession();
+
+  }, [router, toast, fetchAndSetFeedback, saveInterviewToBackend, authLoading, authUser, searchParams]);
 
   const handleOpenDeepDive = async (questionId: string) => {
     if (!sessionData) return;
@@ -353,6 +417,55 @@ export default function InterviewSummary() {
     }
   };
 
+  const handleOpenClarifyFeedbackDialog = (
+    question: InterviewQuestion,
+    answerText: string,
+    feedbackItemText: string,
+    feedbackItemType: ClarificationContext['feedbackItemType']
+  ) => {
+    setClarificationContext({
+      questionText: question.text,
+      userAnswerText: answerText,
+      feedbackItemText,
+      feedbackItemType,
+    });
+    setUserClarificationRequestInput("");
+    setClarificationResponse(null);
+    setClarificationError(null);
+    setIsClarifyFeedbackDialogOpen(true);
+  };
+
+  const handleFetchClarification = async () => {
+    if (!clarificationContext || !userClarificationRequestInput.trim() || !sessionData) return;
+    setIsFetchingClarification(true);
+    setClarificationResponse(null);
+    setClarificationError(null);
+
+    try {
+      const input: ClarifyFeedbackInput = {
+        originalQuestionText: clarificationContext.questionText,
+        userAnswerText: clarificationContext.userAnswerText,
+        feedbackItemText: clarificationContext.feedbackItemText,
+        userClarificationRequest: userClarificationRequestInput,
+        interviewContext: {
+          interviewType: sessionData.interviewType,
+          faangLevel: sessionData.faangLevel,
+          jobTitle: sessionData.jobTitle,
+          interviewFocus: sessionData.interviewFocus,
+        },
+      };
+      const result: ClarifyFeedbackOutput = await clarifyFeedback(input);
+      setClarificationResponse(result.clarificationText);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to get clarification.";
+      setClarificationError(errorMsg);
+      toast({ title: "Clarification Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsFetchingClarification(false);
+    }
+  };
+
+
   const handleExportOptionChange = (option: keyof ExportOptions, checked: boolean) => {
     setExportOptions(prev => ({ ...prev, [option]: checked }));
   };
@@ -363,9 +476,9 @@ export default function InterviewSummary() {
 
     if (exportOptions.includeSetupDetails) {
       md += "## Interview Setup\n";
-      md += `- **Type**: ${sessionData.interviewType}\n`;
-      md += `- **Style**: ${sessionData.interviewStyle}\n`;
-      md += `- **Level**: ${sessionData.faangLevel}\n`;
+      md += `- **Type**: ${getLabel(sessionData.interviewType, INTERVIEW_TYPES)}\n`;
+      md += `- **Style**: ${getLabel(sessionData.interviewStyle, INTERVIEW_STYLES)}\n`;
+      md += `- **Level**: ${getLabel(sessionData.faangLevel, FAANG_LEVELS)}\n`;
       if (sessionData.jobTitle) md += `- **Job Title**: ${sessionData.jobTitle}\n`;
       if (sessionData.targetCompany) md += `- **Target Company**: ${sessionData.targetCompany}\n`;
       if (sessionData.interviewFocus) md += `- **Specific Focus**: ${sessionData.interviewFocus}\n`;
@@ -375,7 +488,7 @@ export default function InterviewSummary() {
 
     sessionData.questions.forEach((question, index) => {
       md += `## ${sessionData.interviewStyle === 'take-home' ? 'Assignment' : `Question ${index + 1}`}\n`;
-      
+
       if (exportOptions.includeQuestions) {
         md += `**Question/Assignment Text:**\n${question.text}\n\n`;
       }
@@ -389,7 +502,7 @@ export default function InterviewSummary() {
       const answer = sessionData.answers.find(a => a.questionId === question.id);
       if (exportOptions.includeAnswers && answer) {
         md += "**Your Answer:**\n";
-        md += `> ${answer.answerText.replace(/\n/g, '\n> ')}\n`; // Blockquote for answer
+        md += `> ${answer.answerText.replace(/\n/g, '\n> ')}\n`;
         let answerMeta = [];
         if (answer.confidenceScore !== undefined) answerMeta.push(`Confidence: ${answer.confidenceScore}/5`);
         if (answer.timeTakenMs !== undefined) answerMeta.push(`Time: ${formatMilliseconds(answer.timeTakenMs)}`);
@@ -478,7 +591,7 @@ export default function InterviewSummary() {
   };
 
 
-  if (isSessionLoading || authLoading) { // Check authLoading as well
+  if (isSessionLoading || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
@@ -516,9 +629,21 @@ export default function InterviewSummary() {
     return sessionData.feedback?.feedbackItems.find(item => item.questionId === questionId);
   }
 
+  const getLabel = (value: string | undefined, options: readonly { value: string; label: string }[]) => {
+    if (!value) return "N/A";
+    return options.find(opt => opt.value === value)?.label || value;
+  };
+
   const isTakeHomeStyle = sessionData.interviewStyle === 'take-home';
 
-  const renderFeedbackSection = (title: string, items: string[] | undefined, icon: React.ReactNode, badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary", itemClassName?: string) => {
+  const renderFeedbackListWithClarification = (
+    title: string,
+    items: string[] | undefined,
+    icon: React.ReactNode,
+    itemType: ClarificationContext['feedbackItemType'],
+    question: InterviewQuestion,
+    answerText: string
+  ) => {
     if (!items || items.length === 0) return null;
     return (
       <div className="mt-3">
@@ -526,16 +651,28 @@ export default function InterviewSummary() {
           {icon}
           {title}:
         </h5>
-        <ul className="list-none space-y-1 pl-0">
+        <ul className="list-none space-y-1.5 pl-0">
           {items.map((item, idx) => (
-            <li key={idx} className={`flex items-start ${itemClassName}`}>
-               <Badge variant={badgeVariant} className="mr-2 mt-1 text-xs whitespace-normal break-words">{item}</Badge>
+            <li key={idx} className="flex items-start justify-between p-2 rounded-md bg-secondary/50 hover:bg-secondary/70 transition-colors text-sm">
+              <span className="flex-grow whitespace-normal break-words text-foreground/90">
+                {item}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                onClick={() => handleOpenClarifyFeedbackDialog(question, answerText, item, itemType)}
+                title="Ask for clarification on this point"
+              >
+                <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
+              </Button>
             </li>
           ))}
         </ul>
       </div>
     );
   };
+
 
   const renderConfidenceStars = (score: number | undefined) => {
     if (score === undefined) return <span className="text-xs text-muted-foreground italic">Not rated</span>;
@@ -564,7 +701,7 @@ export default function InterviewSummary() {
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
           <CardTitle className="text-3xl font-bold text-primary">Interview Completed!</CardTitle>
           <CardDescription className="text-muted-foreground pt-1 space-y-0.5">
-            <div>Summary for your {sessionData.interviewType} ({sessionData.interviewStyle}) interview. Level: {sessionData.faangLevel}.</div>
+            <div>Summary for your {getLabel(sessionData.interviewType, INTERVIEW_TYPES)} ({getLabel(sessionData.interviewStyle, INTERVIEW_STYLES)}) interview. Level: {getLabel(sessionData.faangLevel, FAANG_LEVELS)}.</div>
             {sessionData.jobTitle && (
               <div className="flex items-center justify-center">
                 <Briefcase className="h-4 w-4 mr-1.5 text-primary" /> Role: {sessionData.jobTitle}
@@ -634,18 +771,31 @@ export default function InterviewSummary() {
                                           AI Feedback on Submission:
                                       </h4>
                                       {feedbackItem.critique && (
-                                        <div className="mb-3">
-                                          <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
-                                            <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
-                                          </h5>
-                                          <p className="text-sm">{feedbackItem.critique}</p>
+                                        <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
+                                                    <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
+                                                    </h5>
+                                                    <p className="text-sm">{feedbackItem.critique}</p>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                                    onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
+                                                    title="Ask for clarification on this critique"
+                                                >
+                                                    <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
+                                                </Button>
+                                            </div>
                                         </div>
                                       )}
-                                      {renderFeedbackSection("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, "secondary")}
-                                      {renderFeedbackSection("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, "secondary")}
-                                      {renderFeedbackSection("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, "secondary")}
-                                      {renderFeedbackSection("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, "secondary")}
-                                      {renderFeedbackSection("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, "secondary", "text-sm")}
+                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
                                       <div className="flex space-x-2 mt-4">
                                           <Button
                                               onClick={() => handleOpenDeepDive(question.id)}
@@ -721,18 +871,31 @@ export default function InterviewSummary() {
                                           AI Feedback:
                                       </h4>
                                       {feedbackItem.critique && (
-                                        <div className="mb-3">
-                                          <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
-                                            <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
-                                          </h5>
-                                          <p className="text-sm">{feedbackItem.critique}</p>
+                                        <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
+                                                    <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
+                                                    </h5>
+                                                    <p className="text-sm">{feedbackItem.critique}</p>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                                    onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
+                                                    title="Ask for clarification on this critique"
+                                                >
+                                                    <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
+                                                </Button>
+                                            </div>
                                         </div>
                                       )}
-                                      {renderFeedbackSection("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, "secondary")}
-                                      {renderFeedbackSection("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, "secondary")}
-                                      {renderFeedbackSection("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, "secondary")}
-                                      {renderFeedbackSection("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, "secondary")}
-                                      {renderFeedbackSection("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, "secondary", "text-sm")}
+                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
                                       <div className="flex space-x-2 mt-4">
                                           <Button
                                               onClick={() => handleOpenDeepDive(question.id)}
@@ -847,10 +1010,10 @@ export default function InterviewSummary() {
                 )}
                 {deepDiveContent && !isDeepDiveLoading && !deepDiveError && (
                   <div className="space-y-4">
-                    {renderFeedbackSection("Detailed Ideal Answer Breakdown", deepDiveContent.detailedIdealAnswerBreakdown, <CheckSquare className="h-5 w-5 text-green-600" />, "secondary", "text-sm")}
-                    {renderFeedbackSection("Alternative Approaches", deepDiveContent.alternativeApproaches, <Lightbulb className="h-5 w-5 text-blue-600" />, "secondary", "text-sm")}
-                    {renderFeedbackSection("Follow-up Scenarios / Probing Questions", deepDiveContent.followUpScenarios, <Search className="h-5 w-5 text-purple-600" />, "secondary", "text-sm")}
-                    {renderFeedbackSection("Suggested Study Concepts", deepDiveContent.suggestedStudyConcepts, <BookOpen className="h-5 w-5 text-orange-600" />, "secondary", "text-sm")}
+                    {renderFeedbackListWithClarification("Detailed Ideal Answer Breakdown", deepDiveContent.detailedIdealAnswerBreakdown, <CheckSquare className="h-5 w-5 text-green-600" />, 'idealAnswerPointer', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
+                    {renderFeedbackListWithClarification("Alternative Approaches", deepDiveContent.alternativeApproaches, <Lightbulb className="h-5 w-5 text-blue-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
+                    {renderFeedbackListWithClarification("Follow-up Scenarios / Probing Questions", deepDiveContent.followUpScenarios, <Search className="h-5 w-5 text-purple-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
+                    {renderFeedbackListWithClarification("Suggested Study Concepts", deepDiveContent.suggestedStudyConcepts, <BookOpen className="h-5 w-5 text-orange-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                   </div>
                 )}
               </div>
@@ -870,11 +1033,9 @@ export default function InterviewSummary() {
                 <DialogTitle className="text-2xl text-primary flex items-center">
                   <BookMarked className="mr-3 h-7 w-7" /> Sample Answer
                 </DialogTitle>
-                <DialogDescription className="pt-2">
-                  For question: <span className="font-semibold">"{currentSampleAnswerQuestionText}"</span>
-                </DialogDescription>
+                {currentSampleAnswerQuestionText && <DialogDescription className="pt-2">For question: <span className="font-semibold">"{currentSampleAnswerQuestionText}"</span></DialogDescription>}
               </DialogHeader>
-              <div className="py-4 space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+              <div className="py-4 space-y-6 max-h-[60vh] overflow-y-auto pr-2">
                 {isSampleAnswerLoading && (
                   <div className="flex flex-col items-center justify-center py-10">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-3" />
@@ -925,11 +1086,10 @@ export default function InterviewSummary() {
             <div className="space-y-3 py-3">
               {Object.keys(exportOptions).map((key) => {
                 const optionKey = key as keyof ExportOptions;
-                // Simple camelCase to Title Case conversion for labels
                 const label = optionKey
                   .replace(/([A-Z])/g, ' $1')
                   .replace(/^./, (str) => str.toUpperCase());
-                
+
                 return (
                   <div key={optionKey} className="flex items-center space-x-2">
                     <Checkbox
@@ -958,6 +1118,68 @@ export default function InterviewSummary() {
           </DialogContent>
         </Dialog>
 
+        {/* Clarify Feedback Dialog */}
+        <Dialog open={isClarifyFeedbackDialogOpen} onOpenChange={setIsClarifyFeedbackDialogOpen}>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center">
+                        <MessageSquarePlus className="mr-2 h-5 w-5 text-primary" /> Ask for Clarification
+                    </DialogTitle>
+                    {clarificationContext && (
+                        <DialogDescription className="text-xs text-muted-foreground pt-1">
+                            Original Question: "{clarificationContext.questionText.substring(0, 70)}..."<br/>
+                            Your Answer Snippet: "{clarificationContext.userAnswerText.substring(0, 70)}..."<br/>
+                            Feedback you're asking about: "{clarificationContext.feedbackItemText}"
+                        </DialogDescription>
+                    )}
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                    <Input
+                        placeholder="Type your question about this feedback..."
+                        value={userClarificationRequestInput}
+                        onChange={(e) => setUserClarificationRequestInput(e.target.value)}
+                        disabled={isFetchingClarification}
+                    />
+                    {isFetchingClarification && (
+                        <div className="flex items-center text-sm text-muted-foreground">
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Getting clarification...
+                        </div>
+                    )}
+                    {clarificationError && !isFetchingClarification && (
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Error</AlertTitle>
+                            <AlertDescription>{clarificationError}</AlertDescription>
+                        </Alert>
+                    )}
+                    {clarificationResponse && !isFetchingClarification && (
+                        <Alert variant="default" className="bg-sky-50 border-sky-200">
+                            <Lightbulb className="h-4 w-4 text-sky-600" />
+                            <AlertTitle className="text-sky-700">AI Clarification:</AlertTitle>
+                            <AlertDescription className="text-sky-700 whitespace-pre-wrap">
+                                {clarificationResponse}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                </div>
+                <DialogFooter className="sm:justify-end">
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary">Close</Button>
+                    </DialogClose>
+                    <Button
+                        type="button"
+                        onClick={handleFetchClarification}
+                        disabled={isFetchingClarification || !userClarificationRequestInput.trim() || !clarificationContext}
+                    >
+                        {isFetchingClarification ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        Get Clarification
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+
         <CardFooter>
           <Button onClick={() => {
               localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
@@ -971,5 +1193,14 @@ export default function InterviewSummary() {
         </CardFooter>
       </Card>
     </>
+  );
+}
+
+
+export default function InterviewSummaryPage() {
+  return (
+    <Suspense fallback={<div className="flex flex-col items-center justify-center min-h-[60vh]"><Loader2 className="h-16 w-16 animate-spin text-primary mb-4" /><p className="text-xl text-muted-foreground">Loading summary...</p></div>}>
+      <InterviewSummaryContent />
+    </Suspense>
   );
 }

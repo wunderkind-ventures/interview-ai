@@ -3,10 +3,11 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc, getDoc, Timestamp, updateDoc, arrayUnion } from "firebase/firestore";
+import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, getDoc, Timestamp, updateDoc, arrayUnion } from "firebase/firestore";
+import { getApps } from 'firebase/app'; // Corrected import
 import { useAuth } from "@/contexts/auth-context";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,7 @@ import type { ClarifyFeedbackInput, ClarifyFeedbackOutput } from "@/ai/flows/cla
 import { formatMilliseconds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "./ui/scroll-area";
 
 interface ExportOptions {
   includeSetupDetails: boolean;
@@ -98,7 +100,7 @@ function InterviewSummaryContent() {
   const [isSubmittingAdminFeedback, setIsSubmittingAdminFeedback] = useState(false);
 
   // Conceptual admin check - replace with your actual role management logic
-  const isAdmin = authUser?.email === 'admin@example.com';
+  const isAdmin = authUser?.email === 'admin@example.com'; // TODO: Replace with actual admin check
 
   const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData, docId?: string) => {
     if (getApps().length === 0) {
@@ -125,16 +127,16 @@ function InterviewSummaryContent() {
 
     try {
       const db = getFirestore();
-      const interviewLog = {
+      const interviewLog: Partial<InterviewSessionData> & { userId: string; completedAt: any } = {
         ...dataToLog,
         userId: authUser.uid,
         completedAt: dataToLog.completedAt instanceof Timestamp ? dataToLog.completedAt : serverTimestamp(),
       };
 
       // These fields are client-side state and should not be persisted to the main interview log
-      delete (interviewLog as any).isLoading; 
-      delete (interviewLog as any).isLoggedToServer;
-      delete (interviewLog as any).error;
+      delete interviewLog.isLoading;
+      delete interviewLog.isLoggedToServer;
+      delete interviewLog.error;
 
 
       const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
@@ -161,10 +163,9 @@ function InterviewSummaryContent() {
         description: "Could not save interview data to your account. See console for details.",
         variant: "destructive",
       });
-      // Still mark as attempt made to avoid loop, but error is noted
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; // Mark as attempted
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -257,8 +258,14 @@ function InterviewSummaryContent() {
 
           if (docSnap.exists()) {
             const firestoreData = docSnap.data() as Omit<InterviewSessionData, 'completedAt'> & { completedAt: Timestamp, firestoreDocId?: string };
+            let completedAt = firestoreData.completedAt;
+            if (completedAt && typeof completedAt.toDate !== 'function' && (completedAt as any).seconds) {
+                completedAt = new Timestamp((completedAt as any).seconds, (completedAt as any).nanoseconds);
+            }
+
             const loadedSessionData: InterviewSessionData = {
                 ...firestoreData,
+                completedAt, // ensure it's a Timestamp object
                 jobTitle: firestoreData.jobTitle || "",
                 jobDescription: firestoreData.jobDescription || "",
                 resume: firestoreData.resume || "",
@@ -273,7 +280,6 @@ function InterviewSummaryContent() {
                 error: null,
                 isLoggedToServer: true,
                 firestoreDocId: docSnap.id,
-                completedAt: firestoreData.completedAt,
             };
             setSessionData(loadedSessionData);
             localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData));

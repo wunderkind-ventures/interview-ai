@@ -1,5 +1,7 @@
 
 import type { InterviewType, FaangLevel, InterviewStyle, Skill } from './constants';
+import type { Timestamp } from 'firebase/firestore';
+
 
 export interface InterviewSetupData {
   interviewType: InterviewType;
@@ -11,7 +13,7 @@ export interface InterviewSetupData {
   targetedSkills?: string[];
   targetCompany?: string;
   interviewFocus?: string;
-  selectedThemeId?: string; // Added for theme persistence
+  selectedThemeId?: string; 
 }
 
 export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId'>> {
@@ -39,7 +41,7 @@ export interface Answer {
   questionId: string;
   answerText: string;
   timeTakenMs?: number;
-  confidenceScore?: number; // 1-5 stars
+  confidenceScore?: number; 
 }
 
 export interface FeedbackItem {
@@ -52,7 +54,7 @@ export interface FeedbackItem {
   critique?: string;
   idealAnswerPointers?: string[];
   timeTakenMs?: number;
-  confidenceScore?: number; // To display user's confidence alongside feedback
+  confidenceScore?: number; 
   reflectionPrompts?: string[];
 }
 
@@ -80,15 +82,17 @@ export interface InterviewSessionData extends InterviewSetupData {
   feedback?: InterviewFeedback | null;
   deepDives?: Record<string, DeepDiveFeedback>;
   sampleAnswers?: Record<string, string>;
-  currentCaseTurnNumber?: number; // For case studies
-  caseConversationHistory?: Array<{ questionText: string, answerText: string }>; // For case studies
-  caseStudyNotes?: string; // For case studies
+  currentCaseTurnNumber?: number; 
+  caseConversationHistory?: Array<{ questionText: string, answerText: string }>; 
+  caseStudyNotes?: string; 
   isLoggedToServer?: boolean;
+  firestoreDocId?: string; // To store the Firestore document ID of the logged session
+  completedAt?: Timestamp; // To store the server timestamp when it's logged
 }
 
 export interface Achievement {
-  id?: string; // Firestore document ID
-  userId?: string; // Associated user
+  id?: string; 
+  userId?: string; 
   title: string;
   situation: string;
   task: string;
@@ -96,9 +100,9 @@ export interface Achievement {
   result: string;
   skillsDemonstrated?: string[];
   quantifiableImpact?: string;
-  dateAchieved?: string | null; // ISO string or null
-  createdAt?: any; // Firestore serverTimestamp
-  updatedAt?: any; // Firestore serverTimestamp
+  dateAchieved?: string | null; 
+  createdAt?: any; 
+  updatedAt?: any; 
 }
 
 export interface SavedItem {
@@ -106,8 +110,8 @@ export interface SavedItem {
   userId?: string;
   title: string;
   content: string;
-  createdAt?: any; // Firestore serverTimestamp
-  updatedAt?: any; // Firestore serverTimestamp
+  createdAt?: any; 
+  updatedAt?: any; 
 }
 
 export interface SavedResume extends SavedItem {}

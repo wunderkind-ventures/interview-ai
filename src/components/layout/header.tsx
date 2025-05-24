@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy } from 'lucide-react'; // Added Trophy
+import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History } from 'lucide-react'; // Added History
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -54,9 +54,15 @@ export default function Header() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/achievements" className="flex items-center w-full"> {/* Ensure link takes full width for clickability */}
+                  <Link href="/achievements" className="flex items-center w-full">
                     <Trophy className="mr-2 h-4 w-4" />
                     <span>My Achievements</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/history" className="flex items-center w-full">
+                    <History className="mr-2 h-4 w-4" />
+                    <span>Interview History</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

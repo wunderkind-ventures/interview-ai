@@ -1,11 +1,10 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-// Firebase Firestore imports
-import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc } from "firebase/firestore"; 
-import { useAuth } from "@/contexts/auth-context"; // Import useAuth
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc, getDoc, Timestamp } from "firebase/firestore"; 
+import { useAuth } from "@/contexts/auth-context"; 
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download } from "lucide-react";
-import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
+import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEW_TYPES, FAANG_LEVELS } from "@/lib/constants";
 import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
@@ -27,7 +26,6 @@ import { formatMilliseconds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
-
 interface ExportOptions {
   includeSetupDetails: boolean;
   includeQuestions: boolean;
@@ -39,10 +37,11 @@ interface ExportOptions {
   includeOverallSummary: boolean;
 }
 
-export default function InterviewSummary() {
+function InterviewSummaryContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user: authUser, loading: authLoading } = useAuth(); // Get user from AuthContext
+  const { user: authUser, loading: authLoading } = useAuth(); 
   const [sessionData, setSessionData] = useState<InterviewSessionData | null>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
@@ -70,12 +69,12 @@ export default function InterviewSummary() {
     includeOverallSummary: true,
   });
 
-  const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData) => {
+  const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData, docId?: string) => {
     if (getApps().length === 0) {
       console.warn("Firebase app not initialized. Skipping backend logging.");
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true }; // Mark as attempted
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; 
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -84,11 +83,9 @@ export default function InterviewSummary() {
 
     if (!authUser) {
       console.log("User not logged in. Skipping backend save of interview session.");
-      // Optionally, mark as "attempted" or handle anonymous saves differently if desired later
-      // For now, we only save if a user is logged in.
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true }; // Mark so we don't retry for this anonymous session
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; 
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -97,20 +94,23 @@ export default function InterviewSummary() {
 
     try {
       const db = getFirestore();
-      // Generate a unique ID for the interview session if it's new, or use an existing one if re-logging
-      // For simplicity, let's assume a new document is created each time.
-      // A more robust system might use a session ID stored within sessionData.
       const interviewLog = {
         ...dataToLog,
-        userId: authUser.uid, // Associate with the logged-in user
-        completedAt: serverTimestamp(),
+        userId: authUser.uid, 
+        completedAt: dataToLog.completedAt instanceof Timestamp ? dataToLog.completedAt : serverTimestamp(),
       };
+      
+      // Remove client-only flags before saving
+      delete interviewLog.isLoading;
+      delete interviewLog.isLoggedToServer; 
+      delete interviewLog.error;
 
-      // Remove potentially non-serializable parts or large objects that might cause issues,
-      // or that are better stored separately (like full resume text if very large).
-      // For this prototype, logging most of it.
-      const docRef = await addDoc(collection(db, "users", authUser.uid, "interviews"), interviewLog);
-      console.log("Interview session logged to user's collection successfully:", docRef.id);
+
+      const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
+      
+      await setDoc(doc(db, "users", authUser.uid, "interviews", documentId), interviewLog, { merge: true });
+      
+      console.log("Interview session logged/updated successfully:", documentId);
       toast({
         title: "Session Logged",
         description: "Your interview data has been saved to your account.",
@@ -119,7 +119,7 @@ export default function InterviewSummary() {
       
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true };
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: documentId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -132,9 +132,7 @@ export default function InterviewSummary() {
       });
       setSessionData(prev => {
         if (!prev) return null;
-        // Mark as attempted to avoid retries for this specific error event,
-        // or implement more sophisticated retry logic later.
-        const updatedSession = { ...prev, isLoggedToServer: true }; 
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; 
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -190,8 +188,8 @@ export default function InterviewSummary() {
         const updatedSession = { ...prev, feedback: {...feedbackResult, feedbackItems: updatedFeedbackItemsWithConfidence } };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         
-        if (updatedSession.interviewFinished && updatedSession.feedback && !updatedSession.isLoggedToServer && !authLoading) {
-            saveInterviewToBackend(updatedSession);
+        if (updatedSession.interviewFinished && updatedSession.feedback && !updatedSession.isLoggedToServer && !authLoading && authUser) {
+            saveInterviewToBackend(updatedSession, updatedSession.firestoreDocId);
         }
         return updatedSession;
       });
@@ -207,53 +205,103 @@ export default function InterviewSummary() {
     } finally {
       setIsFeedbackLoading(false);
     }
-  }, [toast, isFeedbackLoading, saveInterviewToBackend, authLoading]);
+  }, [toast, isFeedbackLoading, saveInterviewToBackend, authLoading, authUser]);
 
   useEffect(() => {
-    if (authLoading) { // Wait for auth state to be determined
+    if (authLoading) { 
       setIsSessionLoading(true);
       return;
     }
 
-    const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
-    if (storedSession) {
-      try {
-        const parsedSession: InterviewSessionData = JSON.parse(storedSession);
-        parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false; 
+    const sessionIdFromQuery = searchParams.get('sessionId');
 
-        if (!parsedSession.interviewFinished) {
-          toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
-          const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
-          if (storedSetup && parsedSession.interviewStarted && parsedSession.questions.length > 0) {
-               router.replace("/interview");
+    const loadSession = async () => {
+      if (sessionIdFromQuery && authUser) {
+        setIsSessionLoading(true);
+        try {
+          const db = getFirestore();
+          const interviewDocRef = doc(db, 'users', authUser.uid, 'interviews', sessionIdFromQuery);
+          const docSnap = await getDoc(interviewDocRef);
+
+          if (docSnap.exists()) {
+            const firestoreData = docSnap.data() as Omit<InterviewSessionData, 'completedAt'> & { completedAt: Timestamp, firestoreDocId?: string };
+            const loadedSessionData: InterviewSessionData = {
+                ...firestoreData,
+                // Ensure all fields are present, defaulting if necessary
+                jobTitle: firestoreData.jobTitle || "",
+                jobDescription: firestoreData.jobDescription || "",
+                resume: firestoreData.resume || "",
+                targetedSkills: firestoreData.targetedSkills || [],
+                targetCompany: firestoreData.targetCompany || "",
+                interviewFocus: firestoreData.interviewFocus || "",
+                deepDives: firestoreData.deepDives || {},
+                sampleAnswers: firestoreData.sampleAnswers || {},
+                caseStudyNotes: firestoreData.caseStudyNotes || "",
+                isLoading: false, // Loaded from DB
+                error: null,
+                isLoggedToServer: true, // Already logged
+                firestoreDocId: docSnap.id, // Store the doc ID
+                completedAt: firestoreData.completedAt, // Preserve Timestamp for potential future use
+            };
+            setSessionData(loadedSessionData);
+            localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData)); // Update local storage
+            
+            if (!loadedSessionData.feedback && loadedSessionData.answers.length > 0) {
+              fetchAndSetFeedback(loadedSessionData);
+            }
+
           } else {
-              router.replace("/");
+            toast({ title: "Session Not Found", description: "Could not find the specified interview session. Loading last local session.", variant: "destructive"});
+            loadFromLocalStorage();
           }
-          return;
+        } catch (error) {
+          console.error("Error fetching session from Firestore:", error);
+          toast({ title: "Error Loading Session", description: "Failed to load session from history. Loading last local session.", variant: "destructive"});
+          loadFromLocalStorage();
+        } finally {
+          setIsSessionLoading(false);
         }
-        setSessionData(parsedSession);
-        setIsSessionLoading(false);
-        
-        if (!parsedSession.feedback && parsedSession.answers.length > 0) {
-          fetchAndSetFeedback(parsedSession);
-        } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer) {
-          saveInterviewToBackend(parsedSession);
-        } else if (parsedSession.answers.length === 0) {
-          setIsFeedbackLoading(false);
-        }
-      } catch (e) {
-        console.error("Error parsing session data:", e);
-        toast({ title: "Session Error", description: "Could not load session data. Please start a new interview.", variant: "destructive"});
-        localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
-        router.replace("/");
-        return;
+      } else {
+        loadFromLocalStorage();
       }
-    } else {
-      toast({ title: "No Interview Data", description: "Please start an interview first.", variant: "destructive"});
-      router.replace("/");
-      setIsSessionLoading(false);
-    }
-  }, [router, toast, fetchAndSetFeedback, saveInterviewToBackend, authLoading, authUser]); // Added authUser to dependencies
+    };
+    
+    const loadFromLocalStorage = () => {
+        const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+        if (storedSession) {
+          try {
+            const parsedSession: InterviewSessionData = JSON.parse(storedSession);
+            parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false; 
+            parsedSession.firestoreDocId = parsedSession.firestoreDocId ?? undefined;
+
+            if (!parsedSession.interviewFinished) {
+              toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
+              router.replace(parsedSession.questions?.length > 0 ? "/interview" : "/");
+              return;
+            }
+            setSessionData(parsedSession);
+            
+            if (!parsedSession.feedback && parsedSession.answers.length > 0) {
+              fetchAndSetFeedback(parsedSession);
+            } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer && authUser) {
+              saveInterviewToBackend(parsedSession, parsedSession.firestoreDocId);
+            }
+          } catch (e) {
+            console.error("Error parsing session data:", e);
+            toast({ title: "Session Error", description: "Could not load session data. Please start a new interview.", variant: "destructive"});
+            localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+            router.replace("/");
+          }
+        } else {
+          toast({ title: "No Interview Data", description: "Please start an interview first.", variant: "destructive"});
+          router.replace("/");
+        }
+        setIsSessionLoading(false);
+    };
+
+    loadSession();
+
+  }, [router, toast, fetchAndSetFeedback, saveInterviewToBackend, authLoading, authUser, searchParams]);
 
   const handleOpenDeepDive = async (questionId: string) => {
     if (!sessionData) return;
@@ -363,9 +411,9 @@ export default function InterviewSummary() {
 
     if (exportOptions.includeSetupDetails) {
       md += "## Interview Setup\n";
-      md += `- **Type**: ${sessionData.interviewType}\n`;
-      md += `- **Style**: ${sessionData.interviewStyle}\n`;
-      md += `- **Level**: ${sessionData.faangLevel}\n`;
+      md += `- **Type**: ${getLabel(sessionData.interviewType, INTERVIEW_TYPES)}\n`;
+      md += `- **Style**: ${getLabel(sessionData.interviewStyle, INTERVIEW_STYLES)}\n`;
+      md += `- **Level**: ${getLabel(sessionData.faangLevel, FAANG_LEVELS)}\n`;
       if (sessionData.jobTitle) md += `- **Job Title**: ${sessionData.jobTitle}\n`;
       if (sessionData.targetCompany) md += `- **Target Company**: ${sessionData.targetCompany}\n`;
       if (sessionData.interviewFocus) md += `- **Specific Focus**: ${sessionData.interviewFocus}\n`;
@@ -389,7 +437,7 @@ export default function InterviewSummary() {
       const answer = sessionData.answers.find(a => a.questionId === question.id);
       if (exportOptions.includeAnswers && answer) {
         md += "**Your Answer:**\n";
-        md += `> ${answer.answerText.replace(/\n/g, '\n> ')}\n`; // Blockquote for answer
+        md += `> ${answer.answerText.replace(/\n/g, '\n> ')}\n`; 
         let answerMeta = [];
         if (answer.confidenceScore !== undefined) answerMeta.push(`Confidence: ${answer.confidenceScore}/5`);
         if (answer.timeTakenMs !== undefined) answerMeta.push(`Time: ${formatMilliseconds(answer.timeTakenMs)}`);
@@ -478,7 +526,7 @@ export default function InterviewSummary() {
   };
 
 
-  if (isSessionLoading || authLoading) { // Check authLoading as well
+  if (isSessionLoading || authLoading) { 
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
@@ -515,6 +563,11 @@ export default function InterviewSummary() {
   const getFeedbackItemForQuestion = (questionId: string): FeedbackItem | undefined => {
     return sessionData.feedback?.feedbackItems.find(item => item.questionId === questionId);
   }
+
+  const getLabel = (value: string | undefined, options: readonly { value: string; label: string }[]) => {
+    if (!value) return "N/A";
+    return options.find(opt => opt.value === value)?.label || value;
+  };
 
   const isTakeHomeStyle = sessionData.interviewStyle === 'take-home';
 
@@ -564,7 +617,7 @@ export default function InterviewSummary() {
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
           <CardTitle className="text-3xl font-bold text-primary">Interview Completed!</CardTitle>
           <CardDescription className="text-muted-foreground pt-1 space-y-0.5">
-            <div>Summary for your {sessionData.interviewType} ({sessionData.interviewStyle}) interview. Level: {sessionData.faangLevel}.</div>
+            <div>Summary for your {getLabel(sessionData.interviewType, INTERVIEW_TYPES)} ({getLabel(sessionData.interviewStyle, INTERVIEW_STYLES)}) interview. Level: {getLabel(sessionData.faangLevel, FAANG_LEVELS)}.</div>
             {sessionData.jobTitle && (
               <div className="flex items-center justify-center">
                 <Briefcase className="h-4 w-4 mr-1.5 text-primary" /> Role: {sessionData.jobTitle}
@@ -870,9 +923,7 @@ export default function InterviewSummary() {
                 <DialogTitle className="text-2xl text-primary flex items-center">
                   <BookMarked className="mr-3 h-7 w-7" /> Sample Answer
                 </DialogTitle>
-                <DialogDescription className="pt-2">
-                  For question: <span className="font-semibold">"{currentSampleAnswerQuestionText}"</span>
-                </DialogDescription>
+                {currentSampleAnswerQuestionText && <DialogDescription className="pt-2">For question: <span className="font-semibold">"{currentSampleAnswerQuestionText}"</span></DialogDescription>}
               </DialogHeader>
               <div className="py-4 space-y-6 max-h-[70vh] overflow-y-auto pr-2">
                 {isSampleAnswerLoading && (
@@ -925,7 +976,6 @@ export default function InterviewSummary() {
             <div className="space-y-3 py-3">
               {Object.keys(exportOptions).map((key) => {
                 const optionKey = key as keyof ExportOptions;
-                // Simple camelCase to Title Case conversion for labels
                 const label = optionKey
                   .replace(/([A-Z])/g, ' $1')
                   .replace(/^./, (str) => str.toUpperCase());
@@ -971,5 +1021,15 @@ export default function InterviewSummary() {
         </CardFooter>
       </Card>
     </>
+  );
+}
+
+
+export default function InterviewSummaryPage() {
+  return (
+    // Suspense boundary is required for useSearchParams to work correctly during SSR/static generation
+    <Suspense fallback={<div className="flex flex-col items-center justify-center min-h-[60vh]"><Loader2 className="h-16 w-16 animate-spin text-primary mb-4" /><p className="text-xl text-muted-foreground">Loading summary...</p></div>}>
+      <InterviewSummaryContent />
+    </Suspense>
   );
 }

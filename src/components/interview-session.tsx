@@ -24,15 +24,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical } from "lucide-react";
-import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
-import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical, UserCheck2 } from "lucide-react";
+import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEWER_PERSONAS } from "@/lib/constants";
+import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer, InterviewerPersona } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
 const MAX_CASE_FOLLOW_UPS = 4;
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, caseStudyNotes?: string } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, caseStudyNotes?: string, interviewerPersona?: InterviewerPersona | string } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -46,6 +46,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   targetCompany: undefined,
   jobTitle: undefined,
   interviewFocus: undefined,
+  interviewerPersona: INTERVIEWER_PERSONAS[0].value,
   currentCaseTurnNumber: 0,
   caseConversationHistory: [],
   caseStudyNotes: "",
@@ -252,7 +253,7 @@ export default function InterviewSession() {
     if (sessionData?.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime) {
       setCurrentTime(Date.now() - sessionData.currentQuestionStartTime);
       timerInterval = setInterval(() => {
-        if (sessionData.currentQuestionStartTime) {
+        if (sessionData.currentQuestionStartTime) { // Check if currentQuestionStartTime is still defined
           setCurrentTime(Date.now() - sessionData.currentQuestionStartTime);
         }
       }, 1000);
@@ -272,6 +273,7 @@ export default function InterviewSession() {
         targetedSkills: setupData.targetedSkills || [],
         targetCompany: setupData.targetCompany || "",
         interviewFocus: setupData.interviewFocus || "",
+        interviewerPersona: setupData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         previousConversation: "", 
         currentQuestion: "",    
         caseStudyNotes: setupData.interviewStyle === 'case-study' ? (sessionData?.caseStudyNotes || "") : "",
@@ -285,6 +287,7 @@ export default function InterviewSession() {
       interviewStarted: true,
       currentQuestionStartTime: Date.now(),
       interviewStyle: setupData.interviewStyle,
+      interviewerPersona: setupData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
       caseStudyNotes: setupData.interviewStyle === 'case-study' ? (prev?.caseStudyNotes || "") : undefined,
@@ -339,7 +342,7 @@ export default function InterviewSession() {
         return newSession;
       });
     }
-  }, [toast, sessionData?.caseStudyNotes]); // Added sessionData.caseStudyNotes as dependency
+  }, [toast, sessionData?.caseStudyNotes]);
 
   useEffect(() => {
     let storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
@@ -352,7 +355,6 @@ export default function InterviewSession() {
         console.error("Failed to parse stored interview session:", e);
         localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
         storedSession = null;
-        // toast({ title: "Session Error", description: "Corrupted session data cleared. Please start over.", variant: "destructive"});
       }
     }
 
@@ -362,6 +364,7 @@ export default function InterviewSession() {
         return;
       }
       // Ensure all fields are correctly initialized from parsedSession
+      parsedSession.interviewerPersona = parsedSession.interviewerPersona || INTERVIEWER_PERSONAS[0].value;
       parsedSession.currentCaseTurnNumber = parsedSession.interviewStyle === 'case-study' ? (parsedSession.currentCaseTurnNumber ?? 0) : undefined;
       parsedSession.caseConversationHistory = parsedSession.interviewStyle === 'case-study' ? (parsedSession.caseConversationHistory ?? []) : undefined;
       parsedSession.caseStudyNotes = parsedSession.interviewStyle === 'case-study' ? (parsedSession.caseStudyNotes ?? "") : undefined;
@@ -389,6 +392,7 @@ export default function InterviewSession() {
           targetedSkills: parsedSession.targetedSkills,
           targetCompany: parsedSession.targetCompany,
           interviewFocus: parsedSession.interviewFocus,
+          interviewerPersona: parsedSession.interviewerPersona,
         };
         loadInterview(setupData);
       } else if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
@@ -402,6 +406,7 @@ export default function InterviewSession() {
           targetedSkills: parsedSession.targetedSkills,
           targetCompany: parsedSession.targetCompany,
           interviewFocus: parsedSession.interviewFocus,
+          interviewerPersona: parsedSession.interviewerPersona,
         };
         loadInterview(setupData);
       }
@@ -482,6 +487,7 @@ export default function InterviewSession() {
               targetedSkills: sessionData.targetedSkills,
               targetCompany: sessionData.targetCompany,
               interviewFocus: sessionData.interviewFocus,
+              interviewerPersona: sessionData.interviewerPersona,
             },
             currentTurnNumber: updatedCurrentCaseTurnNumber,
           };
@@ -768,6 +774,8 @@ export default function InterviewSession() {
 
   const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
   const styleLabel = INTERVIEW_STYLES.find(s => s.value === sessionData.interviewStyle)?.label || sessionData.interviewStyle;
+  const personaLabel = INTERVIEWER_PERSONAS.find(p => p.value === sessionData.interviewerPersona)?.label || sessionData.interviewerPersona;
+
 
   const isCaseStudyStyle = sessionData.interviewStyle === 'case-study';
   const progressValue = isCaseStudyStyle
@@ -792,6 +800,11 @@ export default function InterviewSession() {
               </span>
             )}
             <span>Level: {sessionData.faangLevel}</span>
+             {sessionData.interviewerPersona && sessionData.interviewerPersona !== 'standard' && (
+              <span className="flex items-center">
+                <UserCheck2 className="h-4 w-4 mr-1 text-primary" /> Persona: {personaLabel}
+              </span>
+            )}
             {isCaseStudyStyle ? (
               <span className="flex items-center">
                 <Layers className="h-4 w-4 mr-1 text-primary" />
@@ -1106,3 +1119,4 @@ export default function InterviewSession() {
     </>
   );
 }
+

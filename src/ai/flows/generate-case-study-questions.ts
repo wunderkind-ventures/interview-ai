@@ -12,7 +12,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
+import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 // Using CustomizeInterviewQuestionsInputSchema as the input for this specialized flow too,
 // as it contains all necessary context (job title, desc, level, focus, etc.)
@@ -58,6 +58,13 @@ const initialCaseSetupPrompt = ai.definePrompt({
   },
   prompt: `You are an **Expert Case Study Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**. You excel at designing compelling and realistic case study interviews.
 Your task is to design the **initial setup** for a case study.
+If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), ensure the 'fullScenarioDescription' and 'firstQuestionToAsk' reflect this persona's style. For example:
+- 'standard': A balanced and typical setup.
+- 'friendly_peer': Scenario might be framed more collaboratively.
+- 'skeptical_hiring_manager': Scenario might subtly include more red herrings or challenges to test critical thinking.
+- 'time_pressed_technical_lead': Scenario and first question are direct and to the point.
+- 'behavioral_specialist': Scenario might be more focused on complex interpersonal or ethical dilemmas.
+
 This setup includes:
 1.  A 'caseTitle'.
 2.  A 'fullScenarioDescription': A detailed narrative that sets the stage. This should be rich and multi-layered, especially for higher FAANG levels, providing enough detail to be immersive but leaving room for clarification and candidate assumptions.
@@ -83,6 +90,7 @@ Interview Type: {{{interviewType}}}
 Interview Style: case-study (You are generating the initial setup)
 {{#if faangLevel}}FAANG Level: {{{faangLevel}}}{{/if}}
 {{#if targetCompany}}Target Company: {{{targetCompany}}}{{/if}}
+{{#if interviewerPersona}}Interviewer Persona to Adopt: {{{interviewerPersona}}} (Adapt scenario style accordingly){{/if}}
 {{#if targetedSkills.length}}
 Targeted Skills:
 {{#each targetedSkills}}
@@ -110,15 +118,12 @@ The Amazon Leadership Principles are:
 **Final Output Format:**
 Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema. Ensure 'caseTitle', 'fullScenarioDescription', 'firstQuestionToAsk', 'idealAnswerCharacteristicsForFirstQuestion', and 'internalNotesForFollowUpGenerator' are all populated with relevant, detailed content.
 `,
-  customize: (promptDef, callInput) => {
+  customize: (promptDef, callInput: GenerateInitialCaseSetupInput) => {
     let promptText = promptDef.prompt!;
     if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
       const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
     } else {
-      // Remove the whole Amazon section if not Amazon, or leave it to the LLM to ignore
-      // For simplicity, let's rely on the LLM ignoring it if the condition isn't met in its reasoning
-      // Or, we can remove the placeholder if it's not Amazon.
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
     }
     return {
@@ -136,18 +141,22 @@ const generateInitialCaseSetupFlow = ai.defineFlow(
   },
   async (input: GenerateInitialCaseSetupInput): Promise<GenerateInitialCaseSetupOutput> => {
     try {
-        const {output} = await initialCaseSetupPrompt(input);
+        const saneInput: GenerateInitialCaseSetupInput = {
+          ...input,
+          interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+        };
+        const {output} = await initialCaseSetupPrompt(saneInput);
         if (!output || !output.fullScenarioDescription || !output.firstQuestionToAsk || !output.caseTitle || !output.internalNotesForFollowUpGenerator) {
-            console.warn(`AI Initial Case Setup Fallback Triggered. Input: ${JSON.stringify(input)}`);
-            const scenarioType = input.interviewType === "technical system design" ? "system design challenge" :
-                                 input.interviewType === "machine learning" ? "ML problem" :
-                                 input.interviewType === "data structures & algorithms" ? "algorithmic design task" :
+            console.warn(`AI Initial Case Setup Fallback Triggered. Input: ${JSON.stringify(saneInput)}`);
+            const scenarioType = saneInput.interviewType === "technical system design" ? "system design challenge" :
+                                 saneInput.interviewType === "machine learning" ? "ML problem" :
+                                 saneInput.interviewType === "data structures & algorithms" ? "algorithmic design task" :
                                  "product strategy scenario";
-            const fallbackTitle = `${input.interviewFocus || scenarioType} Setup (${input.faangLevel})`;
-            const fallbackDescription = `You are tasked with addressing a significant ${scenarioType} for a ${input.jobTitle || 'relevant role'} at ${input.targetCompany || 'a leading tech firm'}, focusing on "${input.interviewFocus || input.interviewType}". The complexity is aligned with a ${input.faangLevel || 'senior'} level. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${input.faangLevel} expectations for this domain].`;
+            const fallbackTitle = `${saneInput.interviewFocus || scenarioType} Setup (${saneInput.faangLevel})`;
+            const fallbackDescription = `You are tasked with addressing a significant ${scenarioType} for a ${saneInput.jobTitle || 'relevant role'} at ${saneInput.targetCompany || 'a leading tech firm'}, focusing on "${saneInput.interviewFocus || saneInput.interviewType}". The complexity is aligned with a ${saneInput.faangLevel || 'senior'} level. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${saneInput.faangLevel} expectations for this domain].`;
             const fallbackFirstQuestion = "Given this situation, what are your initial thoughts, and what clarifying questions would you ask to better understand the problem space and constraints?";
             const fallbackIdealChars = ["Problem framing and clarification", "Identification of key ambiguities", "Structured approach to information gathering"];
-            const fallbackInternalNotes = `Fallback Case. Focus: ${input.interviewFocus || scenarioType}. Level: ${input.faangLevel}. Key areas: problem definition, initial strategy, constraints.`;
+            const fallbackInternalNotes = `Fallback Case. Focus: ${saneInput.interviewFocus || scenarioType}. Level: ${saneInput.faangLevel}. Key areas: problem definition, initial strategy, constraints. Persona: ${saneInput.interviewerPersona}`;
 
             return {
                 caseTitle: fallbackTitle,

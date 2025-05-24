@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
+import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 
 // Input schema for the flow (NOT EXPORTED)
@@ -41,6 +41,7 @@ const GenerateTakeHomeAssignmentInputSchema = z.object({
     .string()
     .optional()
     .describe('A specific focus area or sub-topic to be the central theme of the assignment.'),
+  interviewerPersona: z.string().optional().describe("The AI interviewer's persona, which can influence the assignment's tone or focus."),
 });
 
 export type GenerateTakeHomeAssignmentInput = z.infer< // EXPORTED (Type)
@@ -67,7 +68,7 @@ export async function generateTakeHomeAssignment( // EXPORTED (Async Function)
 }
 
 // Internal prompt definition
-const takeHomeAssignmentPrompt = ai.definePrompt({
+const prompt = ai.definePrompt({
   name: 'generateTakeHomeAssignmentPrompt',
   tools: [getTechnologyBriefTool],
   input: {
@@ -78,6 +79,10 @@ const takeHomeAssignmentPrompt = ai.definePrompt({
   },
   prompt: `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate a single, comprehensive, and self-contained take-home assignment based on the provided specifications.
+If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), subtly adapt the framing or expectations of the assignment to reflect this persona. For example:
+- 'skeptical_hiring_manager': The assignment might ask for more explicit justifications or risk assessments.
+- 'time_pressed_technical_lead': The assignment might emphasize conciseness and core technical delivery.
+
 The output MUST be a JSON object with 'assignmentText' (string) and 'idealSubmissionCharacteristics' (array of strings). The 'assignmentText' should contain the full assignment, formatted with Markdown-like headings (e.g., "## Title", "### Goal").
 
 **Core Instructions & Persona Nuances:**
@@ -107,6 +112,7 @@ Interview Type: {{{interviewType}}}
 {{/if}}
 FAANG Level: {{{faangLevel}}}
 {{#if targetCompany}}Target Company: {{{targetCompany}}}{{/if}}
+{{#if interviewerPersona}}Interviewer Persona: {{{interviewerPersona}}} (Adapt assignment style if appropriate){{/if}}
 {{#if targetedSkills.length}}
 Targeted Skills:
 {{#each targetedSkills}}
@@ -131,14 +137,14 @@ Before finalizing the assignment, briefly consider the key characteristics or el
     *   **### The Exercise - Problem Scenario**:
         *   Provide a detailed and specific problem scenario. 'interviewFocus' MUST be central.
         *   Calibrate technical depth based on 'interviewType', 'jobTitle', 'jobDescription', and 'faangLevel'.
-            *   If the interviewType is "product sense":
-                *   If 'jobTitle' or 'jobDescription' suggest a highly technical PM role (e.g., "PM, Machine Learning Platforms"), the scenario should involve more technical considerations (e.g., API design, data model implications, ML feasibility). Base the scenario on the 'interviewFocus' if provided.
-                *   If the role seems less technically deep (e.g., "Product Manager, Growth") or if the 'interviewFocus' is on strategy or reflection, generate a "Product Innovation Story" style assignment: ask the candidate to describe an innovative product they delivered, focusing on context, journey, impact, and lessons learned, especially if 'interviewFocus' is about past experiences or achievements.
-                *   Otherwise, default to product strategy, market entry analysis, feature deep-dive, or metrics definition based on 'interviewFocus'.
-            *   If the interviewType is "technical system design": A specific technical system design challenge (e.g., "Design a scalable notification system," "Architect a real-time analytics pipeline"). The problem must be directly related to the 'interviewFocus' if provided.
-            *   If the interviewType is "behavioral": A reflective exercise asking the candidate to describe a complex past project, a significant challenge, or a strategic decision they drove. Focus on role, actions, outcomes, learnings (STAR method implicitly encouraged), especially if 'interviewFocus' aligns with such a reflection.
-            *   If the interviewType is "machine learning": A detailed ML system design challenge (e.g., "Design a fraud detection system") or a comprehensive proposal for an ML initiative (e.g., "Propose an ML-based solution to improve user retention"). The problem should be directly based on 'interviewFocus'.
-            *   If the interviewType is "data structures & algorithms": A comprehensive algorithmic problem requiring detailed textual design, pseudo-code, complexity analysis, and discussion of edge cases. More involved than a typical live coding problem. The problem should relate to 'interviewFocus' if applicable.
+            If the interviewType is "product sense":
+                If 'jobTitle' or 'jobDescription' suggest a highly technical PM role (e.g., "PM, Machine Learning Platforms"), the scenario should involve more technical considerations (e.g., API design, data model implications, ML feasibility). Base the scenario on the 'interviewFocus' if provided.
+                Else if 'interviewFocus' relates to personal reflection or past work (e.g., "describe an innovative product you delivered"), generate a "Product Innovation Story" style assignment: ask the candidate to describe an innovative product they delivered, focusing on context, journey, impact, and lessons learned.
+                Else, default to product strategy, market entry analysis, feature deep-dive, or metrics definition based on 'interviewFocus'.
+            If the interviewType is "technical system design": A specific technical system design challenge (e.g., "Design a scalable notification system," "Architect a real-time analytics pipeline"). The problem must be directly related to the 'interviewFocus' if provided.
+            If the interviewType is "behavioral": A reflective exercise asking the candidate to describe a complex past project, a significant challenge, or a strategic decision they drove. Focus on role, actions, outcomes, learnings (STAR method implicitly encouraged), especially if 'interviewFocus' aligns with such a reflection.
+            If the interviewType is "machine learning": A detailed ML system design challenge (e.g., "Design a fraud detection system") or a comprehensive proposal for an ML initiative (e.g., "Propose an ML-based solution to improve user retention"). The problem should be directly based on 'interviewFocus'.
+            If the interviewType is "data structures & algorithms": A comprehensive algorithmic problem requiring detailed textual design, pseudo-code, complexity analysis, and discussion of edge cases. More involved than a typical live coding problem. The problem should relate to 'interviewFocus' if applicable.
 
     *   **### Key Aspects to Consider / Guiding Questions**:
         *   List 5-8 bullet points or explicit questions tailored to the 'Problem Scenario', 'interviewFocus', 'interviewType', and 'faangLevel'.
@@ -159,7 +165,7 @@ Before finalizing the assignment, briefly consider the key characteristics or el
 If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
 **Amazon-Specific Considerations:**
 Subtly weave in opportunities to demonstrate Amazon's Leadership Principles, especially if the assignment type allows (e.g., behavioral reflection, or product strategy).
-The Amazon Leadership Principles are:
+Amazon's Leadership Principles for your reference:
 {{{AMAZON_LPS_LIST}}}
 {{/if}}
 
@@ -168,7 +174,7 @@ Output a JSON object with two keys:
 - 'assignmentText': The full assignment text (string, Markdown-like headings).
 - 'idealSubmissionCharacteristics': An array of 3-5 strings describing elements of a strong submission.
 `,
-  customize: (promptDef, callInput) => {
+  customize: (promptDef, callInput: GenerateTakeHomeAssignmentInput) => {
     let promptText = promptDef.prompt!;
     if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
       const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
@@ -192,7 +198,11 @@ const generateTakeHomeAssignmentFlow = ai.defineFlow(
   },
   async (input: GenerateTakeHomeAssignmentInput): Promise<GenerateTakeHomeAssignmentOutput> => {
     try {
-      const {output} = await takeHomeAssignmentPrompt(input);
+      const saneInput: GenerateTakeHomeAssignmentInput = {
+        ...input,
+        interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+      };
+      const {output} = await prompt(saneInput);
       if (!output || !output.assignmentText || !output.idealSubmissionCharacteristics || output.idealSubmissionCharacteristics.length === 0) {
         const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
         const fallbackJobContext = input.jobTitle ? `for the role of ${input.jobTitle}` : `for the specified role`;
@@ -230,7 +240,7 @@ A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, 
           "Clear and concise communication of ideas."
         ];
         
-        console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated. Input: ${JSON.stringify(input)}. This might be due to an issue with the AI model or prompt.`);
+        console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated. Input: ${JSON.stringify(saneInput)}. This might be due to an issue with the AI model or prompt.`);
 
         return { 
           assignmentText: fallbackText,
@@ -248,6 +258,7 @@ We encountered an error while trying to generate your take-home assignment for:
 - Focus: ${input.interviewFocus || 'Not specified'}
 - Level: ${input.faangLevel || 'Not specified'}
 - Job Title: ${input.jobTitle || 'Not specified'}
+- Persona: ${input.interviewerPersona || 'Standard'}
 
 Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment. The error was: ${errMessage}`;
         

@@ -13,7 +13,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
+import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 
 import { generateTakeHomeAssignment } from './generate-take-home-assignment';
@@ -55,6 +55,7 @@ export async function customizeInterviewQuestions(
     targetedSkills: input.targetedSkills || [],
     targetCompany: input.targetCompany || "",
     interviewFocus: input.interviewFocus || "",
+    interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value, // Default to standard
     previousConversation: input.previousConversation || "",
     currentQuestion: input.currentQuestion || "",
     caseStudyNotes: input.caseStudyNotes || "",
@@ -70,6 +71,7 @@ export async function customizeInterviewQuestions(
       targetedSkills: saneInput.targetedSkills,
       targetCompany: saneInput.targetCompany,
       interviewFocus: saneInput.interviewFocus,
+      interviewerPersona: saneInput.interviewerPersona,
     };
     try {
       const takeHomeOutput: GenerateTakeHomeAssignmentOutput = await generateTakeHomeAssignment(takeHomeInput);
@@ -151,13 +153,20 @@ const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
   prompt: `You are an **Expert Interview Architect AI**, embodying the persona of a **seasoned hiring manager and curriculum designer from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate tailored interview content for the 'simple-qa' style ONLY, based on the detailed specifications provided.
 You must meticulously consider all inputs to create relevant, challenging, and insightful questions.
+If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), adopt that persona in the style and focus of the questions you generate. For example:
+- 'standard': Balanced and typical questions.
+- 'friendly_peer': Collaborative tone, questions might explore thought process more gently.
+- 'skeptical_hiring_manager': Questions might probe for weaknesses, edge cases, or justifications more directly.
+- 'time_pressed_technical_lead': Questions might be more direct, focused on core technical competency, expecting concise answers.
+- 'behavioral_specialist': Deep focus on STAR method and specific behavioral competencies.
+
 DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; those are handled by specialized processes. If for some reason you are asked to generate those styles here, state that they are handled separately.
 
 **Core Instructions & Persona Nuances:**
-- Your persona is that of a seasoned hiring manager from a top-tier tech company. Your goal is to craft questions that not only test skills but also make the candidate think critically and reveal their problem-solving process. You want them to leave the mock interview feeling challenged yet enlightened.
+- Your persona is that of a seasoned hiring manager. Your goal is to craft questions that not only test skills but also make the candidate think critically and reveal their problem-solving process. You want them to leave the mock interview feeling challenged yet enlightened.
 - You are creating questions for a mock interview, designed to help candidates prepare effectively.
 - Ensure every question directly reflects the provided inputs.
-- AVOID asking questions that can be answered with a simple 'yes' or 'no', especially for L4+ roles.
+- AVOID asking questions that can be answered with a simple 'yes' or 'no', especially for L4+ roles. FOCUS on questions that elicit problem-solving approaches and trade-off discussions.
 
 **Input Utilization & Context:**
 - **Job Title & Description:** Use 'jobTitle' and 'jobDescription' (if provided) to deeply tailor the questions to the responsibilities, technologies, and domain mentioned. The technical depth required should be directly influenced by these. For the given 'faangLevel', consider typical industry expectations regarding: Ambiguity, Complexity, Scope, and Execution.
@@ -188,6 +197,7 @@ Interview Type: {{{interviewType}}}
 Interview Style: {{{interviewStyle}}} (This prompt should only receive 'simple-qa')
 {{#if faangLevel}}FAANG Level: {{{faangLevel}}}{{/if}}
 {{#if targetCompany}}Target Company: {{{targetCompany}}}{{/if}}
+{{#if interviewerPersona}}Interviewer Persona to Adopt: {{{interviewerPersona}}} (Adapt question style accordingly){{/if}}
 {{#if targetedSkills.length}}
 Targeted Skills:
 {{#each targetedSkills}}
@@ -286,6 +296,7 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
     // Prepare the extended input for the prompt, including boolean flags
     const promptInput: SimpleQAPromptInput = {
         ...input,
+        interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         isBehavioral: input.interviewType === 'behavioral',
         isProductSense: input.interviewType === 'product sense',
         isTechnicalSystemDesign: input.interviewType === 'technical system design',

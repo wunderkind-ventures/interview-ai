@@ -29,6 +29,17 @@ export const FAANG_LEVELS = [
 
 export type FaangLevel = typeof FAANG_LEVELS[number]['value'];
 
+export const INTERVIEWER_PERSONAS = [
+  { value: "standard", label: "Standard Interviewer" },
+  { value: "friendly_peer", label: "Friendly Peer Interviewer" },
+  { value: "skeptical_hiring_manager", label: "Skeptical Hiring Manager" },
+  { value: "time_pressed_technical_lead", label: "Time-Pressed Technical Lead" },
+  { value: "behavioral_specialist", label: "Behavioral Specialist (STAR Method Focus)" },
+] as const;
+
+export type InterviewerPersona = typeof INTERVIEWER_PERSONAS[number]['value'];
+
+
 export const LOCAL_STORAGE_KEYS = {
   INTERVIEW_SETUP: 'interviewAI_setup',
   INTERVIEW_SESSION: 'interviewAI_session',
@@ -110,6 +121,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       targetedSkills: ['leadership', 'problem-solving-decision-making', 'communication-skills'],
       interviewFocus: 'Demonstrating Amazon Leadership Principles through past experiences',
       interviewStyle: 'simple-qa',
+      interviewerPersona: 'behavioral_specialist',
     },
   },
   {
@@ -124,6 +136,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       jobTitle: 'Senior Product Manager',
       interviewFocus: 'Developing a 5-year product vision for a new market entry',
       targetCompany: 'Google',
+      interviewerPersona: 'skeptical_hiring_manager',
     },
   },
   {
@@ -137,6 +150,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       targetedSkills: ['scalability', 'api-design', 'trade-offs-decision-making'],
       jobTitle: 'Founding Engineer',
       interviewFocus: 'Designing the initial architecture for a B2C photo sharing service expecting rapid growth',
+      interviewerPersona: 'time_pressed_technical_lead',
     },
   },
   {
@@ -149,6 +163,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       faangLevel: 'L4',
       targetedSkills: ['teamwork-collaboration', 'problem-solving-decision-making', 'communication-skills'],
       jobTitle: 'Software Engineer',
+      interviewerPersona: 'standard',
     },
   },
   {
@@ -162,6 +177,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       jobTitle: 'Product Manager, Analytics',
       targetedSkills: ['metrics-analytics', 'product-strategy'],
       interviewFocus: 'Defining a metrics framework for a new feature launch and analyzing its potential impact.',
+      interviewerPersona: 'standard',
     }
   },
   {
@@ -175,6 +191,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       jobTitle: 'Machine Learning Engineer',
       targetedSkills: ['ml-model-fundamentals', 'ml-evaluation-iteration'],
       interviewFocus: 'Understanding core ML algorithms and evaluation techniques',
+      interviewerPersona: 'standard',
     },
   },
   {
@@ -188,6 +205,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       jobTitle: 'Senior Machine Learning Engineer',
       targetedSkills: ['ml-system-design', 'data-handling-feature-engineering', 'scalability'],
       interviewFocus: 'Designing a large-scale recommendation system',
+      interviewerPersona: 'skeptical_hiring_manager',
     },
   },
   {
@@ -201,6 +219,8 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       jobTitle: 'Software Engineer',
       targetedSkills: ['array-string-manipulation', 'sorting-searching', 'complexity-analysis'],
       interviewFocus: 'Core algorithmic problem solving and complexity analysis',
+      interviewerPersona: 'time_pressed_technical_lead',
     },
   },
 ];
+

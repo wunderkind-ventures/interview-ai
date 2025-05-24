@@ -1,5 +1,5 @@
 
-import type { InterviewType, FaangLevel, InterviewStyle, Skill } from './constants';
+import type { InterviewType, FaangLevel, InterviewStyle, Skill, InterviewerPersona } from './constants';
 import type { Timestamp } from 'firebase/firestore';
 
 
@@ -14,10 +14,12 @@ export interface InterviewSetupData {
   targetCompany?: string;
   interviewFocus?: string;
   selectedThemeId?: string;
+  interviewerPersona?: InterviewerPersona | string; // Allow string for 'standard' or custom
 }
 
 export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId'>> {
   targetedSkills?: string[];
+  interviewerPersona?: InterviewerPersona | string;
 }
 
 export interface ThemedInterviewPack {

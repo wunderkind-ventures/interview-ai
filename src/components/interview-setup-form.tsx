@@ -10,7 +10,7 @@ import React, { useEffect, useState, useRef, useMemo } from "react";
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, deleteDoc, orderBy } from "firebase/firestore";
 import { useAuth } from '@/contexts/auth-context';
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button"; // Import buttonVariants
 import {
   Form,
   FormControl,
@@ -814,7 +814,7 @@ export default function InterviewSetupForm() {
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={Button({variant:"destructive"}).props.className ?? ""}>
+                                                            <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={buttonVariants({ variant: "destructive" })}>
                                                                 Delete
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
@@ -953,7 +953,7 @@ export default function InterviewSetupForm() {
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteResume(res.id!)} className={Button({variant:"destructive"}).props.className ?? ""}>
+                                                            <AlertDialogAction onClick={() => handleDeleteResume(res.id!)} className={buttonVariants({ variant: "destructive" })}>
                                                                 Delete
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
@@ -1065,3 +1065,4 @@ export default function InterviewSetupForm() {
     </>
   );
 }
+

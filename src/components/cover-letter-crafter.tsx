@@ -12,11 +12,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, Sparkles, FileText, ClipboardCopy, AlertTriangle, Building, User, Edit3, MailPlus, List, Trash2, Save } from 'lucide-react';
+import { Loader2, Sparkles, FileText, ClipboardCopy, AlertTriangle, Building, User, Edit3, MailPlus, List, Trash2, Save, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateCoverLetter, type GenerateCoverLetterInput, type GenerateCoverLetterOutput } from '@/ai/flows/generate-cover-letter';
-import type { SavedJobDescription, SavedResume } from '@/lib/types';
+import type { SavedJobDescription, SavedResume, Achievement } from '@/lib/types';
 
 type CoverLetterTone = "professional" | "enthusiastic" | "formal" | "slightly-informal";
 
@@ -58,6 +59,12 @@ export default function CoverLetterCrafter() {
   const [isSaveResumeDialogOpen, setIsSaveResumeDialogOpen] = useState(false);
   const [newResumeTitle, setNewResumeTitle] = useState("");
   const [isSavingResume, setIsSavingResume] = useState(false);
+
+  // State for Achievements Load
+  const [isLoadAchievementsDialogOpen, setIsLoadAchievementsDialogOpen] = useState(false);
+  const [savedAchievements, setSavedAchievements] = useState<Achievement[]>([]);
+  const [isLoadingAchievements, setIsLoadingAchievements] = useState(false);
+  const [selectedAchievementIds, setSelectedAchievementIds] = useState<Set<string>>(new Set());
 
 
   const handleGenerateCoverLetter = async () => {
@@ -195,7 +202,7 @@ export default function CoverLetterCrafter() {
       toast({ title: "Job Description Saved", description: `"${newJobDescriptionTitle}" has been saved.` });
       setIsSaveJobDescriptionDialogOpen(false);
       setNewJobDescriptionTitle("");
-      if(isLoadJobDescriptionDialogOpen) fetchSavedJobDescriptions(); // Refresh list if load dialog was open
+      if(isLoadJobDescriptionDialogOpen) fetchSavedJobDescriptions();
     } catch (error) {
       console.error("Error saving job description:", error);
       const description = error instanceof Error ? error.message : "Could not save job description.";
@@ -291,6 +298,72 @@ export default function CoverLetterCrafter() {
       console.error("Error deleting resume:", error);
       toast({ title: "Error", description: "Could not delete resume.", variant: "destructive" });
     }
+  };
+
+  // Achievements Load Logic
+  const fetchSavedAchievements = async () => {
+    if (!user) return;
+    setIsLoadingAchievements(true);
+    try {
+      const db = getFirestore();
+      const achievementsCol = collection(db, 'users', user.uid, 'achievements');
+      const q = query(achievementsCol, orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const fetchedAchievements: Achievement[] = [];
+      querySnapshot.forEach((docSnap) => {
+        fetchedAchievements.push({ id: docSnap.id, ...docSnap.data() } as Achievement);
+      });
+      setSavedAchievements(fetchedAchievements);
+    } catch (error) {
+      console.error("Error fetching achievements:", error);
+      toast({ title: "Error", description: "Could not load saved achievements.", variant: "destructive" });
+    } finally {
+      setIsLoadingAchievements(false);
+    }
+  };
+
+  const handleOpenLoadAchievementsDialog = () => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to load achievements.", variant: "default" });
+      return;
+    }
+    fetchSavedAchievements();
+    setIsLoadAchievementsDialogOpen(true);
+  };
+
+  const handleAchievementSelectionChange = (achievementId: string) => {
+    setSelectedAchievementIds(prev => {
+      const newSelection = new Set(prev);
+      if (newSelection.has(achievementId)) {
+        newSelection.delete(achievementId);
+      } else {
+        newSelection.add(achievementId);
+      }
+      return newSelection;
+    });
+  };
+
+  const handleAddSelectedAchievementsToContext = () => {
+    let achievementsToAdd = "";
+    selectedAchievementIds.forEach(id => {
+      const achievement = savedAchievements.find(ach => ach.id === id);
+      if (achievement) {
+        achievementsToAdd += `Title: ${achievement.title}\n`;
+        achievementsToAdd += `Situation: ${achievement.situation}\n`;
+        achievementsToAdd += `Task: ${achievement.task}\n`;
+        achievementsToAdd += `Action: ${achievement.action}\n`;
+        achievementsToAdd += `Result: ${achievement.result}\n`;
+        if (achievement.quantifiableImpact) {
+          achievementsToAdd += `Quantifiable Impact: ${achievement.quantifiableImpact}\n`;
+        }
+        achievementsToAdd += "---\n\n";
+      }
+    });
+
+    setAchievementsText(prev => prev + (prev ? "\n\n" : "") + achievementsToAdd.trim());
+    toast({ title: "Achievements Added", description: `${selectedAchievementIds.size} achievement(s) added to the context.` });
+    setSelectedAchievementIds(new Set());
+    setIsLoadAchievementsDialogOpen(false);
   };
 
 
@@ -520,15 +593,68 @@ export default function CoverLetterCrafter() {
           </div>
 
           <div>
-            <label htmlFor="achievementsText" className="block text-sm font-medium text-foreground mb-1">Key Achievements to Highlight (Optional)</label>
+            <div className="flex items-center justify-between mb-1">
+                <label htmlFor="achievementsText" className="block text-sm font-medium text-foreground">Key Achievements to Highlight (Optional)</label>
+                 <Dialog open={isLoadAchievementsDialogOpen} onOpenChange={setIsLoadAchievementsDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadAchievementsDialog}>
+                            <Trophy className="mr-2 h-4 w-4" /> Load Saved Achievements
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>Select Achievements to Add</DialogTitle>
+                            <DialogDescription>Choose which of your saved achievements you'd like to add to the context for this cover letter.</DialogDescription>
+                        </DialogHeader>
+                        {isLoadingAchievements ? (
+                            <div className="flex justify-center items-center h-40">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : savedAchievements.length > 0 ? (
+                            <ScrollArea className="h-[300px] my-4">
+                                <div className="space-y-3 pr-2">
+                                {savedAchievements.map((ach) => (
+                                    <Card key={ach.id} className="p-3 flex items-start space-x-3 hover:bg-secondary/50 transition-colors">
+                                        <Checkbox
+                                            id={`ach-${ach.id}`}
+                                            checked={selectedAchievementIds.has(ach.id!)}
+                                            onCheckedChange={() => handleAchievementSelectionChange(ach.id!)}
+                                            className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                            <label htmlFor={`ach-${ach.id}`} className="font-medium text-sm cursor-pointer">{ach.title}</label>
+                                            {ach.dateAchieved && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Achieved: {new Date(ach.dateAchieved).toLocaleDateString()}
+                                                </p>
+                                            )}
+                                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">Result: {ach.result}</p>
+                                        </div>
+                                    </Card>
+                                ))}
+                                </div>
+                            </ScrollArea>
+                        ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">No saved achievements found. You can add them in the "My Achievements" section.</p>
+                        )}
+                        <DialogFooter>
+                            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                            <Button onClick={handleAddSelectedAchievementsToContext} disabled={selectedAchievementIds.size === 0}>
+                                Add {selectedAchievementIds.size > 0 ? `(${selectedAchievementIds.size}) ` : ''}Selected to Context
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
             <Textarea
               id="achievementsText"
-              placeholder="Paste 2-3 key achievements relevant to this job. e.g., 'Led a team of 5 to launch Product X, increasing user engagement by 20%.' or bullet points."
+              placeholder="Paste 2-3 key achievements relevant to this job, or load them from your saved achievements. e.g., 'Led a team of 5 to launch Product X, increasing user engagement by 20%.' or bullet points."
               value={achievementsText}
               onChange={(e) => setAchievementsText(e.target.value)}
               className="min-h-[100px] text-sm"
               rows={5}
             />
+             <p className="text-xs text-muted-foreground mt-1">You can type, paste, or load from your saved achievements. {!user && <span className="text-amber-600">(Login to load saved achievements)</span>}</p>
           </div>
 
           <div>
@@ -599,3 +725,5 @@ export default function CoverLetterCrafter() {
     </div>
   );
 }
+
+    

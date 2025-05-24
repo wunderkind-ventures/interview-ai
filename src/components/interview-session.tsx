@@ -23,7 +23,8 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
 import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -747,7 +748,7 @@ export default function InterviewSession() {
     );
   }
 
-  // Add this guard after the initial loading/error/finished checks.
+  
   if (!isGeneratingFollowUp && (!sessionData.questions || sessionData.questions.length === 0 || sessionData.currentQuestionIndex >= sessionData.questions.length)) {
     return (
       <Alert variant="destructive" className="max-w-lg mx-auto">
@@ -757,7 +758,7 @@ export default function InterviewSession() {
           No questions were loaded for this interview session. This might be due to an issue during question generation or an incomplete setup. Please try starting a new interview.
         </AlertDescription>
         <Button onClick={() => {
-          localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); // Clear potentially problematic session
+          localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
           router.push("/");
         }} className="mt-4">Back to Setup</Button>
       </Alert>
@@ -829,7 +830,7 @@ export default function InterviewSession() {
                             View Case Study History (Previous Turns)
                         </div>
                     </AccordionTrigger>
-                    <AccordionContent className="px-4 py-3 space-y-3 text-sm bg-background rounded-b-md">
+                    <AccordionContent className="px-4 py-3 space-y-3 text-sm bg-background rounded-b-md max-h-60 overflow-y-auto">
                         {sessionData.caseConversationHistory.map((turn, index) => (
                             <div key={index} className="pb-2 mb-2 border-b last:border-b-0 last:pb-0 last:mb-0">
                                 <p className="font-semibold text-primary">Interviewer (Turn {index + 1}):</p>
@@ -866,16 +867,25 @@ export default function InterviewSession() {
              <p className={`text-lg mb-3 ${sessionData.interviewStyle === 'take-home' ? 'whitespace-pre-wrap p-4 border rounded-md bg-secondary/30' : ''}`}>
                 {currentQuestion.text}
             </p>
-            <div className="flex space-x-2 mb-3">
-                <Button variant="ghost" size="sm" onClick={openExplainTermDialog} className="text-xs text-muted-foreground hover:text-primary">
-                <Lightbulb className="mr-1.5 h-3.5 w-3.5" /> Explain a concept
-                </Button>
-                <Button variant="ghost" size="sm" onClick={openHintDialog} className="text-xs text-muted-foreground hover:text-primary">
-                    <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Get a hint
-                </Button>
-                <Button variant="ghost" size="sm" onClick={handleFetchSampleAnswer} className="text-xs text-muted-foreground hover:text-primary">
-                    <BookOpen className="mr-1.5 h-3.5 w-3.5" /> View Sample Answer
-                </Button>
+            <div className="flex space-x-1 mb-3 items-center">
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="text-xs text-muted-foreground hover:text-primary">
+                            <HelpCircle className="mr-1.5 h-3.5 w-3.5" /> Help Tools
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={openExplainTermDialog}>
+                            <Lightbulb className="mr-2 h-4 w-4" /> Explain a concept
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={openHintDialog}>
+                            <Sparkles className="mr-2 h-4 w-4" /> Get a hint
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleFetchSampleAnswer}>
+                            <BookOpen className="mr-2 h-4 w-4" /> View Sample Answer
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
 
             {sessionData.interviewStyle === 'case-study' && (
@@ -1060,11 +1070,11 @@ export default function InterviewSession() {
             </DialogTitle>
             {currentQuestion && <DialogDescription>For question: "{currentQuestion.text}"</DialogDescription>}
           </DialogHeader>
-          <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto">
+          <div className="py-4 space-y-6 max-h-[60vh] overflow-y-auto pr-2">
             {isFetchingSampleAnswer && (
-              <div className="flex items-center text-sm text-muted-foreground">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating sample answer...
+              <div className="flex flex-col items-center justify-center py-10">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mb-3" />
+                <p className="text-muted-foreground">Generating sample answer...</p>
               </div>
             )}
             {sampleAnswerError && !isFetchingSampleAnswer && (

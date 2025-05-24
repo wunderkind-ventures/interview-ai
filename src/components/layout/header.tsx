@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { BotMessageSquare, LogIn, LogOut, UserCircle } from 'lucide-react';
+import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History, FileEdit, MailPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +25,7 @@ export default function Header() {
           <BotMessageSquare className="h-8 w-8" />
           <span>InterviewAI</span>
         </Link>
-        
+
         <div className="flex items-center gap-2">
           {loading ? (
             <Button variant="ghost" size="sm" disabled>Loading...</Button>
@@ -53,8 +53,31 @@ export default function Header() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {/* Add links to profile, settings etc. here later */}
-                {/* <DropdownMenuItem>Profile</DropdownMenuItem> */}
+                <DropdownMenuItem asChild>
+                  <Link href="/achievements" className="flex items-center w-full">
+                    <Trophy className="mr-2 h-4 w-4" />
+                    <span>My Achievements</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/history" className="flex items-center w-full">
+                    <History className="mr-2 h-4 w-4" />
+                    <span>Interview History</span>
+                  </Link>
+                </DropdownMenuItem>
+                 <DropdownMenuItem asChild>
+                  <Link href="/resume-lab" className="flex items-center w-full">
+                    <FileEdit className="mr-2 h-4 w-4" />
+                    <span>Resume Lab</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/cover-letter-crafter" className="flex items-center w-full">
+                    <MailPlus className="mr-2 h-4 w-4" />
+                    <span>Cover Letter Crafter</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Log out</span>
@@ -72,3 +95,5 @@ export default function Header() {
     </header>
   );
 }
+
+    

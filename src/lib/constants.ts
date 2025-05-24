@@ -1,5 +1,5 @@
 
-import type { InterviewSetupData, ThemedInterviewPack, Skill } from './types';
+import type { InterviewSetupData, ThemedInterviewPack } from './types';
 
 export const INTERVIEW_TYPES = [
   { value: "product sense", label: "Product Sense" },
@@ -33,6 +33,11 @@ export const LOCAL_STORAGE_KEYS = {
   INTERVIEW_SETUP: 'interviewAI_setup',
   INTERVIEW_SESSION: 'interviewAI_session',
 };
+
+export interface Skill {
+  value: string;
+  label: string;
+}
 
 export const SKILLS_BY_INTERVIEW_TYPE: Record<InterviewType, Skill[]> = {
   "product sense": [
@@ -118,7 +123,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
       targetedSkills: ['product-strategy', 'innovation-creativity', 'metrics-analytics'],
       jobTitle: 'Senior Product Manager',
       interviewFocus: 'Developing a 5-year product vision for a new market entry',
-      targetCompany: 'Google', 
+      targetCompany: 'Google',
     },
   },
   {
@@ -128,7 +133,7 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
     config: {
       interviewType: 'technical system design',
       interviewStyle: 'case-study',
-      faangLevel: 'L4', 
+      faangLevel: 'L4',
       targetedSkills: ['scalability', 'api-design', 'trade-offs-decision-making'],
       jobTitle: 'Founding Engineer',
       interviewFocus: 'Designing the initial architecture for a B2C photo sharing service expecting rapid growth',

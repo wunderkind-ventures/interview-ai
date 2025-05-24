@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History, FileEdit } from 'lucide-react'; // Added History, FileEdit
+import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History, FileEdit, MailPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -71,6 +71,12 @@ export default function Header() {
                     <span>Resume Lab</span>
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/cover-letter-crafter" className="flex items-center w-full">
+                    <MailPlus className="mr-2 h-4 w-4" />
+                    <span>Cover Letter Crafter</span>
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
@@ -89,3 +95,5 @@ export default function Header() {
     </header>
   );
 }
+
+    

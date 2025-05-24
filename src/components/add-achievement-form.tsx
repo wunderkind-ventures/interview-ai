@@ -20,8 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { CalendarIcon, Loader2, Save, Sparkles, AlertTriangle, Lightbulb, CheckSquare } from "lucide-react"; // Added CheckSquare
+import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from "@/components/ui/card"; // Renamed CardTitle to avoid conflict
+import { CalendarIcon, Loader2, Save, Sparkles, AlertTriangle, Lightbulb, CheckSquare, X } from "lucide-react";
 import { format, parseISO } from 'date-fns';
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -58,7 +58,6 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [isAiHelpDialogOpen, setIsAiHelpDialogOpen] = useState(false);
   const [activeHelpComponent, setActiveHelpComponent] = useState<StarComponentType | null>(null);
   const [aiGuidance, setAiGuidance] = useState<GetAchievementComponentGuidanceOutput | null>(null);
   const [isFetchingAiGuidance, setIsFetchingAiGuidance] = useState(false);
@@ -94,7 +93,6 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
 
   const handleAiAssist = async (component: StarComponentType) => {
     setActiveHelpComponent(component);
-    setIsAiHelpDialogOpen(true);
     setIsFetchingAiGuidance(true);
     setAiGuidance(null);
     setAiGuidanceError(null);
@@ -125,6 +123,12 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
       setIsFetchingAiGuidance(false);
     }
   };
+  
+  const closeAiAssistancePanel = () => {
+    setActiveHelpComponent(null);
+    setAiGuidance(null);
+    setAiGuidanceError(null);
+  };
 
   const renderAiAssistButton = (component: StarComponentType) => (
     <Button
@@ -142,6 +146,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
 
   async function onSubmit(data: AchievementFormValues) {
     setIsSubmitting(true);
+    closeAiAssistancePanel(); // Close AI panel on submit
     const db = getFirestore();
     const achievementId = existingAchievement?.id || doc(collection(db, `users/${userId}/achievements`)).id;
     
@@ -356,6 +361,70 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
             )}
           />
 
+          {/* AI Assistance Panel */}
+          {activeHelpComponent && (aiGuidance || isFetchingAiGuidance || aiGuidanceError) && (
+            <Card className="mt-6 mb-4 border-primary/50 shadow-md">
+              <CardHeader className="py-3 px-4 bg-primary/10">
+                <div className="flex items-center justify-between">
+                    <UiCardTitle className="text-base font-semibold text-primary flex items-center">
+                        <Sparkles className="h-5 w-5 mr-2" />
+                        AI Assistance for {activeHelpComponent.charAt(0).toUpperCase() + activeHelpComponent.slice(1)}
+                    </UiCardTitle>
+                    <Button variant="ghost" size="icon" onClick={closeAiAssistancePanel} className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Close AI Assistance</span>
+                    </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3 text-sm">
+                {isFetchingAiGuidance && (
+                  <div className="flex items-center text-muted-foreground">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Fetching AI guidance...
+                  </div>
+                )}
+                {aiGuidanceError && !isFetchingAiGuidance && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <UiAlertDescription>{aiGuidanceError}</UiAlertDescription>
+                  </Alert>
+                )}
+                {aiGuidance && !isFetchingAiGuidance && (
+                  <div className="space-y-3">
+                    {aiGuidance.guidingQuestions && aiGuidance.guidingQuestions.length > 0 && (
+                      <div>
+                        <h5 className="font-semibold text-muted-foreground mb-1 flex items-center"><Lightbulb className="h-4 w-4 mr-1.5 text-yellow-500" />Guiding Questions:</h5>
+                        <ul className="list-disc space-y-0.5 pl-5">
+                          {aiGuidance.guidingQuestions.map((q, i) => <li key={`gq-${i}`}>{q}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {aiGuidance.examplePhrases && aiGuidance.examplePhrases.length > 0 && (
+                      <div>
+                        <h5 className="font-semibold text-muted-foreground mb-1 flex items-center"><Sparkles className="h-4 w-4 mr-1.5 text-indigo-500" />Example Phrases:</h5>
+                        <ul className="list-disc space-y-0.5 pl-5">
+                          {aiGuidance.examplePhrases.map((p, i) => <li key={`ep-${i}`}><em>"{p}"</em></li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {aiGuidance.suggestedPointsToConsider && aiGuidance.suggestedPointsToConsider.length > 0 && (
+                      <div>
+                        <h5 className="font-semibold text-muted-foreground mb-1.5 flex items-center"><CheckSquare className="h-4 w-4 mr-1.5 text-green-500" />Suggested Points to Consider:</h5>
+                         <div className="flex flex-wrap gap-1.5">
+                          {aiGuidance.suggestedPointsToConsider.map((s, i) => (
+                            <Badge key={`sp-${i}`} variant="secondary" className="text-xs font-normal">{s}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
@@ -371,72 +440,6 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
           </Button>
         </form>
       </Form>
-
-      <Dialog open={isAiHelpDialogOpen} onOpenChange={setIsAiHelpDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <Sparkles className="h-5 w-5 mr-2 text-primary" />
-              AI Assistance for {activeHelpComponent ? `"${activeHelpComponent.charAt(0).toUpperCase() + activeHelpComponent.slice(1)}"` : "Achievement"}
-            </DialogTitle>
-            <DialogDescription>
-              Let AI help you articulate this part of your achievement.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-            {isFetchingAiGuidance && (
-              <div className="flex items-center text-sm text-muted-foreground">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Fetching AI guidance...
-              </div>
-            )}
-            {aiGuidanceError && !isFetchingAiGuidance && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <UiAlertDescription>{aiGuidanceError}</UiAlertDescription>
-              </Alert>
-            )}
-            {aiGuidance && !isFetchingAiGuidance && (
-              <div className="space-y-4 text-sm">
-                {aiGuidance.guidingQuestions && aiGuidance.guidingQuestions.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-muted-foreground mb-1.5 flex items-center"><Lightbulb className="h-4 w-4 mr-2 text-yellow-500" />Guiding Questions:</h4>
-                    <ul className="list-disc space-y-1 pl-5">
-                      {aiGuidance.guidingQuestions.map((q, i) => <li key={`gq-${i}`}>{q}</li>)}
-                    </ul>
-                  </div>
-                )}
-                {aiGuidance.examplePhrases && aiGuidance.examplePhrases.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-muted-foreground mb-1.5 flex items-center"><Sparkles className="h-4 w-4 mr-2 text-indigo-500" />Example Phrases:</h4>
-                    <ul className="list-disc space-y-1 pl-5">
-                      {aiGuidance.examplePhrases.map((p, i) => <li key={`ep-${i}`}><em>"{p}"</em></li>)}
-                    </ul>
-                  </div>
-                )}
-                {aiGuidance.suggestedPointsToConsider && aiGuidance.suggestedPointsToConsider.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-muted-foreground mb-1.5 flex items-center"><CheckSquare className="h-4 w-4 mr-2 text-green-500" />Suggested Points to Consider:</h4>
-                     <div className="flex flex-wrap gap-2">
-                      {aiGuidance.suggestedPointsToConsider.map((s, i) => (
-                        <Badge key={`sp-${i}`} variant="secondary" className="text-xs font-normal">{s}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Close
-              </Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

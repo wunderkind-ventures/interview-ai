@@ -1,5 +1,5 @@
 
-import type { InterviewType, FaangLevel, InterviewStyle } from './constants';
+import type { InterviewType, FaangLevel, InterviewStyle, Skill } from './constants';
 
 export interface InterviewSetupData {
   interviewType: InterviewType;
@@ -38,7 +38,7 @@ export interface Answer {
   questionId: string;
   answerText: string;
   timeTakenMs?: number;
-  confidenceScore?: number;
+  confidenceScore?: number; // 1-5 stars
 }
 
 export interface FeedbackItem {
@@ -51,7 +51,7 @@ export interface FeedbackItem {
   critique?: string;
   idealAnswerPointers?: string[];
   timeTakenMs?: number;
-  confidenceScore?: number;
+  confidenceScore?: number; // To display user's confidence alongside feedback
   reflectionPrompts?: string[];
 }
 
@@ -79,9 +79,35 @@ export interface InterviewSessionData extends InterviewSetupData {
   feedback?: InterviewFeedback | null;
   deepDives?: Record<string, DeepDiveFeedback>;
   sampleAnswers?: Record<string, string>;
-  currentCaseTurnNumber?: number;
-  caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
-  caseStudyNotes?: string;
-  isLoggedToServer?: boolean; // Added flag to track if logged
+  currentCaseTurnNumber?: number; // For case studies
+  caseConversationHistory?: Array<{ questionText: string, answerText: string }>; // For case studies
+  caseStudyNotes?: string; // For case studies
+  isLoggedToServer?: boolean;
 }
 
+export interface Achievement {
+  id?: string; // Firestore document ID
+  userId?: string; // Associated user
+  title: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  skillsDemonstrated?: string[];
+  quantifiableImpact?: string;
+  dateAchieved?: string | null; // ISO string or null
+  createdAt?: any; // Firestore serverTimestamp
+  updatedAt?: any; // Firestore serverTimestamp
+}
+
+export interface SavedItem {
+  id?: string;
+  userId?: string;
+  title: string;
+  content: string;
+  createdAt?: any; // Firestore serverTimestamp
+  updatedAt?: any; // Firestore serverTimestamp
+}
+
+export interface SavedResume extends SavedItem {}
+export interface SavedJobDescription extends SavedItem {}

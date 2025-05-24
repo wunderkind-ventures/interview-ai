@@ -5,8 +5,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2, UploadCloud } from "lucide-react";
-import React, { useEffect, useState, useRef } from "react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2, UploadCloud, Save, List, AlertCircle, Trash2 } from "lucide-react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, deleteDoc, orderBy } from "firebase/firestore";
+import { useAuth } from '@/contexts/auth-context';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,8 +32,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, InterviewType, FaangLevel, INTERVIEW_STYLES, InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, Skill, THEMED_INTERVIEW_PACKS } from "@/lib/constants";
-import type { InterviewSetupData, ThemedInterviewPack, ThemedInterviewPackConfig } from "@/lib/types";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+
+
+import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, type InterviewType, type FaangLevel, INTERVIEW_STYLES, type InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, THEMED_INTERVIEW_PACKS, type Skill } from "@/lib/constants";
+import type { InterviewSetupData, ThemedInterviewPack, ThemedInterviewPackConfig, SavedResume } from "@/lib/types";
 import { summarizeResume } from "@/ai/flows/summarize-resume";
 import type { SummarizeResumeOutput } from "@/ai/flows/summarize-resume";
 import { useToast } from "@/hooks/use-toast";
@@ -52,20 +59,29 @@ const formSchema = z.object({
   targetedSkills: z.array(z.string()).optional(),
   targetCompany: z.string().optional(),
   interviewFocus: z.string().optional(),
-  selectedThemeId: z.string().optional(), // For tracking selected theme
+  selectedThemeId: z.string().optional(),
 });
 
 export default function InterviewSetupForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const [resumeSummary, setResumeSummary] = useState<string | null>(null);
   const [isSummarizingResume, setIsSummarizingResume] = useState(false);
   const [resumeSummaryError, setResumeSummaryError] = useState<string | null>(null);
   const [summarizedForResumeText, setSummarizedForResumeText] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isSaveResumeDialogOpen, setIsSaveResumeDialogOpen] = useState(false);
+  const [newResumeTitle, setNewResumeTitle] = useState("");
+  const [isSavingResume, setIsSavingResume] = useState(false);
+  const [isLoadResumeDialogOpen, setIsLoadResumeDialogOpen] = useState(false);
+  const [savedResumes, setSavedResumes] = useState<SavedResume[]>([]);
+  const [isLoadingResumes, setIsLoadingResumes] = useState(false);
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -79,19 +95,35 @@ export default function InterviewSetupForm() {
       targetedSkills: [],
       targetCompany: "",
       interviewFocus: "",
-      selectedThemeId: "custom", // Default to custom
+      selectedThemeId: "custom",
     },
   });
 
   const watchedInterviewType = form.watch("interviewType");
-  const availableSkills = watchedInterviewType ? SKILLS_BY_INTERVIEW_TYPE[watchedInterviewType] : [];
+  const currentResumeContent = form.watch("resume");
+
+  const availableSkills: Skill[] = useMemo(() => {
+    return SKILLS_BY_INTERVIEW_TYPE[watchedInterviewType] || [];
+  }, [watchedInterviewType]);
 
   useEffect(() => {
-    // Reset targeted skills when interview type changes, unless a theme is actively setting it
-    if (form.getValues("selectedThemeId") === "custom") {
-      form.setValue("targetedSkills", []);
+    if (form.getValues("selectedThemeId") === "custom" && availableSkills.length > 0) {
+      // When switching to custom from a theme, or when available skills change for custom,
+      // filter current targetedSkills to ensure they are valid for the new type.
+      const currentTargetedSkills = form.getValues("targetedSkills") || [];
+      const validCurrentTargetedSkills = currentTargetedSkills.filter(skillVal =>
+        availableSkills.some(s => s.value === skillVal)
+      );
+      if (currentTargetedSkills.length !== validCurrentTargetedSkills.length) {
+        form.setValue("targetedSkills", validCurrentTargetedSkills);
+      }
+    } else if (form.getValues("selectedThemeId") !== "custom") {
+        // Theme is selected, skills are handled by handleThemeChange
+    } else { // Custom config and no available skills (e.g. initial load)
+        form.setValue("targetedSkills", []);
     }
-  }, [watchedInterviewType, form]);
+  }, [watchedInterviewType, availableSkills, form]);
+
 
   const handleResumeAnalysis = async () => {
     const currentResumeText = form.getValues('resume');
@@ -127,19 +159,18 @@ export default function InterviewSetupForm() {
       setIsSummarizingResume(false);
     }
   };
-  
+
   useEffect(() => {
     const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
     if (storedSetup) {
       try {
         const parsedSetup = JSON.parse(storedSetup) as InterviewSetupData;
-        // If there's stored setup, it's considered custom, not a theme override
         form.reset({
           ...parsedSetup,
-          selectedThemeId: "custom", 
+          selectedThemeId: parsedSetup.selectedThemeId || "custom",
         });
         if (parsedSetup.resume && parsedSetup.resume.trim() !== "") {
-           setSummarizedForResumeText(parsedSetup.resume); 
+           setSummarizedForResumeText(parsedSetup.resume);
         }
       } catch (e) {
         console.error("Failed to parse stored interview setup:", e);
@@ -151,14 +182,17 @@ export default function InterviewSetupForm() {
   const handleThemeChange = (themeId: string) => {
     form.setValue("selectedThemeId", themeId);
     if (themeId === "custom") {
-      // Optionally, you could reset to defaults or keep current values
-      // For now, let's keep current values to allow tweaking from a theme
+       // When switching to custom, retain current values but ensure skills are valid
+      const currentTargetedSkills = form.getValues("targetedSkills") || [];
+      const validCurrentTargetedSkills = currentTargetedSkills.filter(skillVal =>
+        availableSkills.some(s => s.value === skillVal)
+      );
+      form.setValue("targetedSkills", validCurrentTargetedSkills);
       return;
     }
     const selectedPack = THEMED_INTERVIEW_PACKS.find(pack => pack.id === themeId);
     if (selectedPack) {
       const { config } = selectedPack;
-      // Reset form with theme config, but preserve resume
       const currentResume = form.getValues("resume");
       const newFormValues: Partial<z.infer<typeof formSchema>> = {
         interviewType: config.interviewType || INTERVIEW_TYPES[0].value,
@@ -166,30 +200,29 @@ export default function InterviewSetupForm() {
         faangLevel: config.faangLevel || FAANG_LEVELS[1].value,
         jobTitle: config.jobTitle || "",
         jobDescription: config.jobDescription || "",
-        targetedSkills: [], // Reset first
+        targetedSkills: [],
         targetCompany: config.targetCompany || "",
         interviewFocus: config.interviewFocus || "",
-        resume: currentResume, // Preserve resume, but clear analysis states
+        resume: currentResume,
         selectedThemeId: themeId,
       };
-      form.reset(newFormValues);
+      form.reset(newFormValues); // Reset with theme, will trigger watchedInterviewType change
+      
+      // Skills need to be set after form.reset potentially changes interviewType
+      // and thus availableSkills.
+       setTimeout(() => {
+        const themeInterviewType = config.interviewType || INTERVIEW_TYPES[0].value;
+        const skillsForThemeType = SKILLS_BY_INTERVIEW_TYPE[themeInterviewType] || [];
+        const validThemeSkills = (config.targetedSkills || []).filter(skillVal =>
+            skillsForThemeType.some(s => s.value === skillVal)
+        );
+        form.setValue("targetedSkills", validThemeSkills);
+      }, 0);
+
       setResumeSummary(null);
       setResumeSummaryError(null);
-      setSummarizedForResumeText(currentResume); // Re-set this to trigger re-analysis if resume exists
-      setSelectedFileName(null); // Clear selected file name on theme change
-
-
-      // Set targetedSkills after interviewType is set by reset to ensure availableSkills is up-to-date
-      // This timeout allows the watchedInterviewType effect to run and update availableSkills
-      setTimeout(() => {
-        if (config.interviewType && config.targetedSkills) {
-            const validSkillsForType = SKILLS_BY_INTERVIEW_TYPE[config.interviewType];
-            const validThemeSkills = config.targetedSkills.filter(skillVal => validSkillsForType.some(s => s.value === skillVal));
-            form.setValue("targetedSkills", validThemeSkills);
-        } else {
-             form.setValue("targetedSkills", []);
-        }
-      }, 0);
+      setSummarizedForResumeText(currentResume);
+      setSelectedFileName(null);
     }
   };
 
@@ -207,7 +240,7 @@ export default function InterviewSetupForm() {
         variant: "destructive",
       });
       setSelectedFileName(null);
-      if(fileInputRef.current) fileInputRef.current.value = ""; // Reset file input
+      if(fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
@@ -217,8 +250,7 @@ export default function InterviewSetupForm() {
       const textContent = e.target?.result as string;
       if (textContent) {
         form.setValue("resume", textContent);
-        // Manually trigger resume analysis as if onBlur happened
-        handleResumeAnalysis(); 
+        handleResumeAnalysis();
         toast({
           title: "Resume Uploaded",
           description: `${file.name} has been read successfully.`,
@@ -245,13 +277,12 @@ export default function InterviewSetupForm() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-    const { selectedThemeId, ...setupDataValues } = values; // Exclude selectedThemeId
     const setupData: InterviewSetupData = {
-        ...setupDataValues,
-        targetedSkills: values.targetedSkills || [], // Ensure it's an array
+        ...values,
+        targetedSkills: values.targetedSkills || [],
     };
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
-    localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
+    localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
     router.push("/interview");
   }
 
@@ -275,7 +306,97 @@ export default function InterviewSetupForm() {
     }
   };
 
+  const fetchSavedResumes = async () => {
+    if (!user) return;
+    setIsLoadingResumes(true);
+    try {
+      const db = getFirestore();
+      const resumesCol = collection(db, 'users', user.uid, 'resumes');
+      const q = query(resumesCol, orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const fetchedResumes: SavedResume[] = [];
+      querySnapshot.forEach((docSnap) => {
+        fetchedResumes.push({ id: docSnap.id, ...docSnap.data() } as SavedResume);
+      });
+      setSavedResumes(fetchedResumes);
+    } catch (error) {
+      console.error("Error fetching resumes:", error);
+      toast({ title: "Error", description: "Could not load saved resumes.", variant: "destructive" });
+    } finally {
+      setIsLoadingResumes(false);
+    }
+  };
+
+  const handleOpenLoadResumeDialog = () => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to load saved resumes.", variant: "default" });
+      return;
+    }
+    fetchSavedResumes();
+    setIsLoadResumeDialogOpen(true);
+  };
+
+  const handleSaveCurrentResume = async () => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to save your resume.", variant: "default" });
+      return;
+    }
+    if (!newResumeTitle.trim()) {
+      toast({ title: "Title Required", description: "Please enter a title for your resume.", variant: "destructive" });
+      return;
+    }
+    const resumeContent = form.getValues("resume");
+    if (!resumeContent || !resumeContent.trim()) {
+      toast({ title: "No Content", description: "Resume content is empty. Nothing to save.", variant: "default" });
+      return;
+    }
+
+    setIsSavingResume(true);
+    try {
+      const db = getFirestore();
+      const resumeData: Omit<SavedResume, 'id'> = {
+        userId: user.uid,
+        title: newResumeTitle,
+        content: resumeContent,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      await addDoc(collection(db, 'users', user.uid, 'resumes'), resumeData);
+      toast({ title: "Resume Saved", description: `"${newResumeTitle}" has been saved.` });
+      setIsSaveResumeDialogOpen(false);
+      setNewResumeTitle("");
+      if(isLoadResumeDialogOpen) fetchSavedResumes();
+    } catch (error) {
+      console.error("Error saving resume:", error);
+      toast({ title: "Error", description: "Could not save resume.", variant: "destructive" });
+    } finally {
+      setIsSavingResume(false);
+    }
+  };
+
+  const handleLoadResume = (resume: SavedResume) => {
+    form.setValue("resume", resume.content);
+    toast({ title: "Resume Loaded", description: `"${resume.title}" has been loaded into the form.` });
+    setIsLoadResumeDialogOpen(false);
+    handleResumeAnalysis();
+  };
+
+  const handleDeleteResume = async (resumeId: string) => {
+    if (!user || !resumeId) return;
+    try {
+      const db = getFirestore();
+      await deleteDoc(doc(db, 'users', user.uid, 'resumes', resumeId));
+      toast({ title: "Resume Deleted", description: "The resume has been deleted." });
+      fetchSavedResumes();
+    } catch (error) {
+      console.error("Error deleting resume:", error);
+      toast({ title: "Error", description: "Could not delete resume.", variant: "destructive" });
+    }
+  };
+
+
   return (
+    <>
     <Card className="w-full max-w-2xl mx-auto shadow-xl">
       <CardHeader>
         <CardTitle className="text-3xl font-bold text-center text-primary">Start Your Mock Interview</CardTitle>
@@ -295,7 +416,7 @@ export default function InterviewSetupForm() {
                     <PackageSearch className="mr-2 h-5 w-5 text-primary" />
                     Interview Theme (Optional)
                   </FormLabel>
-                  <Select onValueChange={handleThemeChange} value={field.value} defaultValue="custom">
+                  <Select onValueChange={handleThemeChange} value={field.value || "custom"}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a theme or configure manually" />
@@ -472,7 +593,7 @@ export default function InterviewSetupForm() {
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="targetCompany"
@@ -571,27 +692,117 @@ export default function InterviewSetupForm() {
               name="resume"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-1">
                     <FormLabel className="flex items-center text-lg">
                       <UserCircle className="mr-2 h-5 w-5 text-primary" />
                       Your Resume (Optional)
                     </FormLabel>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <UploadCloud className="mr-2 h-4 w-4" />
-                      Upload .txt
-                    </Button>
+                    <div className="flex items-center space-x-2">
+                       <Dialog open={isSaveResumeDialogOpen} onOpenChange={setIsSaveResumeDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button type="button" variant="outline" size="sm" disabled={!user || !currentResumeContent?.trim()} onClick={() => setNewResumeTitle("")}>
+                            <Save className="mr-2 h-4 w-4" /> Save this Resume
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Save Resume</DialogTitle>
+                            <DialogDescription>Enter a title for this resume to save it for later use.</DialogDescription>
+                          </DialogHeader>
+                          <Input
+                            placeholder="e.g., My FAANG Resume, Data Science Resume v3"
+                            value={newResumeTitle}
+                            onChange={(e) => setNewResumeTitle(e.target.value)}
+                            className="my-4"
+                          />
+                          <DialogFooter>
+                            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                            <Button onClick={handleSaveCurrentResume} disabled={isSavingResume || !newResumeTitle.trim()}>
+                              {isSavingResume && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                       <Dialog open={isLoadResumeDialogOpen} onOpenChange={setIsLoadResumeDialogOpen}>
+                        <DialogTrigger asChild>
+                           <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadResumeDialog}>
+                            <List className="mr-2 h-4 w-4" /> Load Saved
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Load Saved Resume</DialogTitle>
+                                <DialogDescription>Select a resume to load into the form.</DialogDescription>
+                            </DialogHeader>
+                            {isLoadingResumes ? (
+                                <div className="flex justify-center items-center h-32">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                </div>
+                            ) : savedResumes.length > 0 ? (
+                                <ScrollArea className="h-[200px] my-4">
+                                    <div className="space-y-2 pr-2">
+                                    {savedResumes.map((res) => (
+                                        <Card key={res.id} className="p-3 flex justify-between items-center hover:bg-secondary/50 transition-colors">
+                                            <div>
+                                                <p className="font-medium text-sm">{res.title}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Saved: {res.createdAt?.toDate ? res.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center space-x-1">
+                                                <Button variant="ghost" size="sm" onClick={() => handleLoadResume(res)}>Load</Button>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
+                                                          <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Delete Resume?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                Are you sure you want to delete "{res.title}"? This action cannot be undone.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteResume(res.id!)} className={Button({variant:"destructive"}).props.className}>
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        </Card>
+                                    ))}
+                                    </div>
+                                </ScrollArea>
+                            ) : (
+                                <p className="text-sm text-muted-foreground text-center py-4">No saved resumes found.</p>
+                            )}
+                            <DialogFooter>
+                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                            </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="hidden sm:inline-flex"
+                      >
+                        <UploadCloud className="mr-2 h-4 w-4" />
+                        Upload .txt
+                      </Button>
+                    </div>
                   </div>
                   <FormControl>
                     <Textarea
                       placeholder="Paste your resume content here or upload a .txt file..."
                       className="resize-y min-h-[120px]"
                       {...field}
-                      onBlur={handleResumeAnalysis} // Keep onBlur analysis for pasted text
+                      onBlur={handleResumeAnalysis}
                     />
                   </FormControl>
                    <input
@@ -603,7 +814,8 @@ export default function InterviewSetupForm() {
                   />
                   <div className="flex justify-between items-center">
                     <FormDescription>
-                      Paste resume or upload a .txt file. Helps AI ask relevant questions.
+                      Paste resume or <Button type="button" variant="link" size="sm" className="p-0 h-auto sm:hidden" onClick={() => fileInputRef.current?.click()}>upload .txt</Button>. Helps AI ask relevant questions.
+                      {!user && <span className="text-xs text-amber-600 ml-2">(Login to save/load resumes)</span>}
                     </FormDescription>
                     {selectedFileName && (
                       <span className="text-xs text-muted-foreground">
@@ -648,8 +860,8 @@ export default function InterviewSetupForm() {
                 )}
               </div>
             )}
-            
-            <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting || isSummarizingResume}>
+
+            <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting || isSummarizingResume || authLoading}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -663,5 +875,6 @@ export default function InterviewSetupForm() {
         </Form>
       </CardContent>
     </Card>
+    </>
   );
 }

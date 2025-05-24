@@ -38,7 +38,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 
 import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, type InterviewType, type FaangLevel, INTERVIEW_STYLES, type InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, THEMED_INTERVIEW_PACKS, type Skill } from "@/lib/constants";
-import type { InterviewSetupData, ThemedInterviewPack, ThemedInterviewPackConfig, SavedResume } from "@/lib/types";
+import type { InterviewSetupData, ThemedInterviewPack, ThemedInterviewPackConfig, SavedResume, SavedJobDescription } from "@/lib/types";
 import { summarizeResume } from "@/ai/flows/summarize-resume";
 import type { SummarizeResumeOutput } from "@/ai/flows/summarize-resume";
 import { useToast } from "@/hooks/use-toast";
@@ -82,6 +82,13 @@ export default function InterviewSetupForm() {
   const [savedResumes, setSavedResumes] = useState<SavedResume[]>([]);
   const [isLoadingResumes, setIsLoadingResumes] = useState(false);
 
+  const [isSaveJobDescriptionDialogOpen, setIsSaveJobDescriptionDialogOpen] = useState(false);
+  const [newJobDescriptionTitle, setNewJobDescriptionTitle] = useState("");
+  const [isSavingJobDescription, setIsSavingJobDescription] = useState(false);
+  const [isLoadJobDescriptionDialogOpen, setIsLoadJobDescriptionDialogOpen] = useState(false);
+  const [savedJobDescriptions, setSavedJobDescriptions] = useState<SavedJobDescription[]>([]);
+  const [isLoadingJobDescriptions, setIsLoadingJobDescriptions] = useState(false);
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -101,6 +108,8 @@ export default function InterviewSetupForm() {
 
   const watchedInterviewType = form.watch("interviewType");
   const currentResumeContent = form.watch("resume");
+  const currentJobDescriptionContent = form.watch("jobDescription");
+
 
   const availableSkills: Skill[] = useMemo(() => {
     return SKILLS_BY_INTERVIEW_TYPE[watchedInterviewType] || [];
@@ -108,8 +117,6 @@ export default function InterviewSetupForm() {
 
   useEffect(() => {
     if (form.getValues("selectedThemeId") === "custom" && availableSkills.length > 0) {
-      // When switching to custom from a theme, or when available skills change for custom,
-      // filter current targetedSkills to ensure they are valid for the new type.
       const currentTargetedSkills = form.getValues("targetedSkills") || [];
       const validCurrentTargetedSkills = currentTargetedSkills.filter(skillVal =>
         availableSkills.some(s => s.value === skillVal)
@@ -119,7 +126,7 @@ export default function InterviewSetupForm() {
       }
     } else if (form.getValues("selectedThemeId") !== "custom") {
         // Theme is selected, skills are handled by handleThemeChange
-    } else { // Custom config and no available skills (e.g. initial load)
+    } else { 
         form.setValue("targetedSkills", []);
     }
   }, [watchedInterviewType, availableSkills, form]);
@@ -182,7 +189,6 @@ export default function InterviewSetupForm() {
   const handleThemeChange = (themeId: string) => {
     form.setValue("selectedThemeId", themeId);
     if (themeId === "custom") {
-       // When switching to custom, retain current values but ensure skills are valid
       const currentTargetedSkills = form.getValues("targetedSkills") || [];
       const validCurrentTargetedSkills = currentTargetedSkills.filter(skillVal =>
         availableSkills.some(s => s.value === skillVal)
@@ -194,22 +200,21 @@ export default function InterviewSetupForm() {
     if (selectedPack) {
       const { config } = selectedPack;
       const currentResume = form.getValues("resume");
+      const currentJobDescription = form.getValues("jobDescription"); // Preserve JD
       const newFormValues: Partial<z.infer<typeof formSchema>> = {
         interviewType: config.interviewType || INTERVIEW_TYPES[0].value,
         interviewStyle: config.interviewStyle || INTERVIEW_STYLES[0].value,
         faangLevel: config.faangLevel || FAANG_LEVELS[1].value,
         jobTitle: config.jobTitle || "",
-        jobDescription: config.jobDescription || "",
+        jobDescription: config.jobDescription || currentJobDescription, // Use theme's JD or keep current
         targetedSkills: [],
         targetCompany: config.targetCompany || "",
         interviewFocus: config.interviewFocus || "",
         resume: currentResume,
         selectedThemeId: themeId,
       };
-      form.reset(newFormValues); // Reset with theme, will trigger watchedInterviewType change
+      form.reset(newFormValues);
       
-      // Skills need to be set after form.reset potentially changes interviewType
-      // and thus availableSkills.
        setTimeout(() => {
         const themeInterviewType = config.interviewType || INTERVIEW_TYPES[0].value;
         const skillsForThemeType = SKILLS_BY_INTERVIEW_TYPE[themeInterviewType] || [];
@@ -306,6 +311,7 @@ export default function InterviewSetupForm() {
     }
   };
 
+  // Resume Save/Load Logic
   const fetchSavedResumes = async () => {
     if (!user) return;
     setIsLoadingResumes(true);
@@ -387,10 +393,98 @@ export default function InterviewSetupForm() {
       const db = getFirestore();
       await deleteDoc(doc(db, 'users', user.uid, 'resumes', resumeId));
       toast({ title: "Resume Deleted", description: "The resume has been deleted." });
-      fetchSavedResumes();
+      fetchSavedResumes(); // Refresh the list
     } catch (error) {
       console.error("Error deleting resume:", error);
       toast({ title: "Error", description: "Could not delete resume.", variant: "destructive" });
+    }
+  };
+
+  // Job Description Save/Load Logic
+  const fetchSavedJobDescriptions = async () => {
+    if (!user) return;
+    setIsLoadingJobDescriptions(true);
+    try {
+      const db = getFirestore();
+      const jdCol = collection(db, 'users', user.uid, 'jobDescriptions');
+      const q = query(jdCol, orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const fetchedJds: SavedJobDescription[] = [];
+      querySnapshot.forEach((docSnap) => {
+        fetchedJds.push({ id: docSnap.id, ...docSnap.data() } as SavedJobDescription);
+      });
+      setSavedJobDescriptions(fetchedJds);
+    } catch (error) {
+      console.error("Error fetching job descriptions:", error);
+      toast({ title: "Error", description: "Could not load saved job descriptions.", variant: "destructive" });
+    } finally {
+      setIsLoadingJobDescriptions(false);
+    }
+  };
+
+  const handleOpenLoadJobDescriptionDialog = () => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to load saved job descriptions.", variant: "default" });
+      return;
+    }
+    fetchSavedJobDescriptions();
+    setIsLoadJobDescriptionDialogOpen(true);
+  };
+
+  const handleSaveCurrentJobDescription = async () => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to save your job description.", variant: "default" });
+      return;
+    }
+    if (!newJobDescriptionTitle.trim()) {
+      toast({ title: "Title Required", description: "Please enter a title for your job description.", variant: "destructive" });
+      return;
+    }
+    const jdContent = form.getValues("jobDescription");
+    if (!jdContent || !jdContent.trim()) {
+      toast({ title: "No Content", description: "Job description content is empty. Nothing to save.", variant: "default" });
+      return;
+    }
+
+    setIsSavingJobDescription(true);
+    try {
+      const db = getFirestore();
+      const jdData: Omit<SavedJobDescription, 'id'> = {
+        userId: user.uid,
+        title: newJobDescriptionTitle,
+        content: jdContent,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      await addDoc(collection(db, 'users', user.uid, 'jobDescriptions'), jdData);
+      toast({ title: "Job Description Saved", description: `"${newJobDescriptionTitle}" has been saved.` });
+      setIsSaveJobDescriptionDialogOpen(false);
+      setNewJobDescriptionTitle("");
+      if(isLoadJobDescriptionDialogOpen) fetchSavedJobDescriptions();
+    } catch (error) {
+      console.error("Error saving job description:", error);
+      toast({ title: "Error", description: "Could not save job description.", variant: "destructive" });
+    } finally {
+      setIsSavingJobDescription(false);
+    }
+  };
+
+  const handleLoadJobDescription = (jd: SavedJobDescription) => {
+    form.setValue("jobDescription", jd.content);
+    toast({ title: "Job Description Loaded", description: `"${jd.title}" has been loaded into the form.` });
+    setIsLoadJobDescriptionDialogOpen(false);
+  };
+
+  const handleDeleteJobDescription = async (jdId: string) => {
+    if (!user || !jdId) return;
+    try {
+      const db = getFirestore();
+      await deleteDoc(doc(db, 'users', user.uid, 'jobDescriptions', jdId));
+      toast({ title: "Job Description Deleted", description: "The job description has been deleted." });
+      fetchSavedJobDescriptions(); // Refresh the list
+    } catch (error) {
+      console.error("Error deleting job description:", error);
+      toast({ title: "Error", description: "Could not delete job description.", variant: "destructive" });
     }
   };
 
@@ -645,10 +739,101 @@ export default function InterviewSetupForm() {
               name="jobDescription"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="flex items-center text-lg">
-                    <FileText className="mr-2 h-5 w-5 text-primary" />
-                    Job Description (Optional)
-                  </FormLabel>
+                  <div className="flex items-center justify-between mb-1">
+                    <FormLabel className="flex items-center text-lg">
+                      <FileText className="mr-2 h-5 w-5 text-primary" />
+                      Job Description (Optional)
+                    </FormLabel>
+                    <div className="flex items-center space-x-2">
+                       <Dialog open={isSaveJobDescriptionDialogOpen} onOpenChange={setIsSaveJobDescriptionDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button type="button" variant="outline" size="sm" disabled={!user || !currentJobDescriptionContent?.trim()} onClick={() => setNewJobDescriptionTitle("")}>
+                            <Save className="mr-2 h-4 w-4" /> Save this JD
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Save Job Description</DialogTitle>
+                            <DialogDescription>Enter a title for this job description to save it for later use.</DialogDescription>
+                          </DialogHeader>
+                          <Input
+                            placeholder="e.g., Senior PM JD, Google L5 Eng JD"
+                            value={newJobDescriptionTitle}
+                            onChange={(e) => setNewJobDescriptionTitle(e.target.value)}
+                            className="my-4"
+                          />
+                          <DialogFooter>
+                            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                            <Button onClick={handleSaveCurrentJobDescription} disabled={isSavingJobDescription || !newJobDescriptionTitle.trim()}>
+                              {isSavingJobDescription && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                       <Dialog open={isLoadJobDescriptionDialogOpen} onOpenChange={setIsLoadJobDescriptionDialogOpen}>
+                        <DialogTrigger asChild>
+                           <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadJobDescriptionDialog}>
+                            <List className="mr-2 h-4 w-4" /> Load Saved JD
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Load Saved Job Description</DialogTitle>
+                                <DialogDescription>Select a job description to load into the form.</DialogDescription>
+                            </DialogHeader>
+                            {isLoadingJobDescriptions ? (
+                                <div className="flex justify-center items-center h-32">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                </div>
+                            ) : savedJobDescriptions.length > 0 ? (
+                                <ScrollArea className="h-[200px] my-4">
+                                    <div className="space-y-2 pr-2">
+                                    {savedJobDescriptions.map((jd) => (
+                                        <Card key={jd.id} className="p-3 flex justify-between items-center hover:bg-secondary/50 transition-colors">
+                                            <div>
+                                                <p className="font-medium text-sm">{jd.title}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Saved: {jd.createdAt?.toDate ? jd.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center space-x-1">
+                                                <Button variant="ghost" size="sm" onClick={() => handleLoadJobDescription(jd)}>Load</Button>
+                                                 <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
+                                                          <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Delete Job Description?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                Are you sure you want to delete "{jd.title}"? This action cannot be undone.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={Button({variant:"destructive"}).props.className}>
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        </Card>
+                                    ))}
+                                    </div>
+                                </ScrollArea>
+                            ) : (
+                                <p className="text-sm text-muted-foreground text-center py-4">No saved job descriptions found.</p>
+                            )}
+                            <DialogFooter>
+                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                            </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
                   <FormControl>
                     <Textarea
                       placeholder="Paste the job description here to tailor questions..."
@@ -658,6 +843,7 @@ export default function InterviewSetupForm() {
                   </FormControl>
                   <FormDescription>
                     Providing a job description helps personalize the interview questions.
+                    {!user && <span className="text-xs text-amber-600 ml-2">(Login to save/load JDs)</span>}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

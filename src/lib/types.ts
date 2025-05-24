@@ -11,9 +11,10 @@ export interface InterviewSetupData {
   targetedSkills?: string[];
   targetCompany?: string;
   interviewFocus?: string;
+  selectedThemeId?: string; // Added for theme persistence
 }
 
-export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills'>> {
+export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId'>> {
   targetedSkills?: string[];
 }
 

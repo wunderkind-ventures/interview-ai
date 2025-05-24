@@ -117,6 +117,16 @@ export interface SavedItem {
 export interface SavedResume extends SavedItem {}
 export interface SavedJobDescription extends SavedItem {}
 
+export interface SavedInterviewSetup {
+  id?: string;
+  userId?: string;
+  title: string;
+  config: InterviewSetupData; // The actual setup data
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+
 // Types for Resume Lab AI Flows
 export interface ResumeAnalysis {
   strengths: string[];
@@ -134,3 +144,4 @@ export interface ResumeTailoringSuggestions {
   suggestionsForTailoring: string[];
   overallFitAssessment: string;
 }
+

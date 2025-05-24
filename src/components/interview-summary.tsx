@@ -44,7 +44,7 @@ interface ClarificationContext {
   questionText: string;
   userAnswerText: string;
   feedbackItemText: string;
-  feedbackItemType: 'areaForImprovement' | 'specificSuggestion' | 'critique';
+  feedbackItemType: 'areaForImprovement' | 'specificSuggestion' | 'critique' | 'strength' | 'idealAnswerPointer' | 'reflectionPrompt';
 }
 
 function InterviewSummaryContent() {
@@ -651,16 +651,16 @@ function InterviewSummaryContent() {
           {icon}
           {title}:
         </h5>
-        <ul className="list-none space-y-2 pl-0">
+        <ul className="list-none space-y-1.5 pl-0">
           {items.map((item, idx) => (
-            <li key={idx} className="group flex items-start justify-between p-2 rounded-md bg-secondary/50 hover:bg-secondary/70 transition-colors">
-              <Badge variant="secondary" className="mr-2 mt-0.5 text-xs whitespace-normal break-words flex-grow bg-transparent border-transparent px-0 py-0 font-normal text-foreground/90">
+            <li key={idx} className="flex items-start justify-between p-2 rounded-md bg-secondary/50 hover:bg-secondary/70 transition-colors text-sm">
+              <span className="flex-grow whitespace-normal break-words text-foreground/90">
                 {item}
-              </Badge>
+              </span>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-auto px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700 opacity-60 group-hover:opacity-100 transition-opacity"
+                className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
                 onClick={() => handleOpenClarifyFeedbackDialog(question, answerText, item, itemType)}
                 title="Ask for clarification on this point"
               >
@@ -771,18 +771,31 @@ function InterviewSummaryContent() {
                                           AI Feedback on Submission:
                                       </h4>
                                       {feedbackItem.critique && (
-                                        <div className="mb-3">
-                                          <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
-                                            <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
-                                          </h5>
-                                          <p className="text-sm">{feedbackItem.critique}</p>
+                                        <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
+                                                    <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
+                                                    </h5>
+                                                    <p className="text-sm">{feedbackItem.critique}</p>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                                    onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
+                                                    title="Ask for clarification on this critique"
+                                                >
+                                                    <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
+                                                </Button>
+                                            </div>
                                         </div>
                                       )}
-                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'critique', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
                                       {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
                                       {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'critique', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'critique', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
                                       <div className="flex space-x-2 mt-4">
                                           <Button
                                               onClick={() => handleOpenDeepDive(question.id)}
@@ -858,29 +871,31 @@ function InterviewSummaryContent() {
                                           AI Feedback:
                                       </h4>
                                       {feedbackItem.critique && (
-                                        <div className="mb-3 group flex items-start justify-between p-2 rounded-md hover:bg-accent/10 transition-colors">
-                                            <div>
-                                                <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
-                                                <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
-                                                </h5>
-                                                <p className="text-sm">{feedbackItem.critique}</p>
+                                        <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
+                                                    <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
+                                                    </h5>
+                                                    <p className="text-sm">{feedbackItem.critique}</p>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                                    onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
+                                                    title="Ask for clarification on this critique"
+                                                >
+                                                    <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
+                                                </Button>
                                             </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-auto px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0"
-                                                onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
-                                                title="Ask for clarification on this critique"
-                                            >
-                                                <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
-                                            </Button>
                                         </div>
                                       )}
-                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'critique', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
                                       {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
                                       {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'critique', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'critique', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
+                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
                                       <div className="flex space-x-2 mt-4">
                                           <Button
                                               onClick={() => handleOpenDeepDive(question.id)}
@@ -995,7 +1010,7 @@ function InterviewSummaryContent() {
                 )}
                 {deepDiveContent && !isDeepDiveLoading && !deepDiveError && (
                   <div className="space-y-4">
-                    {renderFeedbackListWithClarification("Detailed Ideal Answer Breakdown", deepDiveContent.detailedIdealAnswerBreakdown, <CheckSquare className="h-5 w-5 text-green-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
+                    {renderFeedbackListWithClarification("Detailed Ideal Answer Breakdown", deepDiveContent.detailedIdealAnswerBreakdown, <CheckSquare className="h-5 w-5 text-green-600" />, 'idealAnswerPointer', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                     {renderFeedbackListWithClarification("Alternative Approaches", deepDiveContent.alternativeApproaches, <Lightbulb className="h-5 w-5 text-blue-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                     {renderFeedbackListWithClarification("Follow-up Scenarios / Probing Questions", deepDiveContent.followUpScenarios, <Search className="h-5 w-5 text-purple-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                     {renderFeedbackListWithClarification("Suggested Study Concepts", deepDiveContent.suggestedStudyConcepts, <BookOpen className="h-5 w-5 text-orange-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
@@ -1020,7 +1035,7 @@ function InterviewSummaryContent() {
                 </DialogTitle>
                 {currentSampleAnswerQuestionText && <DialogDescription className="pt-2">For question: <span className="font-semibold">"{currentSampleAnswerQuestionText}"</span></DialogDescription>}
               </DialogHeader>
-              <div className="py-4 space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+              <div className="py-4 space-y-6 max-h-[60vh] overflow-y-auto pr-2">
                 {isSampleAnswerLoading && (
                   <div className="flex flex-col items-center justify-center py-10">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-3" />

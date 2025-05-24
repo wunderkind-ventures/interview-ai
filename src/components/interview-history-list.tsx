@@ -25,44 +25,48 @@ export default function InterviewHistoryList() {
 
   useEffect(() => {
     if (!user || authLoading) {
-      if (!authLoading) setIsLoading(false);
+      if (!authLoading) {
+        setIsLoading(false);
+      }
       return;
     }
 
     setIsLoading(true);
+
     const db = getFirestore();
     if (!db) {
-        toast({ title: "Error", description: "Firestore is not initialized.", variant: "destructive"});
+        toast({ title: "Database Error", description: "Could not connect to the database. Please ensure Firebase is configured correctly.", variant: "destructive"});
+        console.error("Firestore DB instance is null in InterviewHistoryList.");
         setIsLoading(false);
         return;
     }
+
     const interviewsCol = collection(db, 'users', user.uid, 'interviews');
     const q = query(interviewsCol, orderBy('completedAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const userInterviews: StoredInterviewSession[] = [];
       querySnapshot.forEach((doc) => {
-        // Ensure completedAt is a Firestore Timestamp before converting
         const data = doc.data();
         let completedAt = data.completedAt;
+        // Ensure completedAt is a Firestore Timestamp before calling toDate()
         if (completedAt && typeof completedAt.toDate !== 'function' && completedAt.seconds) {
-            // This handles cases where it might be a plain object from Firestore cache or SSR
             completedAt = new Timestamp(completedAt.seconds, completedAt.nanoseconds);
         }
-
         userInterviews.push({ 
             id: doc.id, 
             ...data,
-            completedAt: completedAt, // Keep as Firestore Timestamp for now
+            completedAt: completedAt, // This should now be a valid Timestamp or null/undefined
         } as StoredInterviewSession);
       });
       setInterviews(userInterviews);
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching interview history:", error);
+      const errorMessage = "Could not load your interview history. Please try again later.";
       toast({
         title: "Error Fetching History",
-        description: "Could not load your interview history. Please try again later.",
+        description: errorMessage,
         variant: "destructive",
       });
       setIsLoading(false);
@@ -94,7 +98,7 @@ export default function InterviewHistoryList() {
     );
   }
 
-  if (interviews.length === 0 && !isLoading) {
+  if (interviews.length === 0) {
     return (
       <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
         <Inbox className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />

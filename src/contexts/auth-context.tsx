@@ -10,15 +10,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 
 // Ensure Firebase is initialized
-// IMPORTANT: For this to work, you MUST create a .env.local file in the root of your project
-// and add your Firebase project's configuration like so:
+// IMPORTANT: For this to work, you MUST set up environment variables.
+// For local development, create a .env.local file in the root of your project.
+// For deployed environments, configure these in your hosting provider's settings.
+// Example variables:
 // NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
 // NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
 // NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 // NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
 // NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
 // NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-// After adding these, restart your Next.js development server.
+// After adding/changing these, restart your development server or redeploy.
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -37,7 +39,9 @@ if (!getApps().length) {
     console.warn(
       "Firebase configuration is missing or incomplete. " +
       "Please ensure NEXT_PUBLIC_FIREBASE_PROJECT_ID and NEXT_PUBLIC_FIREBASE_API_KEY " +
-      "(and other config values) are set in your .env.local file and you have restarted your dev server. " +
+      "(and other config values) are set in your environment. " +
+      "For local development, check .env.local and restart your dev server. " +
+      "For deployed apps, check your hosting provider's environment variable settings. " +
       "Authentication will not work."
     );
   }
@@ -66,9 +70,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!auth) {
       console.error(
-        "Firebase Auth instance is not available. This is likely because Firebase App initialization failed due to missing/incorrect environment variables " +
-        "(e.g., NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_API_KEY in .env.local). " +
-        "Please check your setup and restart the dev server. Auth features will be disabled."
+        "Firebase Auth instance is not available. This is likely because Firebase App initialization failed. " +
+        "Ensure your Firebase project configuration (API Key, Project ID, etc.) is correctly set up. " +
+        "For local development, check your .env.local file and restart your development server. " +
+        "For deployed environments, ensure these environment variables are set in your hosting provider's settings. " +
+        "Auth features will be disabled."
       );
       setAuthInitializationFailed(true);
       setLoading(false);
@@ -76,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setAuthInitializationFailed(false); 
+      setAuthInitializationFailed(false);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -86,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!auth) {
         toast({
             title: "Authentication Error",
-            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables in .env.local and restart the server.",
+            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables. For local development, check .env.local and restart the server. For deployed apps, check your hosting provider's environment variable settings.",
             variant: "destructive"
         });
         console.error("Attempted to sign in, but Firebase Auth is not initialized.");
@@ -100,14 +106,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       let description = "Could not sign in with Google. Please try again.";
-      if (error.code === 'auth/operation-not-allowed' || 
+      if (error.code === 'auth/operation-not-allowed' ||
           (error.message && (error.message.includes('auth/operation-not-allowed') || error.message.includes('The identity provider configuration is not found')))) {
         description = "Google Sign-In may not be enabled for this project in the Firebase console. Please check your Authentication settings.";
       } else if (error.code === 'auth/popup-closed-by-user') {
         description = "Sign-in popup was closed before completing. Please try again.";
       } else if (error.code === 'auth/unauthorized-domain') {
         const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'your current domain';
-        description = `The domain '${currentDomain}' is not authorized for Firebase Authentication. Please add it to the 'Authorized domains' list in your Firebase project's Authentication settings.`;
+        description = `The domain '${currentDomain}' is not authorized for Firebase Authentication. Please add it to the 'Authorized domains' list in your Firebase project's Authentication settings. (Error: ${error.code})`;
       } else if (error.code) {
         description = `Could not sign in with Google (Error: ${error.code}). Please try again.`;
       }
@@ -119,7 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!auth) {
         toast({
             title: "Authentication Error",
-            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables in .env.local and restart the server.",
+            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables. For local development, check .env.local and restart the server. For deployed apps, check your hosting provider's environment variable settings.",
             variant: "destructive"
         });
         console.error("Attempted to sign out, but Firebase Auth is not initialized.");
@@ -143,7 +149,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             <AlertTriangle className="h-5 w-5" />
             <AlertTitle>Firebase Authentication Error</AlertTitle>
             <AlertDescription>
-              Firebase Authentication could not be initialized. Please ensure your Firebase project configuration (API Key, Project ID, etc.) is correctly set up in your <code>.env.local</code> file and that you have <strong>restarted your development server</strong>. Authentication features will be unavailable until this is resolved.
+              Firebase Authentication could not be initialized. Please ensure your Firebase project configuration (API Key, Project ID, etc.) is correctly set up.
+              For local development, check your <code>.env.local</code> file and restart your development server.
+              For deployed environments, ensure these environment variables are set in your hosting provider's settings.
+              Authentication features will be unavailable until this is resolved.
             </AlertDescription>
           </Alert>
         </div>

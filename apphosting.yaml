@@ -1,0 +1,15 @@
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY  # This is the environment variable name you'll use in your code
+    secret: projects/130237704747/secrets/NEXT_PUBLIC_FIREBASE_API_KEY # This is the full resource path to your secret in Cloud Secret Manager
+  - variable: authDomain
+    value: interviewai-mzf86.firebaseapp.com
+  - variable: projectId
+    value: interviewai-mzf86
+  - variable: storageBucket
+    value: interviewai-mzf86.firebasestorage.app
+  - variable: messagingSenderId
+    value: 130237704747
+  - variable: appId
+    value: 1:130237704747:web:bf28561b6de08c1672586e
+  - variable: measurementId
+    value: G-NTNBTEVB9K

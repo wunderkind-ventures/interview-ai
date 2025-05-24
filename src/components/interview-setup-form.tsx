@@ -200,13 +200,13 @@ export default function InterviewSetupForm() {
     if (selectedPack) {
       const { config } = selectedPack;
       const currentResume = form.getValues("resume");
-      const currentJobDescription = form.getValues("jobDescription"); // Preserve JD
+      const currentJobDescriptionContent = form.getValues("jobDescription"); // Preserve JD
       const newFormValues: Partial<z.infer<typeof formSchema>> = {
         interviewType: config.interviewType || INTERVIEW_TYPES[0].value,
         interviewStyle: config.interviewStyle || INTERVIEW_STYLES[0].value,
         faangLevel: config.faangLevel || FAANG_LEVELS[1].value,
         jobTitle: config.jobTitle || "",
-        jobDescription: config.jobDescription || currentJobDescription, // Use theme's JD or keep current
+        jobDescription: config.jobDescription || currentJobDescriptionContent, // Use theme's JD or keep current
         targetedSkills: [],
         targetCompany: config.targetCompany || "",
         interviewFocus: config.interviewFocus || "",
@@ -463,7 +463,8 @@ export default function InterviewSetupForm() {
       if(isLoadJobDescriptionDialogOpen) fetchSavedJobDescriptions();
     } catch (error) {
       console.error("Error saving job description:", error);
-      toast({ title: "Error", description: "Could not save job description.", variant: "destructive" });
+      const description = error instanceof Error ? error.message : "Could not save job description. Please check console for details.";
+      toast({ title: "Error Saving Job Description", description, variant: "destructive" });
     } finally {
       setIsSavingJobDescription(false);
     }
@@ -813,7 +814,7 @@ export default function InterviewSetupForm() {
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={Button({variant:"destructive"}).props.className}>
+                                                            <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={Button({variant:"destructive"}).props.className ?? ""}>
                                                                 Delete
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
@@ -952,7 +953,7 @@ export default function InterviewSetupForm() {
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteResume(res.id!)} className={Button({variant:"destructive"}).props.className}>
+                                                            <AlertDialogAction onClick={() => handleDeleteResume(res.id!)} className={Button({variant:"destructive"}).props.className ?? ""}>
                                                                 Delete
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>

@@ -2,16 +2,21 @@
 "use client";
 
 import React, { useState } from 'react';
+import { getFirestore, collection, query, orderBy, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/auth-context';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Sparkles, FileText, ClipboardCopy, AlertTriangle, Building, User, Edit3, MailPlus } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Loader2, Sparkles, FileText, ClipboardCopy, AlertTriangle, Building, User, Edit3, MailPlus, List, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateCoverLetter, type GenerateCoverLetterInput, type GenerateCoverLetterOutput } from '@/ai/flows/generate-cover-letter';
+import type { SavedJobDescription } from '@/lib/types';
 
 type CoverLetterTone = "professional" | "enthusiastic" | "formal" | "slightly-informal";
 
@@ -37,6 +42,11 @@ export default function CoverLetterCrafter() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedDraft, setGeneratedDraft] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+
+  // State for Job Description Load
+  const [isLoadJobDescriptionDialogOpen, setIsLoadJobDescriptionDialogOpen] = useState(false);
+  const [savedJobDescriptions, setSavedJobDescriptions] = useState<SavedJobDescription[]>([]);
+  const [isLoadingJobDescriptions, setIsLoadingJobDescriptions] = useState(false);
 
   const handleGenerateCoverLetter = async () => {
     if (!user) {
@@ -92,6 +102,55 @@ export default function CoverLetterCrafter() {
           toast({ title: "Copy Failed", description: "Could not copy text. Please try manually.", variant: "destructive" });
           console.error('Failed to copy text: ', err);
         });
+    }
+  };
+
+  const fetchSavedJobDescriptions = async () => {
+    if (!user) return;
+    setIsLoadingJobDescriptions(true);
+    try {
+      const db = getFirestore();
+      const jdCol = collection(db, 'users', user.uid, 'jobDescriptions');
+      const q = query(jdCol, orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const fetchedJds: SavedJobDescription[] = [];
+      querySnapshot.forEach((docSnap) => {
+        fetchedJds.push({ id: docSnap.id, ...docSnap.data() } as SavedJobDescription);
+      });
+      setSavedJobDescriptions(fetchedJds);
+    } catch (error) {
+      console.error("Error fetching job descriptions:", error);
+      toast({ title: "Error", description: "Could not load saved job descriptions.", variant: "destructive" });
+    } finally {
+      setIsLoadingJobDescriptions(false);
+    }
+  };
+
+  const handleOpenLoadJobDescriptionDialog = () => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to load saved job descriptions.", variant: "default" });
+      return;
+    }
+    fetchSavedJobDescriptions();
+    setIsLoadJobDescriptionDialogOpen(true);
+  };
+
+  const handleLoadJobDescription = (jd: SavedJobDescription) => {
+    setJobDescriptionText(jd.content);
+    toast({ title: "Job Description Loaded", description: `"${jd.title}" has been loaded.` });
+    setIsLoadJobDescriptionDialogOpen(false);
+  };
+
+  const handleDeleteJobDescription = async (jdId: string) => {
+    if (!user || !jdId) return;
+    try {
+      const db = getFirestore();
+      await deleteDoc(doc(db, 'users', user.uid, 'jobDescriptions', jdId));
+      toast({ title: "Job Description Deleted", description: "The job description has been deleted." });
+      fetchSavedJobDescriptions(); // Refresh the list
+    } catch (error) {
+      console.error("Error deleting job description:", error);
+      toast({ title: "Error", description: "Could not delete job description.", variant: "destructive" });
     }
   };
 
@@ -153,7 +212,71 @@ export default function CoverLetterCrafter() {
           </div>
 
           <div>
-            <label htmlFor="jobDescriptionText" className="block text-sm font-medium text-foreground mb-1">Job Description *</label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="jobDescriptionText" className="block text-sm font-medium text-foreground">Job Description *</label>
+              <Dialog open={isLoadJobDescriptionDialogOpen} onOpenChange={setIsLoadJobDescriptionDialogOpen}>
+                <DialogTrigger asChild>
+                   <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadJobDescriptionDialog}>
+                    <List className="mr-2 h-4 w-4" /> Load Saved JD
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Load Saved Job Description</DialogTitle>
+                        <DialogDescription>Select a job description to load into the form.</DialogDescription>
+                    </DialogHeader>
+                    {isLoadingJobDescriptions ? (
+                        <div className="flex justify-center items-center h-32">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : savedJobDescriptions.length > 0 ? (
+                        <ScrollArea className="h-[200px] my-4">
+                            <div className="space-y-2 pr-2">
+                            {savedJobDescriptions.map((jd) => (
+                                <Card key={jd.id} className="p-3 flex justify-between items-center hover:bg-secondary/50 transition-colors">
+                                    <div>
+                                        <p className="font-medium text-sm">{jd.title}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Saved: {jd.createdAt?.toDate ? jd.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                        <Button variant="ghost" size="sm" onClick={() => handleLoadJobDescription(jd)}>Load</Button>
+                                         <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
+                                                  <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Delete Job Description?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Are you sure you want to delete "{jd.title}"? This action cannot be undone.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={buttonVariants({ variant: "destructive" })}>
+                                                        Delete
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </Card>
+                            ))}
+                            </div>
+                        </ScrollArea>
+                    ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">No saved job descriptions found.</p>
+                    )}
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
             <Textarea
               id="jobDescriptionText"
               placeholder="Paste the full job description here..."
@@ -162,7 +285,7 @@ export default function CoverLetterCrafter() {
               className="min-h-[150px] text-sm"
               rows={8}
             />
-             <p className="text-xs text-muted-foreground mt-1">Min. 50 characters.</p>
+             <p className="text-xs text-muted-foreground mt-1">Min. 50 characters. {!user && <span className="text-amber-600">(Login to load saved JDs)</span>}</p>
           </div>
 
           <div>
@@ -258,5 +381,3 @@ export default function CoverLetterCrafter() {
     </div>
   );
 }
-
-    

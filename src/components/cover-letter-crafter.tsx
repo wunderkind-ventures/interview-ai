@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { getFirestore, collection, query, orderBy, getDocs, doc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, getDocs, doc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/auth-context';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, Sparkles, FileText, ClipboardCopy, AlertTriangle, Building, User, Edit3, MailPlus, List, Trash2 } from 'lucide-react';
+import { Loader2, Sparkles, FileText, ClipboardCopy, AlertTriangle, Building, User, Edit3, MailPlus, List, Trash2, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateCoverLetter, type GenerateCoverLetterInput, type GenerateCoverLetterOutput } from '@/ai/flows/generate-cover-letter';
 import type { SavedJobDescription } from '@/lib/types';
@@ -47,6 +47,12 @@ export default function CoverLetterCrafter() {
   const [isLoadJobDescriptionDialogOpen, setIsLoadJobDescriptionDialogOpen] = useState(false);
   const [savedJobDescriptions, setSavedJobDescriptions] = useState<SavedJobDescription[]>([]);
   const [isLoadingJobDescriptions, setIsLoadingJobDescriptions] = useState(false);
+
+  // State for Job Description Save
+  const [isSaveJobDescriptionDialogOpen, setIsSaveJobDescriptionDialogOpen] = useState(false);
+  const [newJobDescriptionTitle, setNewJobDescriptionTitle] = useState("");
+  const [isSavingJobDescription, setIsSavingJobDescription] = useState(false);
+
 
   const handleGenerateCoverLetter = async () => {
     if (!user) {
@@ -154,6 +160,44 @@ export default function CoverLetterCrafter() {
     }
   };
 
+  const handleSaveCurrentJobDescription = async () => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to save your job description.", variant: "default" });
+      return;
+    }
+    if (!newJobDescriptionTitle.trim()) {
+      toast({ title: "Title Required", description: "Please enter a title for your job description.", variant: "destructive" });
+      return;
+    }
+    if (!jobDescriptionText.trim()) {
+      toast({ title: "No Content", description: "Job description content is empty. Nothing to save.", variant: "default" });
+      return;
+    }
+
+    setIsSavingJobDescription(true);
+    try {
+      const db = getFirestore();
+      const jdData: Omit<SavedJobDescription, 'id'> = {
+        userId: user.uid,
+        title: newJobDescriptionTitle,
+        content: jobDescriptionText,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      await addDoc(collection(db, 'users', user.uid, 'jobDescriptions'), jdData);
+      toast({ title: "Job Description Saved", description: `"${newJobDescriptionTitle}" has been saved.` });
+      setIsSaveJobDescriptionDialogOpen(false);
+      setNewJobDescriptionTitle("");
+      if(isLoadJobDescriptionDialogOpen) fetchSavedJobDescriptions(); // Refresh list if load dialog was open
+    } catch (error) {
+      console.error("Error saving job description:", error);
+      const description = error instanceof Error ? error.message : "Could not save job description.";
+      toast({ title: "Error Saving Job Description", description, variant: "destructive" });
+    } finally {
+      setIsSavingJobDescription(false);
+    }
+  };
+
 
   if (authLoading) {
     return (
@@ -214,68 +258,95 @@ export default function CoverLetterCrafter() {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label htmlFor="jobDescriptionText" className="block text-sm font-medium text-foreground">Job Description *</label>
-              <Dialog open={isLoadJobDescriptionDialogOpen} onOpenChange={setIsLoadJobDescriptionDialogOpen}>
-                <DialogTrigger asChild>
-                   <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadJobDescriptionDialog}>
-                    <List className="mr-2 h-4 w-4" /> Load Saved JD
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Load Saved Job Description</DialogTitle>
-                        <DialogDescription>Select a job description to load into the form.</DialogDescription>
-                    </DialogHeader>
-                    {isLoadingJobDescriptions ? (
-                        <div className="flex justify-center items-center h-32">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        </div>
-                    ) : savedJobDescriptions.length > 0 ? (
-                        <ScrollArea className="h-[200px] my-4">
-                            <div className="space-y-2 pr-2">
-                            {savedJobDescriptions.map((jd) => (
-                                <Card key={jd.id} className="p-3 flex justify-between items-center hover:bg-secondary/50 transition-colors">
-                                    <div>
-                                        <p className="font-medium text-sm">{jd.title}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Saved: {jd.createdAt?.toDate ? jd.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center space-x-1">
-                                        <Button variant="ghost" size="sm" onClick={() => handleLoadJobDescription(jd)}>Load</Button>
-                                         <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
+              <div className="flex items-center space-x-2">
+                <Dialog open={isSaveJobDescriptionDialogOpen} onOpenChange={setIsSaveJobDescriptionDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" disabled={!user || !jobDescriptionText.trim()} onClick={() => setNewJobDescriptionTitle("")}>
+                        <Save className="mr-2 h-4 w-4" /> Save this JD
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                        <DialogTitle>Save Job Description</DialogTitle>
+                        <DialogDescription>Enter a title for this job description to save it for later use.</DialogDescription>
+                        </DialogHeader>
+                        <Input
+                        placeholder="e.g., Senior PM JD, Google L5 Eng JD"
+                        value={newJobDescriptionTitle}
+                        onChange={(e) => setNewJobDescriptionTitle(e.target.value)}
+                        className="my-4"
+                        />
+                        <DialogFooter>
+                        <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                        <Button onClick={handleSaveCurrentJobDescription} disabled={isSavingJobDescription || !newJobDescriptionTitle.trim()}>
+                            {isSavingJobDescription && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
+                        </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                <Dialog open={isLoadJobDescriptionDialogOpen} onOpenChange={setIsLoadJobDescriptionDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadJobDescriptionDialog}>
+                        <List className="mr-2 h-4 w-4" /> Load Saved JD
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                          <DialogTitle>Load Saved Job Description</DialogTitle>
+                          <DialogDescription>Select a job description to load into the form.</DialogDescription>
+                      </DialogHeader>
+                      {isLoadingJobDescriptions ? (
+                          <div className="flex justify-center items-center h-32">
+                              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          </div>
+                      ) : savedJobDescriptions.length > 0 ? (
+                          <ScrollArea className="h-[200px] my-4">
+                              <div className="space-y-2 pr-2">
+                              {savedJobDescriptions.map((jd) => (
+                                  <Card key={jd.id} className="p-3 flex justify-between items-center hover:bg-secondary/50 transition-colors">
+                                      <div>
+                                          <p className="font-medium text-sm">{jd.title}</p>
+                                          <p className="text-xs text-muted-foreground">
+                                              Saved: {jd.createdAt?.toDate ? jd.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
+                                          </p>
+                                      </div>
+                                      <div className="flex items-center space-x-1">
+                                          <Button variant="ghost" size="sm" onClick={() => handleLoadJobDescription(jd)}>Load</Button>
+                                          <AlertDialog>
+                                              <AlertDialogTrigger asChild>
+                                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
                                                   <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Delete Job Description?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        Are you sure you want to delete "{jd.title}"? This action cannot be undone.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={buttonVariants({ variant: "destructive" })}>
-                                                        Delete
-                                                    </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </div>
-                                </Card>
-                            ))}
-                            </div>
-                        </ScrollArea>
-                    ) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">No saved job descriptions found.</p>
-                    )}
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                                                  </Button>
+                                              </AlertDialogTrigger>
+                                              <AlertDialogContent>
+                                                  <AlertDialogHeader>
+                                                      <AlertDialogTitle>Delete Job Description?</AlertDialogTitle>
+                                                      <AlertDialogDescription>
+                                                          Are you sure you want to delete "{jd.title}"? This action cannot be undone.
+                                                      </AlertDialogDescription>
+                                                  </AlertDialogHeader>
+                                                  <AlertDialogFooter>
+                                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                      <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={buttonVariants({ variant: "destructive" })}>
+                                                          Delete
+                                                      </AlertDialogAction>
+                                                  </AlertDialogFooter>
+                                              </AlertDialogContent>
+                                          </AlertDialog>
+                                      </div>
+                                  </Card>
+                              ))}
+                              </div>
+                          </ScrollArea>
+                      ) : (
+                          <p className="text-sm text-muted-foreground text-center py-4">No saved job descriptions found.</p>
+                      )}
+                      <DialogFooter>
+                          <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                      </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
             <Textarea
               id="jobDescriptionText"
@@ -285,7 +356,7 @@ export default function CoverLetterCrafter() {
               className="min-h-[150px] text-sm"
               rows={8}
             />
-             <p className="text-xs text-muted-foreground mt-1">Min. 50 characters. {!user && <span className="text-amber-600">(Login to load saved JDs)</span>}</p>
+             <p className="text-xs text-muted-foreground mt-1">Min. 50 characters. {!user && <span className="text-amber-600">(Login to save/load JDs)</span>}</p>
           </div>
 
           <div>
@@ -381,3 +452,5 @@ export default function CoverLetterCrafter() {
     </div>
   );
 }
+
+    

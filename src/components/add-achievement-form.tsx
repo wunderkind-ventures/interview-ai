@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from "@/components/ui/card"; // Renamed CardTitle to UiCardTitle
 import { CalendarIcon, Loader2, Save, Sparkles, AlertTriangle, Lightbulb, CheckSquare, X } from "lucide-react";
 import { format, parseISO } from 'date-fns';
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ import type { Achievement } from "@/lib/types";
 import { getAchievementComponentGuidance } from "@/ai/flows/get-achievement-component-guidance";
 import type { GetAchievementComponentGuidanceOutput, GetAchievementComponentGuidanceInput } from "@/ai/flows/get-achievement-component-guidance";
 import { Badge } from "./ui/badge";
-import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "./ui/alert";
+import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "./ui/alert"; // Renamed AlertDescription
 
 
 const achievementFormSchema = z.object({
@@ -130,7 +130,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
       setIsFetchingAiGuidance(false);
     }
   };
-  
+
   const closeAiAssistancePanel = () => {
     setActiveHelpComponent(null);
     setAiGuidance(null);
@@ -153,10 +153,10 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
 
   async function onSubmit(data: AchievementFormValues) {
     setIsSubmitting(true);
-    closeAiAssistancePanel(); // Close AI panel on submit
+    closeAiAssistancePanel();
     const db = getFirestore();
     const achievementId = existingAchievement?.id || doc(collection(db, `users/${userId}/achievements`)).id;
-    
+
     const achievementData: Omit<Achievement, 'id' | 'createdAt' | 'updatedAt'> & { createdAt?: any, updatedAt: any } = {
       title: data.title,
       situation: data.situation,
@@ -191,6 +191,8 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
       setIsSubmitting(false);
     }
   }
+
+  const starLabelClass = "font-semibold text-foreground/90 text-base";
 
   return (
     <>
@@ -253,14 +255,14 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
           />
 
           <p className="text-sm font-medium text-primary border-t pt-4">STAR Method Components:</p>
-          
+
           <FormField
             control={form.control}
             name="situation"
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel>Situation</FormLabel>
+                  <FormLabel className={starLabelClass}>Situation</FormLabel>
                   {renderAiAssistButton('situation')}
                 </div>
                 <FormControl>
@@ -280,7 +282,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
             render={({ field }) => (
               <FormItem>
                  <div className="flex items-center justify-between">
-                  <FormLabel>Task</FormLabel>
+                  <FormLabel className={starLabelClass}>Task</FormLabel>
                   {renderAiAssistButton('task')}
                 </div>
                 <FormControl>
@@ -300,7 +302,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel>Action</FormLabel>
+                  <FormLabel className={starLabelClass}>Action</FormLabel>
                   {renderAiAssistButton('action')}
                 </div>
                 <FormControl>
@@ -320,7 +322,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel>Result</FormLabel>
+                  <FormLabel className={starLabelClass}>Result</FormLabel>
                   {renderAiAssistButton('result')}
                 </div>
                 <FormControl>
@@ -341,7 +343,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel>Quantifiable Impact (Optional)</FormLabel>
+                  <FormLabel className={starLabelClass}>Quantifiable Impact (Optional)</FormLabel>
                   {renderAiAssistButton('quantifiableImpact')}
                 </div>
                 <FormControl>
@@ -368,7 +370,6 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
             )}
           />
 
-          {/* AI Assistance Panel */}
           {activeHelpComponent && (aiGuidance || isFetchingAiGuidance || aiGuidanceError) && (
             <Card ref={aiAssistancePanelRef} className="mt-6 mb-4 border-primary/50 shadow-md">
               <CardHeader className="py-3 px-4 bg-primary/10">
@@ -411,7 +412,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
                       <div>
                         <h5 className="font-semibold text-muted-foreground mb-1 flex items-center"><Sparkles className="h-4 w-4 mr-1.5 text-indigo-500" />Example Phrases:</h5>
                         <ul className="list-disc space-y-0.5 pl-5">
-                          {aiGuidance.examplePhrases.map((p, i) => <li key={`ep-${i}`}><em>"{p}"</em></li>)}
+                          {aiGuidance.examplePhrases.map((p, i) => <li key={`ep-${i}`}>{p}</li>)}
                         </ul>
                       </div>
                     )}
@@ -450,5 +451,3 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
     </>
   );
 }
-
-    

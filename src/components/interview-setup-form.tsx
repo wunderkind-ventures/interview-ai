@@ -5,12 +5,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2, UploadCloud, Save, List, AlertCircle, Trash2, Cog } from "lucide-react"; // Added Cog
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2, UploadCloud, Save, List, AlertCircle, Trash2, Cog } from "lucide-react";
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, deleteDoc, orderBy } from "firebase/firestore";
 import { useAuth } from '@/contexts/auth-context';
 
-import { Button, buttonVariants } from "@/components/ui/button"; // Import buttonVariants
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -89,7 +89,6 @@ export default function InterviewSetupForm() {
   const [savedJobDescriptions, setSavedJobDescriptions] = useState<SavedJobDescription[]>([]);
   const [isLoadingJobDescriptions, setIsLoadingJobDescriptions] = useState(false);
 
-  // State for Saved Interview Setups
   const [isSaveSetupDialogOpen, setIsSaveSetupDialogOpen] = useState(false);
   const [newSetupTitle, setNewSetupTitle] = useState("");
   const [isSavingSetup, setIsSavingSetup] = useState(false);
@@ -118,7 +117,6 @@ export default function InterviewSetupForm() {
   const currentResumeContent = form.watch("resume");
   const currentJobDescriptionContent = form.watch("jobDescription");
 
-
   const availableSkills: Skill[] = useMemo(() => {
     return SKILLS_BY_INTERVIEW_TYPE[watchedInterviewType] || [];
   }, [watchedInterviewType]);
@@ -134,7 +132,7 @@ export default function InterviewSetupForm() {
       }
     } else if (form.getValues("selectedThemeId") !== "custom") {
         // Theme is selected, skills are handled by handleThemeChange
-    } else { 
+    } else {
         form.setValue("targetedSkills", []);
     }
   }, [watchedInterviewType, availableSkills, form]);
@@ -197,7 +195,6 @@ export default function InterviewSetupForm() {
   const handleThemeChange = (themeId: string) => {
     form.setValue("selectedThemeId", themeId);
     if (themeId === "custom") {
-      // When switching to custom, re-evaluate skills based on current interview type
       const currentTargetedSkills = form.getValues("targetedSkills") || [];
       const validCurrentTargetedSkills = currentTargetedSkills.filter(skillVal =>
         availableSkills.some(s => s.value === skillVal)
@@ -209,21 +206,21 @@ export default function InterviewSetupForm() {
     if (selectedPack) {
       const { config } = selectedPack;
       const currentResume = form.getValues("resume");
-      const currentJobDescriptionFromForm = form.getValues("jobDescription"); 
+      const currentJobDescriptionFromForm = form.getValues("jobDescription");
       const newFormValues: Partial<z.infer<typeof formSchema>> = {
         interviewType: config.interviewType || INTERVIEW_TYPES[0].value,
         interviewStyle: config.interviewStyle || INTERVIEW_STYLES[0].value,
         faangLevel: config.faangLevel || FAANG_LEVELS[1].value,
         jobTitle: config.jobTitle || "",
-        jobDescription: config.jobDescription || currentJobDescriptionFromForm, 
-        targetedSkills: [], // Will be set in timeout
+        jobDescription: config.jobDescription || currentJobDescriptionFromForm,
+        targetedSkills: [],
         targetCompany: config.targetCompany || "",
         interviewFocus: config.interviewFocus || "",
         resume: currentResume,
         selectedThemeId: themeId,
       };
       form.reset(newFormValues);
-      
+
        setTimeout(() => {
         const themeInterviewType = config.interviewType || INTERVIEW_TYPES[0].value;
         const skillsForThemeType = SKILLS_BY_INTERVIEW_TYPE[themeInterviewType] || [];
@@ -402,14 +399,13 @@ export default function InterviewSetupForm() {
       const db = getFirestore();
       await deleteDoc(doc(db, 'users', user.uid, 'resumes', resumeId));
       toast({ title: "Resume Deleted", description: "The resume has been deleted." });
-      fetchSavedResumes(); // Refresh the list
+      fetchSavedResumes();
     } catch (error) {
       console.error("Error deleting resume:", error);
       toast({ title: "Error", description: "Could not delete resume.", variant: "destructive" });
     }
   };
 
-  // Job Description Save/Load Logic
   const fetchSavedJobDescriptions = async () => {
     if (!user) return;
     setIsLoadingJobDescriptions(true);
@@ -491,14 +487,13 @@ export default function InterviewSetupForm() {
       const db = getFirestore();
       await deleteDoc(doc(db, 'users', user.uid, 'jobDescriptions', jdId));
       toast({ title: "Job Description Deleted", description: "The job description has been deleted." });
-      fetchSavedJobDescriptions(); // Refresh the list
+      fetchSavedJobDescriptions();
     } catch (error) {
       console.error("Error deleting job description:", error);
       toast({ title: "Error", description: "Could not delete job description.", variant: "destructive" });
     }
   };
 
-  // Saved Interview Setups Logic
   const fetchSavedSetups = async () => {
     if (!user) return;
     setIsLoadingSetups(true);
@@ -538,13 +533,12 @@ export default function InterviewSetupForm() {
       toast({ title: "Title Required", description: "Please enter a title for this interview setup.", variant: "destructive" });
       return;
     }
-    
+
     const currentConfig = form.getValues();
-    // Ensure targetedSkills is an array, even if undefined
     const setupToSave: InterviewSetupData = {
         ...currentConfig,
         targetedSkills: currentConfig.targetedSkills || [],
-        selectedThemeId: currentConfig.selectedThemeId || "custom", // Ensure theme ID is saved
+        selectedThemeId: currentConfig.selectedThemeId || "custom",
     };
 
     setIsSavingSetup(true);
@@ -574,13 +568,12 @@ export default function InterviewSetupForm() {
   const handleLoadSetup = (setup: SavedInterviewSetup) => {
     form.reset({
       ...setup.config,
-      selectedThemeId: setup.config.selectedThemeId || "custom", // Ensure theme ID is loaded
+      selectedThemeId: setup.config.selectedThemeId || "custom",
     });
     toast({ title: "Setup Loaded", description: `"${setup.title}" interview setup has been loaded.` });
     setIsLoadSetupDialogOpen(false);
-    // Trigger resume analysis if resume content is loaded
     if (setup.config.resume && setup.config.resume.trim() !== "") {
-      setSummarizedForResumeText(setup.config.resume); // Ensure analysis triggers if content matches
+      setSummarizedForResumeText(setup.config.resume);
       handleResumeAnalysis();
     } else {
       setResumeSummary(null);
@@ -595,7 +588,7 @@ export default function InterviewSetupForm() {
       const db = getFirestore();
       await deleteDoc(doc(db, 'users', user.uid, 'savedSetups', setupId));
       toast({ title: "Setup Deleted", description: "The saved interview setup has been deleted." });
-      fetchSavedSetups(); // Refresh the list
+      fetchSavedSetups();
     } catch (error) {
       console.error("Error deleting setup:", error);
       toast({ title: "Error", description: "Could not delete saved setup.", variant: "destructive" });
@@ -615,642 +608,664 @@ export default function InterviewSetupForm() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <Card className="bg-secondary/30">
+              <CardHeader>
+                <CardTitle className="text-xl">Core Setup</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <FormField
+                    control={form.control}
+                    name="selectedThemeId"
+                    render={({ field }) => (
+                        <FormItem className="flex-grow">
+                        <FormLabel className="flex items-center">
+                            <PackageSearch className="mr-2 h-5 w-5 text-primary" />
+                            Interview Theme
+                        </FormLabel>
+                        <Select onValueChange={handleThemeChange} value={field.value || "custom"}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a theme or configure manually" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            <SelectItem value="custom">
+                                Custom Configuration
+                            </SelectItem>
+                            {THEMED_INTERVIEW_PACKS.map((pack) => (
+                                <SelectItem key={pack.id} value={pack.id} title={pack.description}>
+                                {pack.label}
+                                </SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormDescription>
+                            Or, choose a pre-configured theme.
+                        </FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-2 pt-2 sm:pt-0">
+                        <Dialog open={isSaveSetupDialogOpen} onOpenChange={setIsSaveSetupDialogOpen}>
+                            <DialogTrigger asChild>
+                            <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} className="w-full sm:w-auto">
+                                <Save className="mr-2 h-4 w-4" /> Save Current Setup
+                            </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Save Interview Setup</DialogTitle>
+                                <DialogDescription>Enter a title for this interview configuration.</DialogDescription>
+                            </DialogHeader>
+                            <Input
+                                placeholder="e.g., FAANG PM L5 Prep, Behavioral Practice"
+                                value={newSetupTitle}
+                                onChange={(e) => setNewSetupTitle(e.target.value)}
+                                className="my-4"
+                            />
+                            <DialogFooter>
+                                <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                <Button onClick={handleSaveCurrentSetup} disabled={isSavingSetup || !newSetupTitle.trim()}>
+                                {isSavingSetup && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
+                                </Button>
+                            </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                        <Dialog open={isLoadSetupDialogOpen} onOpenChange={setIsLoadSetupDialogOpen}>
+                            <DialogTrigger asChild>
+                            <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} onClick={handleOpenLoadSetupDialog} className="w-full sm:w-auto">
+                                <Cog className="mr-2 h-4 w-4" /> Load Saved Setup
+                            </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-md">
+                                <DialogHeader>
+                                    <DialogTitle>Load Saved Interview Setup</DialogTitle>
+                                    <DialogDescription>Select a setup to load into the form.</DialogDescription>
+                                </DialogHeader>
+                                {isLoadingSetups ? (
+                                    <div className="flex justify-center items-center h-32">
+                                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                    </div>
+                                ) : savedSetups.length > 0 ? (
+                                    <ScrollArea className="h-[200px] my-4">
+                                        <div className="space-y-2 pr-2">
+                                        {savedSetups.map((setup) => (
+                                            <Card key={setup.id} className="p-3 flex justify-between items-center hover:bg-background/80">
+                                                <div>
+                                                    <p className="font-medium text-sm">{setup.title}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Saved: {setup.createdAt?.toDate ? setup.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center space-x-1">
+                                                    <Button variant="ghost" size="sm" onClick={() => handleLoadSetup(setup)}>Load</Button>
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Delete Saved Setup?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    Are you sure you want to delete "{setup.title}"? This action cannot be undone.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDeleteSetup(setup.id!)} className={buttonVariants({ variant: "destructive" })}>
+                                                                    Delete
+                                                                </AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </div>
+                                            </Card>
+                                        ))}
+                                        </div>
+                                    </ScrollArea>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground text-center py-4">No saved interview setups found.</p>
+                                )}
+                                <DialogFooter>
+                                    <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                </div>
+
                 <FormField
-                control={form.control}
-                name="selectedThemeId"
-                render={({ field }) => (
-                    <FormItem className="flex-grow">
-                    <FormLabel className="flex items-center text-lg">
-                        <PackageSearch className="mr-2 h-5 w-5 text-primary" />
-                        Interview Theme
-                    </FormLabel>
-                    <Select onValueChange={handleThemeChange} value={field.value || "custom"}>
+                  control={form.control}
+                  name="interviewType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <Brain className="mr-2 h-5 w-5 text-primary" />
+                        Interview Type
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} >
                         <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select a theme or configure manually" />
-                        </SelectTrigger>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an interview type" />
+                          </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                        <SelectItem value="custom">
-                            Custom Configuration
-                        </SelectItem>
-                        {THEMED_INTERVIEW_PACKS.map((pack) => (
-                            <SelectItem key={pack.id} value={pack.id} title={pack.description}>
-                            {pack.label}
+                          {INTERVIEW_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              <div className="flex items-center">
+                                {getIconForType(type.value)}
+                                {type.label}
+                              </div>
                             </SelectItem>
-                        ))}
+                          ))}
                         </SelectContent>
-                    </Select>
-                    <FormDescription>
-                        Or, choose a pre-configured theme.
-                    </FormDescription>
-                    <FormMessage />
+                      </Select>
+                      <FormDescription>
+                        Choose the category for your mock interview.
+                      </FormDescription>
+                      <FormMessage />
                     </FormItem>
-                )}
+                  )}
                 />
-                <div className="flex flex-col sm:flex-row sm:items-end gap-2 pt-2 sm:pt-0">
-                    <Dialog open={isSaveSetupDialogOpen} onOpenChange={setIsSaveSetupDialogOpen}>
-                        <DialogTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} className="w-full sm:w-auto">
-                            <Save className="mr-2 h-4 w-4" /> Save Current Setup
-                        </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Save Interview Setup</DialogTitle>
-                            <DialogDescription>Enter a title for this interview configuration.</DialogDescription>
-                        </DialogHeader>
+
+                <FormField
+                  control={form.control}
+                  name="interviewStyle"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <MessagesSquare className="mr-2 h-5 w-5 text-primary" />
+                        Interview Style
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an interview style" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {INTERVIEW_STYLES.map((style) => (
+                            <SelectItem key={style.value} value={style.value}>
+                              <div className="flex items-center">
+                                {getIconForStyle(style.value)}
+                                {style.label}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Choose question delivery: Q&A, multi-turn case study, or take-home.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="faangLevel"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <Star className="mr-2 h-5 w-5 text-primary" />
+                        Target FAANG Level
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a FAANG level" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {FAANG_LEVELS.map((level) => (
+                            <SelectItem key={level.value} value={level.value}>
+                              {level.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Select the difficulty level for your interview.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Contextual Details (Optional)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="targetCompany"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <Building className="mr-2 h-5 w-5 text-primary" />
+                        Target Company
+                      </FormLabel>
+                      <FormControl>
                         <Input
-                            placeholder="e.g., FAANG PM L5 Prep, Behavioral Practice"
-                            value={newSetupTitle}
-                            onChange={(e) => setNewSetupTitle(e.target.value)}
-                            className="my-4"
+                          placeholder="e.g., Amazon, Google, Meta"
+                          {...field}
                         />
-                        <DialogFooter>
-                            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                            <Button onClick={handleSaveCurrentSetup} disabled={isSavingSetup || !newSetupTitle.trim()}>
-                            {isSavingSetup && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
-                            </Button>
-                        </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                    <Dialog open={isLoadSetupDialogOpen} onOpenChange={setIsLoadSetupDialogOpen}>
-                        <DialogTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} onClick={handleOpenLoadSetupDialog} className="w-full sm:w-auto">
-                            <Cog className="mr-2 h-4 w-4" /> Load Saved Setup
-                        </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                                <DialogTitle>Load Saved Interview Setup</DialogTitle>
-                                <DialogDescription>Select a setup to load into the form.</DialogDescription>
-                            </DialogHeader>
-                            {isLoadingSetups ? (
-                                <div className="flex justify-center items-center h-32">
-                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                </div>
-                            ) : savedSetups.length > 0 ? (
-                                <ScrollArea className="h-[200px] my-4">
-                                    <div className="space-y-2 pr-2">
-                                    {savedSetups.map((setup) => (
-                                        <Card key={setup.id} className="p-3 flex justify-between items-center hover:bg-secondary/50">
-                                            <div>
-                                                <p className="font-medium text-sm">{setup.title}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Saved: {setup.createdAt?.toDate ? setup.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center space-x-1">
-                                                <Button variant="ghost" size="sm" onClick={() => handleLoadSetup(setup)}>Load</Button>
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Delete Saved Setup?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                Are you sure you want to delete "{setup.title}"? This action cannot be undone.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteSetup(setup.id!)} className={buttonVariants({ variant: "destructive" })}>
-                                                                Delete
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
-                                        </Card>
-                                    ))}
-                                    </div>
-                                </ScrollArea>
-                            ) : (
-                                <p className="text-sm text-muted-foreground text-center py-4">No saved interview setups found.</p>
-                            )}
-                            <DialogFooter>
-                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-            </div>
+                      </FormControl>
+                      <FormDescription>
+                        Specifying a company (especially 'Amazon') can help tailor questions to their values (e.g., Leadership Principles).
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="interviewType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center text-lg">
-                    <Brain className="mr-2 h-5 w-5 text-primary" />
-                    Interview Type
-                  </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an interview type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {INTERVIEW_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <div className="flex items-center">
-                            {getIconForType(type.value)}
-                            {type.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    Choose the category for your mock interview.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {availableSkills.length > 0 && (
-              <FormField
-                control={form.control}
-                name="targetedSkills"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center text-lg">
-                      <Target className="mr-2 h-5 w-5 text-primary" />
-                      Targeted Skills (Optional)
-                    </FormLabel>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 p-3 border rounded-md bg-background">
-                      {availableSkills.map((skill) => (
-                        <FormField
-                          key={skill.value}
-                          control={form.control}
-                          name="targetedSkills"
-                          render={({ field: skillField }) => {
-                            return (
-                              <FormItem
-                                key={skill.value}
-                                className="flex flex-row items-start space-x-3 space-y-0"
-                              >
-                                <FormControl>
-                                  <Checkbox
-                                    checked={skillField.value?.includes(skill.value)}
-                                    onCheckedChange={(checked) => {
-                                      return checked
-                                        ? skillField.onChange([...(skillField.value || []), skill.value])
-                                        : skillField.onChange(
-                                            (skillField.value || []).filter(
-                                              (value) => value !== skill.value
-                                            )
-                                          );
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormLabel className="text-sm font-normal">
-                                  {skill.label}
-                                </FormLabel>
-                              </FormItem>
-                            );
-                          }}
+                <FormField
+                  control={form.control}
+                  name="jobTitle"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <Briefcase className="mr-2 h-5 w-5 text-primary" />
+                        Job Title
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., Senior Product Manager, Software Engineer II"
+                          {...field}
                         />
-                      ))}
-                    </div>
-                    <FormDescription>
-                      Select specific skills to focus on within the chosen interview type.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+                      </FormControl>
+                      <FormDescription>
+                        Helps tailor questions to the specific role and its expected technical depth.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="interviewStyle"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center text-lg">
-                    <MessagesSquare className="mr-2 h-5 w-5 text-primary" />
-                    Interview Style
-                  </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an interview style" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {INTERVIEW_STYLES.map((style) => (
-                        <SelectItem key={style.value} value={style.value}>
-                          <div className="flex items-center">
-                            {getIconForStyle(style.value)}
-                            {style.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    Choose question delivery: Q&A, multi-turn case study, or take-home.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="interviewFocus"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <SearchCheck className="mr-2 h-5 w-5 text-primary" />
+                        Specific Focus
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., 'handling high-traffic events', 'customer retention strategies'"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Provide a specific sub-topic or theme to further tailor the interview.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="faangLevel"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center text-lg">
-                    <Star className="mr-2 h-5 w-5 text-primary" />
-                    Target FAANG Level
-                  </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a FAANG level" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {FAANG_LEVELS.map((level) => (
-                        <SelectItem key={level.value} value={level.value}>
-                          {level.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    Select the difficulty level for your interview.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="targetCompany"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center text-lg">
-                    <Building className="mr-2 h-5 w-5 text-primary" />
-                    Target Company (Optional)
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., Amazon, Google, Meta"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Specifying a company (especially 'Amazon') can help tailor questions to their values (e.g., Leadership Principles).
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="jobTitle"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center text-lg">
-                    <Briefcase className="mr-2 h-5 w-5 text-primary" />
-                    Job Title (Optional)
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., Senior Product Manager, Software Engineer II"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Helps tailor questions to the specific role and its expected technical depth.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="jobDescription"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between mb-1">
-                    <FormLabel className="flex items-center text-lg">
-                      <FileText className="mr-2 h-5 w-5 text-primary" />
-                      Job Description (Optional)
-                    </FormLabel>
-                    <div className="flex items-center space-x-2">
-                       <Dialog open={isSaveJobDescriptionDialogOpen} onOpenChange={setIsSaveJobDescriptionDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button type="button" variant="outline" size="sm" disabled={!user || !currentJobDescriptionContent?.trim()} onClick={() => setNewJobDescriptionTitle("")}>
-                            <Save className="mr-2 h-4 w-4" /> Save this JD
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Save Job Description</DialogTitle>
-                            <DialogDescription>Enter a title for this job description to save it for later use.</DialogDescription>
-                          </DialogHeader>
-                          <Input
-                            placeholder="e.g., Senior PM JD, Google L5 Eng JD"
-                            value={newJobDescriptionTitle}
-                            onChange={(e) => setNewJobDescriptionTitle(e.target.value)}
-                            className="my-4"
-                          />
-                          <DialogFooter>
-                            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                            <Button onClick={handleSaveCurrentJobDescription} disabled={isSavingJobDescription || !newJobDescriptionTitle.trim()}>
-                              {isSavingJobDescription && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                       <Dialog open={isLoadJobDescriptionDialogOpen} onOpenChange={setIsLoadJobDescriptionDialogOpen}>
-                        <DialogTrigger asChild>
-                           <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadJobDescriptionDialog}>
-                            <List className="mr-2 h-4 w-4" /> Load Saved JD
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                                <DialogTitle>Load Saved Job Description</DialogTitle>
-                                <DialogDescription>Select a job description to load into the form.</DialogDescription>
-                            </DialogHeader>
-                            {isLoadingJobDescriptions ? (
-                                <div className="flex justify-center items-center h-32">
-                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                </div>
-                            ) : savedJobDescriptions.length > 0 ? (
-                                <ScrollArea className="h-[200px] my-4">
-                                    <div className="space-y-2 pr-2">
-                                    {savedJobDescriptions.map((jd) => (
-                                        <Card key={jd.id} className="p-3 flex justify-between items-center hover:bg-secondary/50 transition-colors">
-                                            <div>
-                                                <p className="font-medium text-sm">{jd.title}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Saved: {jd.createdAt?.toDate ? jd.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center space-x-1">
-                                                <Button variant="ghost" size="sm" onClick={() => handleLoadJobDescription(jd)}>Load</Button>
-                                                 <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
-                                                          <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Delete Job Description?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                Are you sure you want to delete "{jd.title}"? This action cannot be undone.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={buttonVariants({ variant: "destructive" })}>
-                                                                Delete
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
-                                        </Card>
-                                    ))}
-                                    </div>
-                                </ScrollArea>
-                            ) : (
-                                <p className="text-sm text-muted-foreground text-center py-4">No saved job descriptions found.</p>
-                            )}
-                            <DialogFooter>
-                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                            </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  </div>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Paste the job description here to tailor questions..."
-                      className="resize-y min-h-[120px]"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Providing a job description helps personalize the interview questions.
-                    {!user && <span className="text-xs text-amber-600 ml-2">(Login to save/load JDs)</span>}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="interviewFocus"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center text-lg">
-                    <SearchCheck className="mr-2 h-5 w-5 text-primary" />
-                    Specific Focus (Optional)
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., 'handling high-traffic events', 'customer retention strategies'"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Provide a specific sub-topic or theme to further tailor the interview.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="resume"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between mb-1">
-                    <FormLabel className="flex items-center text-lg">
-                      <UserCircle className="mr-2 h-5 w-5 text-primary" />
-                      Your Resume (Optional)
-                    </FormLabel>
-                    <div className="flex items-center space-x-2">
-                       <Dialog open={isSaveResumeDialogOpen} onOpenChange={setIsSaveResumeDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button type="button" variant="outline" size="sm" disabled={!user || !currentResumeContent?.trim()} onClick={() => setNewResumeTitle("")}>
-                            <Save className="mr-2 h-4 w-4" /> Save this Resume
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Save Resume</DialogTitle>
-                            <DialogDescription>Enter a title for this resume to save it for later use.</DialogDescription>
-                          </DialogHeader>
-                          <Input
-                            placeholder="e.g., My FAANG Resume, Data Science Resume v3"
-                            value={newResumeTitle}
-                            onChange={(e) => setNewResumeTitle(e.target.value)}
-                            className="my-4"
-                          />
-                          <DialogFooter>
-                            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                            <Button onClick={handleSaveCurrentResume} disabled={isSavingResume || !newResumeTitle.trim()}>
-                              {isSavingResume && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                       <Dialog open={isLoadResumeDialogOpen} onOpenChange={setIsLoadResumeDialogOpen}>
-                        <DialogTrigger asChild>
-                           <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadResumeDialog}>
-                            <List className="mr-2 h-4 w-4" /> Load Saved
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                                <DialogTitle>Load Saved Resume</DialogTitle>
-                                <DialogDescription>Select a resume to load into the form.</DialogDescription>
-                            </DialogHeader>
-                            {isLoadingResumes ? (
-                                <div className="flex justify-center items-center h-32">
-                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                </div>
-                            ) : savedResumes.length > 0 ? (
-                                <ScrollArea className="h-[200px] my-4">
-                                    <div className="space-y-2 pr-2">
-                                    {savedResumes.map((res) => (
-                                        <Card key={res.id} className="p-3 flex justify-between items-center hover:bg-secondary/50 transition-colors">
-                                            <div>
-                                                <p className="font-medium text-sm">{res.title}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Saved: {res.createdAt?.toDate ? res.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center space-x-1">
-                                                <Button variant="ghost" size="sm" onClick={() => handleLoadResume(res)}>Load</Button>
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
-                                                          <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Delete Resume?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                Are you sure you want to delete "{res.title}"? This action cannot be undone.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteResume(res.id!)} className={buttonVariants({ variant: "destructive" })}>
-                                                                Delete
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
-                                        </Card>
-                                    ))}
-                                    </div>
-                                </ScrollArea>
-                            ) : (
-                                <p className="text-sm text-muted-foreground text-center py-4">No saved resumes found.</p>
-                            )}
-                            <DialogFooter>
-                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                            </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="hidden sm:inline-flex"
-                      >
-                        <UploadCloud className="mr-2 h-4 w-4" />
-                        Upload .txt
-                      </Button>
-                    </div>
-                  </div>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Paste your resume content here or upload a .txt file..."
-                      className="resize-y min-h-[120px]"
-                      {...field}
-                      onBlur={handleResumeAnalysis}
-                    />
-                  </FormControl>
-                   <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept=".txt"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                  <div className="flex justify-between items-center">
-                    <FormDescription>
-                      Paste resume or <Button type="button" variant="link" size="sm" className="p-0 h-auto sm:hidden" onClick={() => fileInputRef.current?.click()}>upload .txt</Button>. Helps AI ask relevant questions.
-                      {!user && <span className="text-xs text-amber-600 ml-2">(Login to save/load resumes)</span>}
-                    </FormDescription>
-                    {selectedFileName && (
-                      <span className="text-xs text-muted-foreground">
-                        Selected: {selectedFileName}
-                      </span>
+                {availableSkills.length > 0 && form.getValues("selectedThemeId") === "custom" && (
+                  <FormField
+                    control={form.control}
+                    name="targetedSkills"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center">
+                          <Target className="mr-2 h-5 w-5 text-primary" />
+                          Targeted Skills
+                        </FormLabel>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 p-3 border rounded-md bg-background">
+                          {availableSkills.map((skill) => (
+                            <FormField
+                              key={skill.value}
+                              control={form.control}
+                              name="targetedSkills"
+                              render={({ field: skillField }) => {
+                                return (
+                                  <FormItem
+                                    key={skill.value}
+                                    className="flex flex-row items-start space-x-3 space-y-0"
+                                  >
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={skillField.value?.includes(skill.value)}
+                                        onCheckedChange={(checked) => {
+                                          return checked
+                                            ? skillField.onChange([...(skillField.value || []), skill.value])
+                                            : skillField.onChange(
+                                                (skillField.value || []).filter(
+                                                  (value) => value !== skill.value
+                                                )
+                                              );
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="text-sm font-normal">
+                                      {skill.label}
+                                    </FormLabel>
+                                  </FormItem>
+                                );
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <FormDescription>
+                          Select specific skills to focus on within the chosen interview type.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                  />
+                )}
+              </CardContent>
+            </Card>
 
-            {(isSummarizingResume || resumeSummaryError || resumeSummary) && (
-              <div className="space-y-2">
-                {isSummarizingResume && (
-                  <Alert>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <AlertTitle>Analyzing Resume...</AlertTitle>
-                    <AlertDescription>
-                      Please wait while we extract key points from your resume.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {resumeSummaryError && !isSummarizingResume && (
-                  <Alert variant="destructive">
-                    <AlertTriangle className="h-5 w-5" />
-                    <AlertTitle>Resume Analysis Error</AlertTitle>
-                    <AlertDescription>
-                      {resumeSummaryError}
-                      <Button variant="link" size="sm" onClick={handleResumeAnalysis} className="p-0 h-auto ml-1">Try again</Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {resumeSummary && !isSummarizingResume && !resumeSummaryError && (
-                  <Alert variant="default" className="bg-accent/10 border-accent/30">
-                    <Lightbulb className="h-5 w-5 text-accent" />
-                    <AlertTitle className="text-accent">Resume Highlights</AlertTitle>
-                    <AlertDescription className="whitespace-pre-wrap text-foreground/80">
-                      {resumeSummary}
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-            )}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-xl">Resume & Job Description (Optional)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <FormField
+                    control={form.control}
+                    name="resume"
+                    render={({ field }) => (
+                        <FormItem>
+                        <div className="flex items-center justify-between mb-1">
+                            <FormLabel className="flex items-center">
+                            <UserCircle className="mr-2 h-5 w-5 text-primary" />
+                            Your Resume
+                            </FormLabel>
+                            <div className="flex items-center space-x-2">
+                            <Dialog open={isSaveResumeDialogOpen} onOpenChange={setIsSaveResumeDialogOpen}>
+                                <DialogTrigger asChild>
+                                <Button type="button" variant="outline" size="sm" disabled={!user || !currentResumeContent?.trim()} onClick={() => setNewResumeTitle("")}>
+                                    <Save className="mr-2 h-4 w-4" /> Save this Resume
+                                </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Save Resume</DialogTitle>
+                                    <DialogDescription>Enter a title for this resume to save it for later use.</DialogDescription>
+                                </DialogHeader>
+                                <Input
+                                    placeholder="e.g., My FAANG Resume, Data Science Resume v3"
+                                    value={newResumeTitle}
+                                    onChange={(e) => setNewResumeTitle(e.target.value)}
+                                    className="my-4"
+                                />
+                                <DialogFooter>
+                                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                    <Button onClick={handleSaveCurrentResume} disabled={isSavingResume || !newResumeTitle.trim()}>
+                                    {isSavingResume && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
+                                    </Button>
+                                </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                            <Dialog open={isLoadResumeDialogOpen} onOpenChange={setIsLoadResumeDialogOpen}>
+                                <DialogTrigger asChild>
+                                <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadResumeDialog}>
+                                    <List className="mr-2 h-4 w-4" /> Load Saved
+                                </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-md">
+                                    <DialogHeader>
+                                        <DialogTitle>Load Saved Resume</DialogTitle>
+                                        <DialogDescription>Select a resume to load into the form.</DialogDescription>
+                                    </DialogHeader>
+                                    {isLoadingResumes ? (
+                                        <div className="flex justify-center items-center h-32">
+                                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                        </div>
+                                    ) : savedResumes.length > 0 ? (
+                                        <ScrollArea className="h-[200px] my-4">
+                                            <div className="space-y-2 pr-2">
+                                            {savedResumes.map((res) => (
+                                                <Card key={res.id} className="p-3 flex justify-between items-center hover:bg-background/80">
+                                                    <div>
+                                                        <p className="font-medium text-sm">{res.title}</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Saved: {res.createdAt?.toDate ? res.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center space-x-1">
+                                                        <Button variant="ghost" size="sm" onClick={() => handleLoadResume(res)}>Load</Button>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Delete Resume?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        Are you sure you want to delete "{res.title}"? This action cannot be undone.
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleDeleteResume(res.id!)} className={buttonVariants({ variant: "destructive" })}>
+                                                                        Delete
+                                                                    </AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </div>
+                                                </Card>
+                                            ))}
+                                            </div>
+                                        </ScrollArea>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center py-4">No saved resumes found.</p>
+                                    )}
+                                    <DialogFooter>
+                                        <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="hidden sm:inline-flex"
+                            >
+                                <UploadCloud className="mr-2 h-4 w-4" />
+                                Upload .txt
+                            </Button>
+                            </div>
+                        </div>
+                        <FormControl>
+                            <Textarea
+                            placeholder="Paste your resume content here or upload a .txt file..."
+                            className="resize-y min-h-[120px]"
+                            {...field}
+                            onBlur={handleResumeAnalysis}
+                            />
+                        </FormControl>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            accept=".txt"
+                            onChange={handleFileChange}
+                            className="hidden"
+                        />
+                        <div className="flex justify-between items-center">
+                            <FormDescription>
+                            Paste resume or <Button type="button" variant="link" size="sm" className="p-0 h-auto sm:hidden" onClick={() => fileInputRef.current?.click()}>upload .txt</Button>. Helps AI ask relevant questions.
+                            {!user && <span className="text-xs text-amber-600 ml-2">(Login to save/load resumes)</span>}
+                            </FormDescription>
+                            {selectedFileName && (
+                            <span className="text-xs text-muted-foreground">
+                                Selected: {selectedFileName}
+                            </span>
+                            )}
+                        </div>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+
+                    {(isSummarizingResume || resumeSummaryError || resumeSummary) && (
+                    <div className="space-y-2">
+                        {isSummarizingResume && (
+                        <Alert>
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <AlertTitle>Analyzing Resume...</AlertTitle>
+                            <AlertDescription>
+                            Please wait while we extract key points from your resume.
+                            </AlertDescription>
+                        </Alert>
+                        )}
+                        {resumeSummaryError && !isSummarizingResume && (
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-5 w-5" />
+                            <AlertTitle>Resume Analysis Error</AlertTitle>
+                            <AlertDescription>
+                            {resumeSummaryError}
+                            <Button variant="link" size="sm" onClick={handleResumeAnalysis} className="p-0 h-auto ml-1">Try again</Button>
+                            </AlertDescription>
+                        </Alert>
+                        )}
+                        {resumeSummary && !isSummarizingResume && !resumeSummaryError && (
+                        <Alert variant="default" className="bg-accent/10 border-accent/30">
+                            <Lightbulb className="h-5 w-5 text-accent" />
+                            <AlertTitle className="text-accent">Resume Highlights</AlertTitle>
+                            <AlertDescription className="whitespace-pre-wrap text-foreground/80">
+                            {resumeSummary}
+                            </AlertDescription>
+                        </Alert>
+                        )}
+                    </div>
+                    )}
+
+                    <FormField
+                    control={form.control}
+                    name="jobDescription"
+                    render={({ field }) => (
+                        <FormItem>
+                        <div className="flex items-center justify-between mb-1">
+                            <FormLabel className="flex items-center">
+                            <FileText className="mr-2 h-5 w-5 text-primary" />
+                            Job Description
+                            </FormLabel>
+                            <div className="flex items-center space-x-2">
+                            <Dialog open={isSaveJobDescriptionDialogOpen} onOpenChange={setIsSaveJobDescriptionDialogOpen}>
+                                <DialogTrigger asChild>
+                                <Button type="button" variant="outline" size="sm" disabled={!user || !currentJobDescriptionContent?.trim()} onClick={() => setNewJobDescriptionTitle("")}>
+                                    <Save className="mr-2 h-4 w-4" /> Save this JD
+                                </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Save Job Description</DialogTitle>
+                                    <DialogDescription>Enter a title for this job description to save it for later use.</DialogDescription>
+                                </DialogHeader>
+                                <Input
+                                    placeholder="e.g., Senior PM JD, Google L5 Eng JD"
+                                    value={newJobDescriptionTitle}
+                                    onChange={(e) => setNewJobDescriptionTitle(e.target.value)}
+                                    className="my-4"
+                                />
+                                <DialogFooter>
+                                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                    <Button onClick={handleSaveCurrentJobDescription} disabled={isSavingJobDescription || !newJobDescriptionTitle.trim()}>
+                                    {isSavingJobDescription && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
+                                    </Button>
+                                </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                            <Dialog open={isLoadJobDescriptionDialogOpen} onOpenChange={setIsLoadJobDescriptionDialogOpen}>
+                                <DialogTrigger asChild>
+                                <Button type="button" variant="outline" size="sm" disabled={!user} onClick={handleOpenLoadJobDescriptionDialog}>
+                                    <List className="mr-2 h-4 w-4" /> Load Saved JD
+                                </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-md">
+                                    <DialogHeader>
+                                        <DialogTitle>Load Saved Job Description</DialogTitle>
+                                        <DialogDescription>Select a job description to load into the form.</DialogDescription>
+                                    </DialogHeader>
+                                    {isLoadingJobDescriptions ? (
+                                        <div className="flex justify-center items-center h-32">
+                                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                        </div>
+                                    ) : savedJobDescriptions.length > 0 ? (
+                                        <ScrollArea className="h-[200px] my-4">
+                                            <div className="space-y-2 pr-2">
+                                            {savedJobDescriptions.map((jd) => (
+                                                <Card key={jd.id} className="p-3 flex justify-between items-center hover:bg-background/80">
+                                                    <div>
+                                                        <p className="font-medium text-sm">{jd.title}</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Saved: {jd.createdAt?.toDate ? jd.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center space-x-1">
+                                                        <Button variant="ghost" size="sm" onClick={() => handleLoadJobDescription(jd)}>Load</Button>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Delete Job Description?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        Are you sure you want to delete "{jd.title}"? This action cannot be undone.
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleDeleteJobDescription(jd.id!)} className={buttonVariants({ variant: "destructive" })}>
+                                                                        Delete
+                                                                    </AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </div>
+                                                </Card>
+                                            ))}
+                                            </div>
+                                        </ScrollArea>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center py-4">No saved job descriptions found.</p>
+                                    )}
+                                    <DialogFooter>
+                                        <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                            </div>
+                        </div>
+                        <FormControl>
+                            <Textarea
+                            placeholder="Paste the job description here to tailor questions..."
+                            className="resize-y min-h-[120px]"
+                            {...field}
+                            />
+                        </FormControl>
+                        <FormDescription>
+                            Providing a job description helps personalize the interview questions.
+                            {!user && <span className="text-xs text-amber-600 ml-2">(Login to save/load JDs)</span>}
+                        </FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </CardContent>
+            </Card>
+
 
             <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting || isSummarizingResume || authLoading}>
               {isSubmitting ? (

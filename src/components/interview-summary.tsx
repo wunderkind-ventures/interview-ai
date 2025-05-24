@@ -3,8 +3,8 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc, getDoc, Timestamp } from "firebase/firestore"; 
-import { useAuth } from "@/contexts/auth-context"; 
+import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
+import { useAuth } from "@/contexts/auth-context";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +23,8 @@ import { generateDeepDiveFeedback } from "@/ai/flows/generate-deep-dive-feedback
 import type { GenerateDeepDiveFeedbackInput, GenerateDeepDiveFeedbackOutput } from "@/ai/flows/generate-deep-dive-feedback";
 import { generateSampleAnswer } from "@/ai/flows/generate-sample-answer";
 import type { GenerateSampleAnswerInput, GenerateSampleAnswerOutput } from "@/ai/flows/generate-sample-answer";
-import { clarifyFeedback } from "@/ai/flows/clarify-feedback"; // New import
-import type { ClarifyFeedbackInput, ClarifyFeedbackOutput } from "@/ai/flows/clarify-feedback"; // New import
+import { clarifyFeedback } from "@/ai/flows/clarify-feedback";
+import type { ClarifyFeedbackInput, ClarifyFeedbackOutput } from "@/ai/flows/clarify-feedback";
 import { formatMilliseconds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -51,7 +51,7 @@ function InterviewSummaryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user: authUser, loading: authLoading } = useAuth(); 
+  const { user: authUser, loading: authLoading } = useAuth();
   const [sessionData, setSessionData] = useState<InterviewSessionData | null>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
@@ -92,7 +92,7 @@ function InterviewSummaryContent() {
       console.warn("Firebase app not initialized. Skipping backend logging.");
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; 
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -103,7 +103,7 @@ function InterviewSummaryContent() {
       console.log("User not logged in. Skipping backend save of interview session.");
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; 
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -114,26 +114,26 @@ function InterviewSummaryContent() {
       const db = getFirestore();
       const interviewLog = {
         ...dataToLog,
-        userId: authUser.uid, 
+        userId: authUser.uid,
         completedAt: dataToLog.completedAt instanceof Timestamp ? dataToLog.completedAt : serverTimestamp(),
       };
-      
+
       delete interviewLog.isLoading;
-      delete interviewLog.isLoggedToServer; 
+      delete interviewLog.isLoggedToServer;
       delete interviewLog.error;
 
 
       const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
-      
+
       await setDoc(doc(db, "users", authUser.uid, "interviews", documentId), interviewLog, { merge: true });
-      
+
       console.log("Interview session logged/updated successfully:", documentId);
       toast({
         title: "Session Logged",
         description: "Your interview data has been saved to your account.",
         variant: "default",
       });
-      
+
       setSessionData(prev => {
         if (!prev) return null;
         const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: documentId };
@@ -149,7 +149,7 @@ function InterviewSummaryContent() {
       });
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; 
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -204,7 +204,7 @@ function InterviewSummaryContent() {
 
         const updatedSession = { ...prev, feedback: {...feedbackResult, feedbackItems: updatedFeedbackItemsWithConfidence } };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
-        
+
         if (updatedSession.interviewFinished && updatedSession.feedback && !updatedSession.isLoggedToServer && !authLoading && authUser) {
             saveInterviewToBackend(updatedSession, updatedSession.firestoreDocId);
         }
@@ -225,7 +225,7 @@ function InterviewSummaryContent() {
   }, [toast, isFeedbackLoading, saveInterviewToBackend, authLoading, authUser]);
 
   useEffect(() => {
-    if (authLoading) { 
+    if (authLoading) {
       setIsSessionLoading(true);
       return;
     }
@@ -253,15 +253,15 @@ function InterviewSummaryContent() {
                 deepDives: firestoreData.deepDives || {},
                 sampleAnswers: firestoreData.sampleAnswers || {},
                 caseStudyNotes: firestoreData.caseStudyNotes || "",
-                isLoading: false, 
+                isLoading: false,
                 error: null,
-                isLoggedToServer: true, 
-                firestoreDocId: docSnap.id, 
-                completedAt: firestoreData.completedAt, 
+                isLoggedToServer: true,
+                firestoreDocId: docSnap.id,
+                completedAt: firestoreData.completedAt,
             };
             setSessionData(loadedSessionData);
-            localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData)); 
-            
+            localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData));
+
             if (!loadedSessionData.feedback && loadedSessionData.answers.length > 0) {
               fetchAndSetFeedback(loadedSessionData);
             }
@@ -281,13 +281,13 @@ function InterviewSummaryContent() {
         loadFromLocalStorage();
       }
     };
-    
+
     const loadFromLocalStorage = () => {
         const storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
         if (storedSession) {
           try {
             const parsedSession: InterviewSessionData = JSON.parse(storedSession);
-            parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false; 
+            parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false;
             parsedSession.firestoreDocId = parsedSession.firestoreDocId ?? undefined;
 
             if (!parsedSession.interviewFinished) {
@@ -296,7 +296,7 @@ function InterviewSummaryContent() {
               return;
             }
             setSessionData(parsedSession);
-            
+
             if (!parsedSession.feedback && parsedSession.answers.length > 0) {
               fetchAndSetFeedback(parsedSession);
             } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer && authUser) {
@@ -488,7 +488,7 @@ function InterviewSummaryContent() {
 
     sessionData.questions.forEach((question, index) => {
       md += `## ${sessionData.interviewStyle === 'take-home' ? 'Assignment' : `Question ${index + 1}`}\n`;
-      
+
       if (exportOptions.includeQuestions) {
         md += `**Question/Assignment Text:**\n${question.text}\n\n`;
       }
@@ -502,7 +502,7 @@ function InterviewSummaryContent() {
       const answer = sessionData.answers.find(a => a.questionId === question.id);
       if (exportOptions.includeAnswers && answer) {
         md += "**Your Answer:**\n";
-        md += `> ${answer.answerText.replace(/\n/g, '\n> ')}\n`; 
+        md += `> ${answer.answerText.replace(/\n/g, '\n> ')}\n`;
         let answerMeta = [];
         if (answer.confidenceScore !== undefined) answerMeta.push(`Confidence: ${answer.confidenceScore}/5`);
         if (answer.timeTakenMs !== undefined) answerMeta.push(`Time: ${formatMilliseconds(answer.timeTakenMs)}`);
@@ -591,7 +591,7 @@ function InterviewSummaryContent() {
   };
 
 
-  if (isSessionLoading || authLoading) { 
+  if (isSessionLoading || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
@@ -651,18 +651,20 @@ function InterviewSummaryContent() {
           {icon}
           {title}:
         </h5>
-        <ul className="list-none space-y-1.5 pl-0">
+        <ul className="list-none space-y-2 pl-0">
           {items.map((item, idx) => (
-            <li key={idx} className="flex items-start group">
-              <Badge variant="secondary" className="mr-2 mt-0.5 text-xs whitespace-normal break-words flex-grow">{item}</Badge>
+            <li key={idx} className="group flex items-start justify-between p-2 rounded-md bg-secondary/50 hover:bg-secondary/70 transition-colors">
+              <Badge variant="secondary" className="mr-2 mt-0.5 text-xs whitespace-normal break-words flex-grow bg-transparent border-transparent px-0 py-0 font-normal text-foreground/90">
+                {item}
+              </Badge>
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-6 w-6 opacity-50 group-hover:opacity-100 transition-opacity text-blue-600 hover:bg-blue-100"
+                size="sm"
+                className="h-auto px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700 opacity-60 group-hover:opacity-100 transition-opacity"
                 onClick={() => handleOpenClarifyFeedbackDialog(question, answerText, item, itemType)}
                 title="Ask for clarification on this point"
               >
-                <MessageSquarePlus className="h-3.5 w-3.5" />
+                <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
               </Button>
             </li>
           ))}
@@ -856,22 +858,22 @@ function InterviewSummaryContent() {
                                           AI Feedback:
                                       </h4>
                                       {feedbackItem.critique && (
-                                        <div className="mb-3">
-                                          <div className="flex items-center justify-between">
-                                            <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
-                                              <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
-                                            </h5>
+                                        <div className="mb-3 group flex items-start justify-between p-2 rounded-md hover:bg-accent/10 transition-colors">
+                                            <div>
+                                                <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
+                                                <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
+                                                </h5>
+                                                <p className="text-sm">{feedbackItem.critique}</p>
+                                            </div>
                                             <Button
-                                              variant="ghost"
-                                              size="xs"
-                                              className="h-auto px-1 py-0.5 text-xs text-blue-600 hover:bg-blue-100"
-                                              onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
-                                              title="Ask for clarification on this critique"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-auto px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0"
+                                                onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
+                                                title="Ask for clarification on this critique"
                                             >
-                                              <MessageSquarePlus className="h-3 w-3 mr-1" /> Clarify
+                                                <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
                                             </Button>
-                                          </div>
-                                          <p className="text-sm">{feedbackItem.critique}</p>
                                         </div>
                                       )}
                                       {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'critique', question, answerInfo.answerText)}
@@ -1072,7 +1074,7 @@ function InterviewSummaryContent() {
                 const label = optionKey
                   .replace(/([A-Z])/g, ' $1')
                   .replace(/^./, (str) => str.toUpperCase());
-                
+
                 return (
                   <div key={optionKey} className="flex items-center space-x-2">
                     <Checkbox
@@ -1100,7 +1102,7 @@ function InterviewSummaryContent() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        
+
         {/* Clarify Feedback Dialog */}
         <Dialog open={isClarifyFeedbackDialogOpen} onOpenChange={setIsClarifyFeedbackDialogOpen}>
             <DialogContent className="sm:max-w-lg">
@@ -1150,9 +1152,9 @@ function InterviewSummaryContent() {
                     <DialogClose asChild>
                         <Button type="button" variant="secondary">Close</Button>
                     </DialogClose>
-                    <Button 
-                        type="button" 
-                        onClick={handleFetchClarification} 
+                    <Button
+                        type="button"
+                        onClick={handleFetchClarification}
                         disabled={isFetchingClarification || !userClarificationRequestInput.trim() || !clarificationContext}
                     >
                         {isFetchingClarification ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}

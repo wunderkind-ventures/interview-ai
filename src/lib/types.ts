@@ -147,3 +147,23 @@ export interface ResumeTailoringSuggestions {
   overallFitAssessment: string;
 }
 
+// Types for Analyze Take-Home Submission AI Flow
+export interface AnalyzeTakeHomeSubmissionContext {
+    interviewType: string;
+    faangLevel: string;
+    jobTitle?: string;
+    interviewFocus?: string;
+}
+export interface AnalyzeTakeHomeSubmissionInput {
+    assignmentText: string;
+    idealSubmissionCharacteristics: string[];
+    userSubmissionText: string;
+    interviewContext: AnalyzeTakeHomeSubmissionContext;
+}
+
+export interface AnalyzeTakeHomeSubmissionOutput {
+    overallAssessment: string;
+    strengthsOfSubmission: string[];
+    areasForImprovementInSubmission: string[];
+    actionableSuggestionsForRevision: string[];
+}

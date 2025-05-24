@@ -3,6 +3,7 @@
 /**
  * @fileOverview Generates feedback for a completed interview session.
  * This flow now orchestrates initial feedback generation and then refines it.
+ * For take-home assignments, it uses a specialized analysis flow.
  *
  * - generateInterviewFeedback - A function that provides feedback on interview answers.
  * - GenerateInterviewFeedbackInput - The input type for the feedback generation.
@@ -15,11 +16,12 @@ import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { refineInterviewFeedback } from './refine-interview-feedback';
 import type { RefineInterviewFeedbackInput } from './refine-interview-feedback';
 import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema, type GenerateInterviewFeedbackOutput } from '../schemas'; // Import from shared schemas
+import { analyzeTakeHomeSubmission } from './analyze-take-home-submission'; // New import
+import type { AnalyzeTakeHomeSubmissionInput, AnalyzeTakeHomeSubmissionOutput, AnalyzeTakeHomeSubmissionContext } from '@/lib/types'; // Import from lib/types
 
 // Input schema for the data needed by the initial prompt template
 const DraftPromptInputSchema = z.object({
   interviewType: z.string(),
-  interviewStyle: z.string(), // Will be used to set boolean flags
   faangLevel: z.string().describe("The target FAANG level, influencing expected depth and quality of answers."),
   jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
@@ -37,11 +39,15 @@ const DraftPromptInputSchema = z.object({
     })
   ),
   // Boolean flags for Handlebars
-  isTakeHomeStyle: z.boolean(),
-  isSimpleQAOrCaseStudyStyle: z.boolean(),
+  isTakeHomeStyle: z.boolean(), // Will be true if interviewStyle === 'take-home'
+  isSimpleQAOrCaseStudyStyle: z.boolean(), // Will be true if interviewStyle is 'simple-qa' or 'case-study'
+  // For take-home, structuredAnalysis will contain the output from analyzeTakeHomeSubmission
+  structuredTakeHomeAnalysis: z.custom<AnalyzeTakeHomeSubmissionOutput>().optional().describe("Detailed analysis if it's a take-home assignment."),
 });
 
 // Schema for what the AI model is expected to return for each feedback item (draft stage)
+// This schema is now primarily for the "overallSummary" when isTakeHomeStyle is true,
+// as individual feedback items for take-home are derived from structuredTakeHomeAnalysis.
 const AIDraftFeedbackItemSchema = z.object({
   questionId: z
     .string()
@@ -74,13 +80,13 @@ const AIDraftFeedbackItemSchema = z.object({
 
 // Schema for the overall AI model output (draft stage)
 const AIDraftOutputSchema = z.object({
-  feedbackItems: z
+  feedbackItems: z // For non-take-home, this is an array. For take-home, it's an array with one item derived from analysis.
     .array(AIDraftFeedbackItemSchema)
-    .describe('An array of feedback objects, one for each question.'),
+    .describe('An array of feedback objects, one for each question (or one for a take-home).'),
   overallSummary: z
     .string()
     .describe(
-      'A comprehensive overall summary of the candidate performance, including strengths, weaknesses, actionable advice, and comments on pacing if applicable. The summary should also reflect how well the candidate met the expectations for the specified faangLevel in terms of handling ambiguity, complexity, scope, and execution.'
+      'A comprehensive overall summary of the candidate performance, including strengths, weaknesses, actionable advice, and comments on pacing if applicable. The summary should also reflect how well the candidate met the expectations for the specified faangLevel in terms of handling ambiguity, complexity, scope, and execution. For take-home, this summary should be based on the structuredTakeHomeAnalysis.'
     ),
 });
 
@@ -117,15 +123,12 @@ const GenerateInterviewFeedbackInputSchema = z.object({
   resume: z.string().optional().describe('The candidate resume, if provided.'),
   interviewFocus: z.string().optional().describe('The specific focus of the interview, if provided.'),
 });
-export type GenerateInterviewFeedbackInput = z.infer<
-  typeof GenerateInterviewFeedbackInputSchema
->;
-
-// Exported type GenerateInterviewFeedbackOutput is already imported from ../schemas
+// Type is exported from ../schemas
+// export type GenerateInterviewFeedbackInput = z.infer<typeof GenerateInterviewFeedbackInputSchema>;
 
 
 export async function generateInterviewFeedback(
-  input: GenerateInterviewFeedbackInput
+  input: z.infer<typeof GenerateInterviewFeedbackInputSchema> // Use inferred type here for clarity
 ): Promise<GenerateInterviewFeedbackOutput> {
   return generateInterviewFeedbackOrchestrationFlow(input);
 }
@@ -136,9 +139,9 @@ const draftPrompt = ai.definePrompt({
   input: {schema: DraftPromptInputSchema},
   output: {schema: AIDraftOutputSchema},
   prompt: `You are an expert career coach and interviewer, providing detailed, structured DRAFT feedback for a mock interview session.
-This is the first pass; the feedback will be polished by another specialized AI agent later. Focus on getting comprehensive content and analysis down.
+This is the first pass; the feedback will be polished by another specialized AI agent later.
 
-The user has just completed a mock interview of type "{{interviewType}}" (style: "{{interviewStyle}}") targeting a "{{faangLevel}}" level.
+The user has just completed a mock interview of type "{{interviewType}}" targeting a "{{faangLevel}}" level.
 For the given 'faangLevel', consider common industry expectations regarding:
 *   **Ambiguity:** How well did the candidate handle unclear or incomplete information?
 *   **Complexity:** Did their responses address the inherent complexity of the problems appropriately for the level?
@@ -165,29 +168,40 @@ The specific focus for this interview was: {{{interviewFocus}}}
 If the candidate's answer mentions specific technologies and you need a quick, factual summary to help you evaluate their understanding or suggest alternatives, you may use the \`getTechnologyBriefTool\`. Use the tool's output to enrich your feedback.
 
 {{#if isTakeHomeStyle}}
-This was a take-home assignment. The "question" is the assignment description, and the "answer" is the candidate's submission.
-Question (Assignment Description): {{{questionsAndAnswers.0.questionText}}}
+This was a take-home assignment.
+Assignment Description: {{{questionsAndAnswers.0.questionText}}}
 {{#if questionsAndAnswers.0.idealAnswerCharacteristics.length}}
-Ideal Submission Characteristics for this Assignment:
+Ideal Submission Characteristics for this Assignment (from assignment design):
 {{#each questionsAndAnswers.0.idealAnswerCharacteristics}}
 - {{{this}}}
 {{/each}}
 {{/if}}
 Candidate's Submission: {{{questionsAndAnswers.0.answerText}}}
-{{#if questionsAndAnswers.0.timeTakenMs}}
-(Time spent on submission (if tracked): {{questionsAndAnswers.0.timeTakenMs}} ms)
-{{/if}}
-{{#if questionsAndAnswers.0.confidenceScore}}
-User Confidence (1-5 stars): {{questionsAndAnswers.0.confidenceScore}}
-{{/if}}
+
+**Structured Analysis of the Take-Home Submission (Provided by a specialized AI):**
+- Overall Assessment: {{{structuredTakeHomeAnalysis.overallAssessment}}}
+- Strengths of Submission:
+{{#each structuredTakeHomeAnalysis.strengthsOfSubmission}}
+  - {{{this}}}
+{{/each}}
+- Areas for Improvement in Submission:
+{{#each structuredTakeHomeAnalysis.areasForImprovementInSubmission}}
+  - {{{this}}}
+{{/each}}
+- Actionable Suggestions for Revision:
+{{#each structuredTakeHomeAnalysis.actionableSuggestionsForRevision}}
+  - {{{this}}}
+{{/each}}
 
 Your task is to provide a DRAFT of:
-1.  An 'overallSummary' evaluating the candidate's submission. Consider clarity, structure, completeness, adherence to instructions, quality of the solution/analysis, and how well it met '{{faangLevel}}' expectations and the provided 'Ideal Submission Characteristics'.
-2.  The 'feedbackItems' array should contain a single item for questionId '{{questionsAndAnswers.0.questionId}}':
-    *   'critique': Comprehensive critique, referencing 'Ideal Submission Characteristics' and subtly acknowledging user 'confidenceScore' if available.
-    *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional).
-    *   'idealAnswerPointers': Key elements of a strong submission, potentially expanding on or reinforcing the 'Ideal Submission Characteristics'.
-    *   'reflectionPrompts': Based on the submission, critique, and confidence, generate 1-2 prompts for self-reflection.
+1.  An 'overallSummary' evaluating the candidate's submission *based on the provided Structured Analysis*. Briefly synthesize its key points and offer a concluding thought for the candidate, reflecting '{{faangLevel}}' expectations.
+2.  The 'feedbackItems' array should contain a single item (for questionId '{{questionsAndAnswers.0.questionId}}') where you copy the structured analysis into the corresponding feedback fields.
+    *   'critique': Copy 'structuredTakeHomeAnalysis.overallAssessment'.
+    *   'strengths': Copy 'structuredTakeHomeAnalysis.strengthsOfSubmission'.
+    *   'areasForImprovement': Copy 'structuredTakeHomeAnalysis.areasForImprovementInSubmission'.
+    *   'specificSuggestions': Copy 'structuredTakeHomeAnalysis.actionableSuggestionsForRevision'.
+    *   'idealAnswerPointers': Copy 'questionsAndAnswers.0.idealAnswerCharacteristics' (these are from the original assignment design).
+    *   'reflectionPrompts': Based on the submission and the structured analysis, generate 1-2 thoughtful prompts for self-reflection.
 {{/if}}
 
 {{#if isSimpleQAOrCaseStudyStyle}}
@@ -207,12 +221,13 @@ Answer: {{{this.answerText}}}
 {{#if this.confidenceScore}}
 User Confidence (1-5 stars): {{this.confidenceScore}}
 {{/if}}
+---
 {{/each}}
 
 Your task is to provide a DRAFT of:
 1.  For each question and answer pair, provide structured feedback in 'feedbackItems'. Each item should include:
     *   'questionId'.
-    *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional arrays of 1-3 strings).
+    *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional arrays of 1-3 strings for each).
     *   'critique': (Optional concise summary). Your critique should be informed by the 'Ideal Answer Characteristics' provided for the question, and subtly acknowledge the user's 'confidenceScore' if available.
     *   'idealAnswerPointers': (Optional array of 2-4 strings) Key elements of a strong answer, potentially expanding on or reinforcing the provided 'Ideal Answer Characteristics'.
     *   'reflectionPrompts': Based on the answer, critique, strengths, areas for improvement, AND the user's 'confidenceScore' (if provided), generate 1-2 thoughtful reflection prompts.
@@ -232,10 +247,16 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
   {
     name: 'generateInterviewFeedbackOrchestrationFlow',
     inputSchema: GenerateInterviewFeedbackInputSchema,
-    outputSchema: GenerateInterviewFeedbackOutputSchema, // Use the imported schema from ../schemas
+    outputSchema: GenerateInterviewFeedbackOutputSchema,
   },
-  async (input: GenerateInterviewFeedbackInput): Promise<GenerateInterviewFeedbackOutput> => {
-    const questionsAndAnswers = input.questions.map((q, index) => {
+  async (input: z.infer<typeof GenerateInterviewFeedbackInputSchema>): Promise<GenerateInterviewFeedbackOutput> => {
+    const isTakeHomeStyle = input.interviewStyle === 'take-home';
+    const isSimpleQAOrCaseStudyStyle = input.interviewStyle === 'simple-qa' || input.interviewStyle === 'case-study';
+
+    let structuredTakeHomeAnalysis: AnalyzeTakeHomeSubmissionOutput | undefined = undefined;
+    let feedbackItemsForDraftPrompt: AIDraftFeedbackItemSchema[] = [];
+
+    const questionsAndAnswersForPrompt = input.questions.map((q, index) => {
       const answer = input.answers.find(a => a.questionId === q.id);
       return {
         questionId: q.id,
@@ -248,20 +269,68 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
       };
     });
 
-    const isTakeHomeStyle = input.interviewStyle === 'take-home';
-    const isSimpleQAOrCaseStudyStyle = input.interviewStyle === 'simple-qa' || input.interviewStyle === 'case-study';
+    if (isTakeHomeStyle && input.questions.length > 0 && input.answers.length > 0) {
+      const assignment = input.questions[0];
+      const submission = input.answers[0];
+
+      const analysisInput: AnalyzeTakeHomeSubmissionInput = {
+        assignmentText: assignment.text,
+        idealSubmissionCharacteristics: assignment.idealAnswerCharacteristics || [],
+        userSubmissionText: submission.answerText,
+        interviewContext: {
+          interviewType: input.interviewType,
+          faangLevel: input.faangLevel,
+          jobTitle: input.jobTitle,
+          interviewFocus: input.interviewFocus,
+        },
+      };
+      try {
+        structuredTakeHomeAnalysis = await analyzeTakeHomeSubmission(analysisInput);
+        // feedbackItemsForDraftPrompt is not directly built here for take-home;
+        // The draftPrompt itself will be instructed to use structuredTakeHomeAnalysis
+        // to populate the single feedbackItem's fields in its output.
+        // However, we need to provide a shell so AIDraftOutputSchema is met.
+         feedbackItemsForDraftPrompt = [{ // Placeholder structure for the prompt, actual values come from structuredTakeHomeAnalysis in prompt
+            questionId: assignment.id,
+            critique: structuredTakeHomeAnalysis.overallAssessment,
+            strengths: structuredTakeHomeAnalysis.strengthsOfSubmission,
+            areasForImprovement: structuredTakeHomeAnalysis.areasForImprovementInSubmission,
+            specificSuggestions: structuredTakeHomeAnalysis.actionableSuggestionsForRevision,
+            idealAnswerPointers: assignment.idealAnswerCharacteristics, // These are from original assignment design
+            reflectionPrompts: [], // Reflection prompts will be generated by the main draft prompt
+        }];
+
+      } catch (analysisError) {
+        console.error("Error during take-home submission analysis:", analysisError);
+        // Populate with error messages or a generic error structure
+        structuredTakeHomeAnalysis = {
+          overallAssessment: "Error: Could not analyze take-home submission.",
+          strengthsOfSubmission: [],
+          areasForImprovementInSubmission: [],
+          actionableSuggestionsForRevision: [],
+        };
+         feedbackItemsForDraftPrompt = [{
+            questionId: assignment.id,
+            critique: "Error analyzing submission.",
+            strengths: [], areasForImprovement: [], specificSuggestions: [],
+            idealAnswerPointers: assignment.idealAnswerCharacteristics,
+            reflectionPrompts: ["Could not analyze submission fully. Reflect on how your submission aligns with the brief."]
+        }];
+      }
+    }
+
 
     const draftPromptInput: z.infer<typeof DraftPromptInputSchema> = {
       interviewType: input.interviewType,
-      interviewStyle: input.interviewStyle,
       faangLevel: input.faangLevel,
       jobTitle: input.jobTitle,
       jobDescription: input.jobDescription,
       resume: input.resume,
       interviewFocus: input.interviewFocus,
-      questionsAndAnswers,
+      questionsAndAnswers: questionsAndAnswersForPrompt,
       isTakeHomeStyle,
       isSimpleQAOrCaseStudyStyle,
+      structuredTakeHomeAnalysis: isTakeHomeStyle ? structuredTakeHomeAnalysis : undefined,
     };
 
     const {output: draftAiOutput} = await draftPrompt(draftPromptInput);
@@ -270,26 +339,55 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
       throw new Error('AI did not return draft feedback.');
     }
 
-     const fullyFormedDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
-      const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
-      const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
-      return {
-        questionId: aiItem.questionId,
-        questionText: originalQuestion ? originalQuestion.text : "Question text not found.",
-        answerText: originalAnswer ? originalAnswer.answerText : "Answer text not found.",
-        strengths: aiItem.strengths || [],
-        areasForImprovement: aiItem.areasForImprovement || [],
-        specificSuggestions: aiItem.specificSuggestions || [],
-        critique: aiItem.critique || "",
-        idealAnswerPointers: aiItem.idealAnswerPointers || [],
-        timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
-        confidenceScore: originalAnswer ? originalAnswer.confidenceScore : undefined,
-        reflectionPrompts: aiItem.reflectionPrompts || [],
-      };
-    });
+    // If it was take-home, the draftAiOutput.feedbackItems should ideally have one item
+    // where fields were populated by the draftPrompt based on structuredTakeHomeAnalysis.
+    // We ensure the reflectionPrompts are generated by the draftPrompt itself.
+    let finalDraftFeedbackItems;
+    if (isTakeHomeStyle && structuredTakeHomeAnalysis) {
+        // The draftPrompt is now responsible for creating the reflectionPrompts.
+        // We just need to ensure the draftAiOutput reflects what the prompt was asked to do.
+        // The draftPrompt's output for feedbackItems should already be structured correctly
+        // based on its instructions to copy from structuredTakeHomeAnalysis and add reflection prompts.
+        finalDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
+            const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
+            const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
+            return {
+                questionId: aiItem.questionId,
+                questionText: originalQuestion ? originalQuestion.text : "Assignment Text Not Found.",
+                answerText: originalAnswer ? originalAnswer.answerText : "Submission Not Found.",
+                critique: aiItem.critique || structuredTakeHomeAnalysis!.overallAssessment,
+                strengths: aiItem.strengths && aiItem.strengths.length > 0 ? aiItem.strengths : structuredTakeHomeAnalysis!.strengthsOfSubmission,
+                areasForImprovement: aiItem.areasForImprovement && aiItem.areasForImprovement.length > 0 ? aiItem.areasForImprovement : structuredTakeHomeAnalysis!.areasForImprovementInSubmission,
+                specificSuggestions: aiItem.specificSuggestions && aiItem.specificSuggestions.length > 0 ? aiItem.specificSuggestions : structuredTakeHomeAnalysis!.actionableSuggestionsForRevision,
+                idealAnswerPointers: originalQuestion?.idealAnswerCharacteristics || [],
+                timeTakenMs: originalAnswer?.timeTakenMs,
+                confidenceScore: originalAnswer?.confidenceScore,
+                reflectionPrompts: aiItem.reflectionPrompts || [],
+            };
+        });
+    } else {
+         finalDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
+            const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
+            const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
+            return {
+                questionId: aiItem.questionId,
+                questionText: originalQuestion ? originalQuestion.text : "Question text not found.",
+                answerText: originalAnswer ? originalAnswer.answerText : "Answer text not found.",
+                strengths: aiItem.strengths || [],
+                areasForImprovement: aiItem.areasForImprovement || [],
+                specificSuggestions: aiItem.specificSuggestions || [],
+                critique: aiItem.critique || "",
+                idealAnswerPointers: aiItem.idealAnswerPointers || [],
+                timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
+                confidenceScore: originalAnswer ? originalAnswer.confidenceScore : undefined,
+                reflectionPrompts: aiItem.reflectionPrompts || [],
+            };
+        });
+    }
+
 
     const draftFeedbackForRefiner: GenerateInterviewFeedbackOutput = {
-        feedbackItems: fullyFormedDraftFeedbackItems,
+        feedbackItems: finalDraftFeedbackItems,
         overallSummary: draftAiOutput.overallSummary
     };
 
@@ -314,4 +412,3 @@ const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
     return refinedOutput;
   }
 );
-

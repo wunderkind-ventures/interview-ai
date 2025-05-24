@@ -72,6 +72,15 @@ export interface DeepDiveFeedback {
   suggestedStudyConcepts: string[];
 }
 
+export interface AdminFeedbackItem {
+  adminId: string;
+  adminEmail?: string;
+  feedbackText: string;
+  targetType: 'overall_session' | 'ai_question_quality' | 'ai_feedback_quality' | 'user_answer_quality';
+  targetQuestionId?: string; // If feedback is for a specific question or answer to it
+  createdAt: Timestamp;
+}
+
 export interface InterviewSessionData extends InterviewSetupData {
   questions: InterviewQuestion[];
   answers: Answer[];
@@ -90,6 +99,7 @@ export interface InterviewSessionData extends InterviewSetupData {
   isLoggedToServer?: boolean;
   firestoreDocId?: string; // To store the Firestore document ID of the logged session
   completedAt?: Timestamp; // To store the server timestamp when it's logged
+  adminFeedback?: AdminFeedbackItem[];
 }
 
 export interface Achievement {

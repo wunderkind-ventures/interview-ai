@@ -3,19 +3,21 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
+import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc, getDoc, Timestamp, updateDoc, arrayUnion } from "firebase/firestore";
 import { useAuth } from "@/contexts/auth-context";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download, MessageSquarePlus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download, MessageSquarePlus, ShieldCheck, ListChecks } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEW_TYPES, FAANG_LEVELS } from "@/lib/constants";
-import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion } from "@/lib/types";
+import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion, AdminFeedbackItem } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
 import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
@@ -46,6 +48,8 @@ interface ClarificationContext {
   feedbackItemText: string;
   feedbackItemType: 'areaForImprovement' | 'specificSuggestion' | 'critique' | 'strength' | 'idealAnswerPointer' | 'reflectionPrompt';
 }
+
+type AdminFeedbackTargetType = AdminFeedbackItem['targetType'];
 
 function InterviewSummaryContent() {
   const router = useRouter();
@@ -87,6 +91,15 @@ function InterviewSummaryContent() {
     includeOverallSummary: true,
   });
 
+  // Admin Feedback State
+  const [adminFeedbackText, setAdminFeedbackText] = useState("");
+  const [adminFeedbackTargetType, setAdminFeedbackTargetType] = useState<AdminFeedbackTargetType>('overall_session');
+  const [adminFeedbackTargetQuestionId, setAdminFeedbackTargetQuestionId] = useState<string>("");
+  const [isSubmittingAdminFeedback, setIsSubmittingAdminFeedback] = useState(false);
+
+  // Conceptual admin check - replace with your actual role management logic
+  const isAdmin = authUser?.email === 'admin@example.com';
+
   const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData, docId?: string) => {
     if (getApps().length === 0) {
       console.warn("Firebase app not initialized. Skipping backend logging.");
@@ -118,9 +131,10 @@ function InterviewSummaryContent() {
         completedAt: dataToLog.completedAt instanceof Timestamp ? dataToLog.completedAt : serverTimestamp(),
       };
 
-      delete interviewLog.isLoading;
-      delete interviewLog.isLoggedToServer;
-      delete interviewLog.error;
+      // These fields are client-side state and should not be persisted to the main interview log
+      delete (interviewLog as any).isLoading; 
+      delete (interviewLog as any).isLoggedToServer;
+      delete (interviewLog as any).error;
 
 
       const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
@@ -147,6 +161,7 @@ function InterviewSummaryContent() {
         description: "Could not save interview data to your account. See console for details.",
         variant: "destructive",
       });
+      // Still mark as attempt made to avoid loop, but error is noted
       setSessionData(prev => {
         if (!prev) return null;
         const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
@@ -253,6 +268,7 @@ function InterviewSummaryContent() {
                 deepDives: firestoreData.deepDives || {},
                 sampleAnswers: firestoreData.sampleAnswers || {},
                 caseStudyNotes: firestoreData.caseStudyNotes || "",
+                adminFeedback: firestoreData.adminFeedback || [],
                 isLoading: false,
                 error: null,
                 isLoggedToServer: true,
@@ -289,6 +305,8 @@ function InterviewSummaryContent() {
             const parsedSession: InterviewSessionData = JSON.parse(storedSession);
             parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false;
             parsedSession.firestoreDocId = parsedSession.firestoreDocId ?? undefined;
+            parsedSession.adminFeedback = parsedSession.adminFeedback || [];
+
 
             if (!parsedSession.interviewFinished) {
               toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
@@ -361,6 +379,10 @@ function InterviewSummaryContent() {
         const updatedDeepDives = { ...(prev.deepDives || {}), [questionId]: result };
         const updatedSession = { ...prev, deepDives: updatedDeepDives };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        if (prev.isLoggedToServer && prev.firestoreDocId && authUser) {
+          const db = getFirestore();
+          updateDoc(doc(db, "users", authUser.uid, "interviews", prev.firestoreDocId), { deepDives: updatedDeepDives });
+        }
         return updatedSession;
       });
     } catch (err) {
@@ -406,6 +428,10 @@ function InterviewSummaryContent() {
         const updatedSampleAnswers = { ...(prev.sampleAnswers || {}), [questionId]: result.sampleAnswerText };
         const updatedSession = { ...prev, sampleAnswers: updatedSampleAnswers };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        if (prev.isLoggedToServer && prev.firestoreDocId && authUser) {
+          const db = getFirestore();
+          updateDoc(doc(db, "users", authUser.uid, "interviews", prev.firestoreDocId), { sampleAnswers: updatedSampleAnswers });
+        }
         return updatedSession;
       });
     } catch (err) {
@@ -588,6 +614,48 @@ function InterviewSummaryContent() {
     URL.revokeObjectURL(url);
     setIsExportDialogOpen(false);
     toast({ title: "Export Successful", description: "Your interview summary has been downloaded." });
+  };
+
+  const handleAdminFeedbackSubmit = async () => {
+    if (!adminFeedbackText.trim() || !sessionData || !sessionData.firestoreDocId || !authUser) {
+        toast({ title: "Error", description: "Missing data to submit admin feedback.", variant: "destructive"});
+        return;
+    }
+    setIsSubmittingAdminFeedback(true);
+    try {
+        const db = getFirestore();
+        const newFeedback: AdminFeedbackItem = {
+            adminId: authUser.uid,
+            adminEmail: authUser.email || undefined,
+            feedbackText: adminFeedbackText,
+            targetType: adminFeedbackTargetType,
+            targetQuestionId: (adminFeedbackTargetType !== 'overall_session' && adminFeedbackTargetQuestionId) ? adminFeedbackTargetQuestionId : undefined,
+            createdAt: Timestamp.now(),
+        };
+
+        const interviewDocRef = doc(db, "users", authUser.uid, "interviews", sessionData.firestoreDocId);
+        await updateDoc(interviewDocRef, {
+            adminFeedback: arrayUnion(newFeedback)
+        });
+
+        setSessionData(prev => {
+            if (!prev) return null;
+            const updatedAdminFeedback = [...(prev.adminFeedback || []), newFeedback];
+            const updatedSession = { ...prev, adminFeedback: updatedAdminFeedback };
+            localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+            return updatedSession;
+        });
+
+        setAdminFeedbackText("");
+        setAdminFeedbackTargetType('overall_session');
+        setAdminFeedbackTargetQuestionId("");
+        toast({ title: "Admin Feedback Submitted", description: "Your feedback has been recorded."});
+    } catch (error) {
+        console.error("Error submitting admin feedback:", error);
+        toast({ title: "Admin Feedback Error", description: "Could not submit feedback. See console.", variant: "destructive"});
+    } finally {
+        setIsSubmittingAdminFeedback(false);
+    }
   };
 
 
@@ -967,6 +1035,81 @@ function InterviewSummaryContent() {
                   </AlertDescription>
               </Alert>
           )}
+
+          {/* Admin Feedback Section */}
+          {isAdmin && sessionData && sessionData.firestoreDocId && (
+            <Card className="mt-8 border-primary/50">
+              <CardHeader>
+                <CardTitle className="text-lg text-primary flex items-center">
+                  <ShieldCheck className="mr-2 h-5 w-5" /> Admin Feedback
+                </CardTitle>
+                <CardDescription>Provide feedback on this interview session to help improve the AI.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {sessionData.adminFeedback && sessionData.adminFeedback.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-muted-foreground">Existing Admin Feedback:</h4>
+                    <ScrollArea className="h-40 border rounded-md p-3">
+                      {sessionData.adminFeedback.map((fb, index) => (
+                        <div key={index} className="text-xs mb-2 pb-2 border-b last:border-b-0 last:mb-0">
+                          <p className="font-medium">{fb.adminEmail || fb.adminId} ({fb.targetType}{fb.targetQuestionId ? ` - QID: ${fb.targetQuestionId}` : ''}):</p>
+                          <p className="whitespace-pre-wrap text-foreground/80">{fb.feedbackText}</p>
+                          <p className="text-muted-foreground/70 mt-0.5">{fb.createdAt.toDate().toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                  </div>
+                )}
+                <div>
+                  <Label htmlFor="adminFeedbackTargetType">Feedback Target Type</Label>
+                  <Select value={adminFeedbackTargetType} onValueChange={(value) => setAdminFeedbackTargetType(value as AdminFeedbackTargetType)}>
+                    <SelectTrigger id="adminFeedbackTargetType">
+                      <SelectValue placeholder="Select target type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="overall_session">Overall Session</SelectItem>
+                      <SelectItem value="ai_question_quality">AI Question Quality</SelectItem>
+                      <SelectItem value="ai_feedback_quality">AI Feedback Quality</SelectItem>
+                      <SelectItem value="user_answer_quality">User Answer Quality</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {adminFeedbackTargetType !== 'overall_session' && (
+                  <div>
+                    <Label htmlFor="adminFeedbackTargetQuestionId">Target Question ID (if applicable)</Label>
+                    <Select value={adminFeedbackTargetQuestionId} onValueChange={setAdminFeedbackTargetQuestionId}>
+                        <SelectTrigger id="adminFeedbackTargetQuestionId">
+                            <SelectValue placeholder="Select question to target..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="">N/A (or select a question)</SelectItem>
+                            {sessionData.questions.map((q, idx) => (
+                                <SelectItem key={q.id} value={q.id}>
+                                    Q{idx + 1}: {q.text.substring(0, 50)}...
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div>
+                  <Label htmlFor="adminFeedbackText">Your Feedback</Label>
+                  <Textarea
+                    id="adminFeedbackText"
+                    value={adminFeedbackText}
+                    onChange={(e) => setAdminFeedbackText(e.target.value)}
+                    placeholder="Enter your observations or suggestions..."
+                    rows={3}
+                  />
+                </div>
+                <Button onClick={handleAdminFeedbackSubmit} disabled={isSubmittingAdminFeedback || !adminFeedbackText.trim()}>
+                  {isSubmittingAdminFeedback && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Submit Admin Feedback
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
         </CardContent>
 
         {activeDeepDiveQuestionId && (
@@ -1010,7 +1153,7 @@ function InterviewSummaryContent() {
                 )}
                 {deepDiveContent && !isDeepDiveLoading && !deepDiveError && (
                   <div className="space-y-4">
-                    {renderFeedbackListWithClarification("Detailed Ideal Answer Breakdown", deepDiveContent.detailedIdealAnswerBreakdown, <CheckSquare className="h-5 w-5 text-green-600" />, 'idealAnswerPointer', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
+                    {renderFeedbackListWithClarification("Detailed Ideal Answer Breakdown", deepDiveContent.detailedIdealAnswerBreakdown, <ListChecks className="h-5 w-5 text-green-600" />, 'idealAnswerPointer', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                     {renderFeedbackListWithClarification("Alternative Approaches", deepDiveContent.alternativeApproaches, <Lightbulb className="h-5 w-5 text-blue-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                     {renderFeedbackListWithClarification("Follow-up Scenarios / Probing Questions", deepDiveContent.followUpScenarios, <Search className="h-5 w-5 text-purple-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                     {renderFeedbackListWithClarification("Suggested Study Concepts", deepDiveContent.suggestedStudyConcepts, <BookOpen className="h-5 w-5 text-orange-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}

@@ -6,12 +6,11 @@ import { getFirestore, collection, query, orderBy, onSnapshot, Timestamp } from 
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Inbox, Eye, DatabaseZap } from 'lucide-react';
+import { Loader2, AlertTriangle, Inbox, Eye } from 'lucide-react';
 import Link from 'next/link';
 import type { InterviewSessionData } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { INTERVIEW_TYPES, INTERVIEW_STYLES, FAANG_LEVELS } from '@/lib/constants';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface StoredInterviewSession extends Omit<InterviewSessionData, 'completedAt'> {
   id: string;
@@ -23,7 +22,6 @@ export default function InterviewHistoryList() {
   const { toast } = useToast();
   const [interviews, setInterviews] = useState<StoredInterviewSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || authLoading) {
@@ -34,12 +32,11 @@ export default function InterviewHistoryList() {
     }
 
     setIsLoading(true);
-    setFetchError(null); // Reset error on new fetch attempt
 
     const db = getFirestore();
     if (!db) {
         toast({ title: "Database Error", description: "Could not connect to the database. Please ensure Firebase is configured correctly.", variant: "destructive"});
-        setFetchError("Could not connect to the database. Firebase might not be configured correctly.");
+        console.error("Firestore DB instance is null in InterviewHistoryList.");
         setIsLoading(false);
         return;
     }
@@ -52,18 +49,18 @@ export default function InterviewHistoryList() {
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         let completedAt = data.completedAt;
+        // Ensure completedAt is a Firestore Timestamp before calling toDate()
         if (completedAt && typeof completedAt.toDate !== 'function' && completedAt.seconds) {
             completedAt = new Timestamp(completedAt.seconds, completedAt.nanoseconds);
         }
         userInterviews.push({ 
             id: doc.id, 
             ...data,
-            completedAt: completedAt,
+            completedAt: completedAt, // This should now be a valid Timestamp or null/undefined
         } as StoredInterviewSession);
       });
       setInterviews(userInterviews);
       setIsLoading(false);
-      setFetchError(null); // Clear any previous fetch error on success
     }, (error) => {
       console.error("Error fetching interview history:", error);
       const errorMessage = "Could not load your interview history. Please try again later.";
@@ -72,7 +69,6 @@ export default function InterviewHistoryList() {
         description: errorMessage,
         variant: "destructive",
       });
-      setFetchError(errorMessage);
       setIsLoading(false);
     });
 
@@ -99,19 +95,6 @@ export default function InterviewHistoryList() {
         <h2 className="text-xl font-semibold text-muted-foreground">Please Log In</h2>
         <p className="text-muted-foreground">You need to be logged in to view your interview history.</p>
       </div>
-    );
-  }
-
-  if (fetchError) {
-    return (
-      <Alert variant="destructive" className="max-w-lg mx-auto">
-        <DatabaseZap className="h-5 w-5" />
-        <AlertTitle>Error Loading History</AlertTitle>
-        <AlertDescription>
-          {fetchError} Please ensure your internet connection is stable and Firebase is correctly configured.
-          If the issue persists, please try refreshing the page.
-        </AlertDescription>
-      </Alert>
     );
   }
 

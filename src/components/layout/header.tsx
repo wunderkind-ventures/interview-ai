@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History } from 'lucide-react'; // Added History
+import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History, FileEdit } from 'lucide-react'; // Added History, FileEdit
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +25,7 @@ export default function Header() {
           <BotMessageSquare className="h-8 w-8" />
           <span>InterviewAI</span>
         </Link>
-        
+
         <div className="flex items-center gap-2">
           {loading ? (
             <Button variant="ghost" size="sm" disabled>Loading...</Button>
@@ -63,6 +63,12 @@ export default function Header() {
                   <Link href="/history" className="flex items-center w-full">
                     <History className="mr-2 h-4 w-4" />
                     <span>Interview History</span>
+                  </Link>
+                </DropdownMenuItem>
+                 <DropdownMenuItem asChild>
+                  <Link href="/resume-lab" className="flex items-center w-full">
+                    <FileEdit className="mr-2 h-4 w-4" />
+                    <span>Resume Lab</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

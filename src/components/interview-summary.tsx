@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, getDoc, Timestamp, updateDoc, arrayUnion } from "firebase/firestore";
-import { getApps } from 'firebase/app'; 
+import { getApps } from 'firebase/app';
 import { useAuth } from "@/contexts/auth-context";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -17,11 +17,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download, MessageSquarePlus, ShieldCheck, ListChecks } from "lucide-react";
-import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEW_TYPES, FAANG_LEVELS } from "@/lib/constants";
-import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion, AdminFeedbackItem } from "@/lib/types";
+import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEW_TYPES, FAANG_LEVELS, INTERVIEWER_PERSONAS } from "@/lib/constants";
+import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion, AdminFeedbackItem, AdminFeedbackTargetType as AdminFeedbackTargetTypeType } from "@/lib/types"; // Renamed to avoid conflict
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
-import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback"; // Assuming this type is exported from the flow file
+import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
 import { generateDeepDiveFeedback } from "@/ai/flows/generate-deep-dive-feedback";
 import type { GenerateDeepDiveFeedbackInput, GenerateDeepDiveFeedbackOutput } from "@/ai/flows/generate-deep-dive-feedback";
 import { generateSampleAnswer } from "@/ai/flows/generate-sample-answer";
@@ -51,7 +51,7 @@ interface ClarificationContext {
   feedbackItemType: 'areaForImprovement' | 'specificSuggestion' | 'critique' | 'strength' | 'idealAnswerPointer' | 'reflectionPrompt';
 }
 
-type AdminFeedbackTargetType = AdminFeedbackItem['targetType'];
+type AdminFeedbackTargetType = AdminFeedbackTargetTypeType; // Alias for clarity
 
 function InterviewSummaryContent() {
   const router = useRouter();
@@ -126,48 +126,126 @@ function InterviewSummaryContent() {
 
     try {
       const db = getFirestore();
-      // Determine the document ID. If it's a new session, generate one.
       const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
 
-      // Destructure dataToLog to exclude client-side state and the redundant firestoreDocId field
-      // Also exclude other potentially undefined complex types if they are not guaranteed to be present.
-      const { 
-        isLoading: _iL, 
-        isLoggedToServer: _iLTS, 
-        error: _err, 
-        firestoreDocId: _fDI, // This is the key causing issues if undefined
-        // Explicitly handle optional complex types that might be undefined:
+      const {
+        // Exclude fields that are client-side state or handled manually
+        isLoading: _iL,
+        isLoggedToServer: _iLTS,
+        error: _clientError, // Not saving this UI error state to Firestore
+        firestoreDocId: _fDI,
+        // Complex objects to be processed/mapped
+        questions: dataQuestions,
+        answers: dataAnswers,
         feedback: dataFeedback,
         deepDives: dataDeepDives,
         sampleAnswers: dataSampleAnswers,
         adminFeedback: dataAdminFeedback,
-        caseStudyNotes: dataCaseStudyNotes,
         caseConversationHistory: dataCaseConversationHistory,
-        ...restOfDataToLog 
+        ...coreSessionProps // Contains InterviewSetupData fields + other InterviewSessionData direct props
       } = dataToLog;
 
-      const payloadToSave: any = {
-        ...restOfDataToLog,
+      const payloadToSave: Record<string, any> = {
         userId: authUser.uid,
-        completedAt: dataToLog.completedAt instanceof Timestamp ? dataToLog.completedAt : serverTimestamp(),
+        completedAt: coreSessionProps.completedAt instanceof Timestamp ? coreSessionProps.completedAt : serverTimestamp(),
+
+        // Explicitly add all known fields from InterviewSetupData and relevant InterviewSessionData props
+        interviewType: coreSessionProps.interviewType,
+        interviewStyle: coreSessionProps.interviewStyle,
+        faangLevel: coreSessionProps.faangLevel,
+        jobTitle: coreSessionProps.jobTitle ?? null,
+        jobDescription: coreSessionProps.jobDescription ?? null,
+        resume: coreSessionProps.resume ?? null,
+        targetedSkills: coreSessionProps.targetedSkills ?? [],
+        targetCompany: coreSessionProps.targetCompany ?? null,
+        interviewFocus: coreSessionProps.interviewFocus ?? null,
+        selectedThemeId: coreSessionProps.selectedThemeId ?? "custom",
+        interviewerPersona: coreSessionProps.interviewerPersona ?? INTERVIEWER_PERSONAS[0].value,
+
+        currentQuestionIndex: coreSessionProps.currentQuestionIndex,
+        interviewStarted: coreSessionProps.interviewStarted,
+        interviewFinished: coreSessionProps.interviewFinished,
+        currentQuestionStartTime: coreSessionProps.currentQuestionStartTime === undefined ? null : coreSessionProps.currentQuestionStartTime,
+        currentCaseTurnNumber: coreSessionProps.currentCaseTurnNumber === undefined ? null : coreSessionProps.currentCaseTurnNumber,
+        caseStudyNotes: coreSessionProps.caseStudyNotes === undefined ? null : coreSessionProps.caseStudyNotes,
       };
       
-      // Only add optional complex fields if they exist and are not empty/undefined to avoid Firestore errors
-      if (dataFeedback) payloadToSave.feedback = dataFeedback;
-      if (dataDeepDives && Object.keys(dataDeepDives).length > 0) payloadToSave.deepDives = dataDeepDives;
-      if (dataSampleAnswers && Object.keys(dataSampleAnswers).length > 0) payloadToSave.sampleAnswers = dataSampleAnswers;
-      if (dataAdminFeedback && dataAdminFeedback.length > 0) payloadToSave.adminFeedback = dataAdminFeedback;
-      if (dataCaseStudyNotes !== undefined) payloadToSave.caseStudyNotes = dataCaseStudyNotes; // Allow empty string
-      if (dataCaseConversationHistory && dataCaseConversationHistory.length > 0) payloadToSave.caseConversationHistory = dataCaseConversationHistory;
-
-
-      // Ensure no top-level keys have an 'undefined' value
-      Object.keys(payloadToSave).forEach(key => {
-        if (payloadToSave[key] === undefined) {
-          delete payloadToSave[key];
-        }
+      payloadToSave.questions = (dataQuestions || []).map(q => {
+        const cleanQ: Record<string, any> = { id: q.id, text: q.text };
+        if (q.idealAnswerCharacteristics && q.idealAnswerCharacteristics.length > 0) cleanQ.idealAnswerCharacteristics = q.idealAnswerCharacteristics;
+        if (q.isInitialCaseQuestion !== undefined) cleanQ.isInitialCaseQuestion = q.isInitialCaseQuestion;
+        if (q.fullScenarioDescription) cleanQ.fullScenarioDescription = q.fullScenarioDescription;
+        if (q.internalNotesForFollowUpGenerator) cleanQ.internalNotesForFollowUpGenerator = q.internalNotesForFollowUpGenerator;
+        if (q.isLikelyFinalFollowUp !== undefined) cleanQ.isLikelyFinalFollowUp = q.isLikelyFinalFollowUp;
+        return cleanQ;
       });
 
+      payloadToSave.answers = (dataAnswers || []).map(a => {
+        const cleanA: Record<string, any> = { questionId: a.questionId, answerText: a.answerText };
+        if (a.timeTakenMs !== undefined) cleanA.timeTakenMs = a.timeTakenMs;
+        if (a.confidenceScore !== undefined) cleanA.confidenceScore = a.confidenceScore;
+        return cleanA;
+      });
+
+      if (dataFeedback) {
+        payloadToSave.feedback = {
+          overallSummary: dataFeedback.overallSummary,
+          feedbackItems: (dataFeedback.feedbackItems || []).map(item => {
+            const cleanItem: Record<string, any> = {
+              questionId: item.questionId,
+              questionText: item.questionText,
+              answerText: item.answerText,
+            };
+            if (item.strengths && item.strengths.length > 0) cleanItem.strengths = item.strengths;
+            if (item.areasForImprovement && item.areasForImprovement.length > 0) cleanItem.areasForImprovement = item.areasForImprovement;
+            if (item.specificSuggestions && item.specificSuggestions.length > 0) cleanItem.specificSuggestions = item.specificSuggestions;
+            if (item.critique) cleanItem.critique = item.critique;
+            if (item.idealAnswerPointers && item.idealAnswerPointers.length > 0) cleanItem.idealAnswerPointers = item.idealAnswerPointers;
+            if (item.timeTakenMs !== undefined) cleanItem.timeTakenMs = item.timeTakenMs;
+            if (item.confidenceScore !== undefined) cleanItem.confidenceScore = item.confidenceScore;
+            if (item.reflectionPrompts && item.reflectionPrompts.length > 0) cleanItem.reflectionPrompts = item.reflectionPrompts;
+            return cleanItem;
+          }),
+        };
+      }
+
+      if (dataDeepDives && Object.keys(dataDeepDives).length > 0) {
+        payloadToSave.deepDives = {};
+        for (const qId in dataDeepDives) {
+          if (Object.prototype.hasOwnProperty.call(dataDeepDives, qId)) {
+            const dive = dataDeepDives[qId];
+            payloadToSave.deepDives[qId] = {
+              detailedIdealAnswerBreakdown: dive.detailedIdealAnswerBreakdown ?? [],
+              alternativeApproaches: dive.alternativeApproaches ?? [],
+              followUpScenarios: dive.followUpScenarios ?? [],
+              suggestedStudyConcepts: dive.suggestedStudyConcepts ?? [],
+            };
+          }
+        }
+      }
+      if (dataSampleAnswers && Object.keys(dataSampleAnswers).length > 0) {
+        payloadToSave.sampleAnswers = { ...dataSampleAnswers }; // Shallow copy is fine for string values
+      }
+      if (dataAdminFeedback && dataAdminFeedback.length > 0) {
+        payloadToSave.adminFeedback = dataAdminFeedback.map(fb => {
+          const cleanFb: Record<string, any> = {
+            adminId: fb.adminId,
+            feedbackText: fb.feedbackText,
+            targetType: fb.targetType,
+            createdAt: fb.createdAt instanceof Timestamp ? fb.createdAt : Timestamp.now(),
+          };
+          if (fb.adminEmail) cleanFb.adminEmail = fb.adminEmail;
+          if (fb.targetQuestionId) cleanFb.targetQuestionId = fb.targetQuestionId;
+          return cleanFb;
+        });
+      }
+      if (dataCaseConversationHistory && dataCaseConversationHistory.length > 0) {
+        payloadToSave.caseConversationHistory = dataCaseConversationHistory.map(turn => ({
+            questionText: turn.questionText,
+            answerText: turn.answerText,
+        }));
+      }
+      
       await setDoc(doc(db, "users", authUser.uid, "interviews", documentId), payloadToSave, { merge: true });
 
       console.log("Interview session logged/updated successfully:", documentId);
@@ -184,7 +262,7 @@ function InterviewSummaryContent() {
         return updatedSession;
       });
     } catch (error: any) {
-      console.error("Error logging interview session to backend:", error);
+      console.error("Error logging interview session to backend:", error, "Payload attempted:", dataToLog); // Log the original data for debugging
       toast({
         title: "Logging Error",
         description: `Could not save interview data: ${error.message || "Unknown error. Check console."}`,
@@ -192,7 +270,6 @@ function InterviewSummaryContent() {
       });
       setSessionData(prev => {
         if (!prev) return null;
-        // Still mark as attempted to prevent loops, but don't overwrite a potentially valid firestoreDocId
         const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
@@ -287,14 +364,13 @@ function InterviewSummaryContent() {
           if (docSnap.exists()) {
             const firestoreData = docSnap.data() as Omit<InterviewSessionData, 'completedAt'> & { completedAt: Timestamp, firestoreDocId?: string };
             let completedAt = firestoreData.completedAt;
-            // Ensure completedAt is a Firestore Timestamp before calling toDate()
             if (completedAt && typeof completedAt.toDate !== 'function' && (completedAt as any).seconds) {
                 completedAt = new Timestamp((completedAt as any).seconds, (completedAt as any).nanoseconds);
             }
 
             const loadedSessionData: InterviewSessionData = {
                 ...firestoreData,
-                completedAt, 
+                completedAt,
                 jobTitle: firestoreData.jobTitle || "",
                 jobDescription: firestoreData.jobDescription || "",
                 resume: firestoreData.resume || "",
@@ -303,16 +379,18 @@ function InterviewSummaryContent() {
                 interviewFocus: firestoreData.interviewFocus || "",
                 deepDives: firestoreData.deepDives || {},
                 sampleAnswers: firestoreData.sampleAnswers || {},
-                caseStudyNotes: firestoreData.caseStudyNotes === undefined ? "" : firestoreData.caseStudyNotes, // Ensure empty string if undefined
+                caseStudyNotes: firestoreData.caseStudyNotes === undefined ? null : firestoreData.caseStudyNotes,
                 caseConversationHistory: firestoreData.caseConversationHistory || [],
                 adminFeedback: firestoreData.adminFeedback || [],
                 isLoading: false,
                 error: null,
-                isLoggedToServer: true, // If loaded from Firestore, it's considered logged
+                isLoggedToServer: true,
                 firestoreDocId: docSnap.id,
+                interviewerPersona: firestoreData.interviewerPersona || INTERVIEWER_PERSONAS[0].value, // Ensure default
+                selectedThemeId: firestoreData.selectedThemeId || "custom", // Ensure default
             };
             setSessionData(loadedSessionData);
-            localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData)); // Update local storage
+            localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData));
 
             if (!loadedSessionData.feedback && loadedSessionData.answers.length > 0) {
               fetchAndSetFeedback(loadedSessionData);
@@ -339,14 +417,15 @@ function InterviewSummaryContent() {
         if (storedSession) {
           try {
             const parsedSession: InterviewSessionData = JSON.parse(storedSession);
-            // Ensure all potentially undefined fields from older sessions are initialized
             parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false;
             parsedSession.firestoreDocId = parsedSession.firestoreDocId ?? undefined;
             parsedSession.deepDives = parsedSession.deepDives || {};
             parsedSession.sampleAnswers = parsedSession.sampleAnswers || {};
-            parsedSession.caseStudyNotes = parsedSession.caseStudyNotes === undefined ? "" : parsedSession.caseStudyNotes;
+            parsedSession.caseStudyNotes = parsedSession.caseStudyNotes === undefined ? null : parsedSession.caseStudyNotes;
             parsedSession.caseConversationHistory = parsedSession.caseConversationHistory || [];
             parsedSession.adminFeedback = parsedSession.adminFeedback || [];
+            parsedSession.interviewerPersona = parsedSession.interviewerPersona || INTERVIEWER_PERSONAS[0].value;
+            parsedSession.selectedThemeId = parsedSession.selectedThemeId || "custom";
 
 
             if (!parsedSession.interviewFinished) {
@@ -359,7 +438,6 @@ function InterviewSummaryContent() {
             if (!parsedSession.feedback && parsedSession.answers.length > 0) {
               fetchAndSetFeedback(parsedSession);
             } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer && authUser) {
-              // Pass the existing firestoreDocId if it exists, otherwise it's undefined and a new one will be gen'd
               saveInterviewToBackend(parsedSession, parsedSession.firestoreDocId);
             }
           } catch (e) {
@@ -735,17 +813,13 @@ function InterviewSummaryContent() {
     };
   };
 
-  // const getFeedbackItemForQuestion = (questionId: string): FeedbackItem | undefined => {
-  //   return sessionData.feedback?.feedbackItems.find(item => item.questionId === questionId);
-  // }
   const getFeedbackItemForQuestion = (questionId: string): FeedbackItem | undefined => {
-    // Check if feedback and feedbackItems exist and are arrays before trying to find
     if (sessionData.feedback && Array.isArray(sessionData.feedback.feedbackItems)) {
       return sessionData.feedback.feedbackItems.find(item => item.questionId === questionId);
     }
-    return undefined; // Return undefined if feedback or feedbackItems are not as expected
+    return undefined;
   };
-  
+
 
   const getLabel = (value: string | undefined, options: readonly { value: string; label: string }[]) => {
     if (!value) return "N/A";
@@ -1086,7 +1160,6 @@ function InterviewSummaryContent() {
               </Alert>
           )}
 
-          {/* Admin Feedback Section */}
           {isAdmin && sessionData && sessionData.firestoreDocId && (
             <Card className="mt-8 border-primary/50">
               <CardHeader>
@@ -1397,3 +1470,5 @@ export default function InterviewSummaryPage() {
     </Suspense>
   );
 }
+
+    

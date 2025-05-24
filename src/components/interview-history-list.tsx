@@ -6,11 +6,12 @@ import { getFirestore, collection, query, orderBy, onSnapshot, Timestamp } from 
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Inbox, Eye } from 'lucide-react';
+import { Loader2, AlertTriangle, Inbox, Eye, DatabaseZap } from 'lucide-react';
 import Link from 'next/link';
 import type { InterviewSessionData } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { INTERVIEW_TYPES, INTERVIEW_STYLES, FAANG_LEVELS } from '@/lib/constants';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface StoredInterviewSession extends Omit<InterviewSessionData, 'completedAt'> {
   id: string;
@@ -22,49 +23,56 @@ export default function InterviewHistoryList() {
   const { toast } = useToast();
   const [interviews, setInterviews] = useState<StoredInterviewSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || authLoading) {
-      if (!authLoading) setIsLoading(false);
+      if (!authLoading) {
+        setIsLoading(false);
+      }
       return;
     }
 
     setIsLoading(true);
+    setFetchError(null); // Reset error on new fetch attempt
+
     const db = getFirestore();
     if (!db) {
-        toast({ title: "Error", description: "Firestore is not initialized.", variant: "destructive"});
+        toast({ title: "Database Error", description: "Could not connect to the database. Please ensure Firebase is configured correctly.", variant: "destructive"});
+        setFetchError("Could not connect to the database. Firebase might not be configured correctly.");
         setIsLoading(false);
         return;
     }
+
     const interviewsCol = collection(db, 'users', user.uid, 'interviews');
     const q = query(interviewsCol, orderBy('completedAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const userInterviews: StoredInterviewSession[] = [];
       querySnapshot.forEach((doc) => {
-        // Ensure completedAt is a Firestore Timestamp before converting
         const data = doc.data();
         let completedAt = data.completedAt;
         if (completedAt && typeof completedAt.toDate !== 'function' && completedAt.seconds) {
-            // This handles cases where it might be a plain object from Firestore cache or SSR
             completedAt = new Timestamp(completedAt.seconds, completedAt.nanoseconds);
         }
-
         userInterviews.push({ 
             id: doc.id, 
             ...data,
-            completedAt: completedAt, // Keep as Firestore Timestamp for now
+            completedAt: completedAt,
         } as StoredInterviewSession);
       });
       setInterviews(userInterviews);
       setIsLoading(false);
+      setFetchError(null); // Clear any previous fetch error on success
     }, (error) => {
       console.error("Error fetching interview history:", error);
+      const errorMessage = "Could not load your interview history. Please try again later.";
       toast({
         title: "Error Fetching History",
-        description: "Could not load your interview history. Please try again later.",
+        description: errorMessage,
         variant: "destructive",
       });
+      setFetchError(errorMessage);
       setIsLoading(false);
     });
 
@@ -94,7 +102,20 @@ export default function InterviewHistoryList() {
     );
   }
 
-  if (interviews.length === 0 && !isLoading) {
+  if (fetchError) {
+    return (
+      <Alert variant="destructive" className="max-w-lg mx-auto">
+        <DatabaseZap className="h-5 w-5" />
+        <AlertTitle>Error Loading History</AlertTitle>
+        <AlertDescription>
+          {fetchError} Please ensure your internet connection is stable and Firebase is correctly configured.
+          If the issue persists, please try refreshing the page.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (interviews.length === 0) {
     return (
       <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
         <Inbox className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />

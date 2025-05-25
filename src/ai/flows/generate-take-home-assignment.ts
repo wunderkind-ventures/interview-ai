@@ -12,6 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
+import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; // Import RAG tool
 
 // Input schema for the flow
 const GenerateTakeHomeAssignmentInputSchema = z.object({
@@ -70,7 +71,7 @@ export async function generateTakeHomeAssignment(
 // Internal prompt definition
 const prompt = ai.definePrompt({
   name: 'generateTakeHomeAssignmentPrompt',
-  tools: [getTechnologyBriefTool],
+  tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], // Added RAG tool
   input: {
     schema: GenerateTakeHomeAssignmentInputSchema,
   },
@@ -79,7 +80,8 @@ const prompt = ai.definePrompt({
   },
   prompt: `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate a single, comprehensive, and self-contained take-home assignment based on the provided specifications.
-If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), subtly adapt the framing or expectations of the assignment to reflect this persona. For example:
+If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), subtly adapt the framing or expectations of the assignment to reflect this persona.
+For example:
 - 'standard': Balanced and typical assignment.
 - 'friendly_peer': Assignment framing might be more collaborative or suggestive.
 - 'skeptical_hiring_manager': The assignment might ask for more explicit justifications, risk assessments, or defense of choices.
@@ -103,6 +105,12 @@ The problem scenario, guiding questions, and expected depth of the deliverable M
 - Example: An L5/L6 assignment: more ambiguous problem, requires candidate to define scope, make assumptions, propose a strategic solution with trade-offs.
 - Example: An L7 assignment: highly complex, strategic, or organization-wide problem with significant ambiguity.
 
+**Tool Usage for RAG:**
+- To ensure your generated assignment is high-quality and relevant, you MAY use the \`findRelevantAssessmentsTool\`.
+- Formulate a query for the tool based on '{{{interviewType}}}', '{{{faangLevel}}}', and '{{{interviewFocus}}}'.
+- Use the retrieved assessment snippets as inspiration for the problem scenario, common challenges, or deliverable expectations.
+- **DO NOT simply copy the retrieved content.** Adapt, synthesize, and use it as inspiration to create a *new, unique* take-home assignment.
+
 **Output Requirement - Ideal Submission Characteristics:**
 For the assignment generated, you MUST also provide 'idealSubmissionCharacteristics', a list of 3-5 key elements a strong submission would typically exhibit for THIS SPECIFIC assignment, considering the 'interviewType', 'faangLevel', and 'interviewFocus'.
 - Example for Product Sense L6 "Develop GTM strategy": Characteristics like "Deep understanding of target users", "Clear value proposition", "Comprehensive GTM plan", "Data-driven success metrics", "Executive-level communication".
@@ -125,9 +133,6 @@ Targeted Skills:
 {{/each}}
 {{/if}}
 {{#if interviewFocus}}Specific Focus: {{{interviewFocus}}}{{/if}}
-
-**Internal Reflection on Ideal Submission Characteristics (Guiding your assignment generation):**
-Before finalizing the assignment, briefly consider the key characteristics or elements a strong submission would demonstrate (e.g., clear problem definition for Product Sense; robustness, scalability for System Design; sound ML model choice for ML; correct algorithm and complexity analysis for DSA). This internal reflection will help ensure the assignment is well-posed and effectively tests the intended skills for the given 'faangLevel'. You DO need to output these characteristics in the 'idealSubmissionCharacteristics' field.
 
 **Assignment Generation Logic:**
 1.  **Structure Planning:** Mentally outline each section described below. The 'Problem Scenario' must be crafted with care, heavily influenced by 'interviewFocus' and calibrated for 'faangLevel'.
@@ -166,13 +171,12 @@ Before finalizing the assignment, briefly consider the key characteristics or el
     *   **### (Optional) Tips for Success**:
         *   Provide 1-2 brief, general tips (e.g., "Focus on clear communication," "Be explicit about assumptions and trade-offs").
 
-{{#if targetCompany}}
-If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
+If the 'targetCompany' is "Amazon" (perform a case-insensitive check in your reasoning):
 **Amazon-Specific Considerations:**
 Subtly weave in opportunities to demonstrate Amazon's Leadership Principles, especially if the assignment type allows (e.g., behavioral reflection, or product strategy).
 Amazon's Leadership Principles for your reference:
 {{{AMAZON_LPS_LIST}}}
-{{/if}}
+End of Amazon-specific considerations.
 
 **Final Output Format:**
 Output a JSON object with two keys:

@@ -15,6 +15,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
+import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; // Import RAG tool
 
 import { generateTakeHomeAssignment } from './generate-take-home-assignment';
 import type { GenerateTakeHomeAssignmentInput, GenerateTakeHomeAssignmentOutput } from './generate-take-home-assignment';
@@ -56,7 +57,7 @@ export async function customizeInterviewQuestions(
     targetedSkills: input.targetedSkills || [],
     targetCompany: input.targetCompany || "",
     interviewFocus: input.interviewFocus || "",
-    interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value, // Default to standard
+    interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
     previousConversation: input.previousConversation || "",
     currentQuestion: input.currentQuestion || "",
     caseStudyNotes: input.caseStudyNotes || "",
@@ -143,7 +144,7 @@ const SimpleQAQuestionsOutputSchema = z.object({
 
 const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
   name: 'customizeSimpleQAInterviewQuestionsPrompt',
-  tools: [getTechnologyBriefTool],
+  tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], // Added RAG tool
   input: {
     schema: SimpleQAPromptInputSchema,
   },
@@ -153,7 +154,8 @@ const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
   prompt: `You are an **Expert Interview Architect AI**, embodying the persona of a **seasoned hiring manager and curriculum designer from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate tailored interview content for the 'simple-qa' style ONLY, based on the detailed specifications provided.
 You must meticulously consider all inputs to create relevant, challenging, and insightful questions.
-If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), adopt that persona in the style and focus of the questions you generate. For example:
+If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), adopt that persona in the style and focus of the questions you generate.
+For example:
 - 'standard': Balanced and typical questions.
 - 'friendly_peer': Collaborative tone, questions might explore thought process more gently.
 - 'skeptical_hiring_manager': Questions might probe for weaknesses, edge cases, or justifications more directly.
@@ -179,13 +181,18 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
 - **Resume Context:** Use the 'resume' (if provided) *only* for contextual understanding to subtly angle questions or understand the candidate's likely exposure to certain topics. Do not generate questions *directly about* the resume content itself unless the 'interviewType' is "behavioral" and the question explicitly asks for past experiences.
 - **Targeted Skills & Focus:** If 'targetedSkills' are provided, questions MUST actively assess or revolve around these. If 'interviewFocus' is provided, it should be a primary theme.
 
+**Tool Usage for RAG:**
+- If you need inspiration for question types, scenarios, or common pitfalls related to the user's request (e.g., for '{{{interviewType}}}' at '{{{faangLevel}}}' focusing on '{{{interviewFocus}}}'), you MAY use the \`findRelevantAssessmentsTool\`.
+- Use the tool's output (retrieved assessment snippets) to help you generate *new, unique, and relevant* questions for this specific candidate.
+- **DO NOT simply copy the retrieved content.** Adapt, synthesize, and use it as inspiration.
+
 **General Principles for All Questions (for 'simple-qa'):**
 1.  **Relevance & Specificity:** Questions must be directly pertinent to 'interviewType'.
 2.  **Difficulty Calibration (FAANG Level):** Calibrate to 'faangLevel' considering Ambiguity, Complexity, Scope, Execution. (e.g., L3/L4: well-defined problems; L5/L6: more ambiguous, complex, strategic).
 3.  **Clarity & Conciseness:** Questions must be unambiguous.
 4.  **Skill Assessment:** Design questions to effectively evaluate 'targetedSkills' or core competencies. 'interviewFocus' should be a primary theme.
 5.  **Open-Ended (Crucial for L4+):** Questions should encourage detailed, reasoned responses.
-6.  **Tool Usage for Clarity:** If technologies are crucial, you may use the \`getTechnologyBriefTool\`. Integrate insights to make questions more specific.
+6.  **Technology Context (Tool Usage):** If technologies are crucial, you may use the \`getTechnologyBriefTool\`. Integrate insights to make questions more specific.
 7.  **Output Requirement - Ideal Answer Characteristics:** For each question generated, you MUST also provide a brief list (2-4 bullet points) of 'idealAnswerCharacteristics'. These are key elements or qualities a strong answer to THAT SPECIFIC question would typically exhibit, considering the 'interviewType', 'faangLevel', and 'interviewFocus'.
     - Example for a Product Sense L5 question "How would you improve discovery for podcasts?": Ideal characteristics might include "User-centric problem definition", "Data-driven approach for identifying opportunities", "Creative but feasible solutions", "Clear success metrics".
     - Example for a DSA L4 question "Find the median of two sorted arrays": Ideal characteristics might include "Clarification of constraints and edge cases", "Efficient algorithmic approach (e.g., binary search based)", "Correct time/space complexity analysis", "Verbal walkthrough of logic".

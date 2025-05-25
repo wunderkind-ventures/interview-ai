@@ -6,7 +6,7 @@ import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, setD
 import { useAuth } from '@/contexts/auth-context';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from '@/components/ui/dialog'; // Added DialogFooter
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { PlusCircle, Edit3, Trash2, Loader2, AlertTriangle, Library, FileText, Tag, StickyNote, Briefcase, Eye, Search, Filter } from 'lucide-react';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { z } from "zod";
 import type { SharedAssessmentDocument, InterviewType, InterviewStyle, FaangLevel } from '@/lib/types';
 import { INTERVIEW_TYPES, INTERVIEW_STYLES, FAANG_LEVELS } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter as UiAlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"; // Renamed to avoid conflict if DialogFooter was also AlertDialogFooter
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter as UiAlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,6 +42,7 @@ const assessmentFormSchema = z.object({
 type AssessmentFormValues = z.infer<typeof assessmentFormSchema>;
 
 const ITEMS_PER_PAGE = 6;
+const ALL_FILTER_SENTINEL = "__ALL__"; // Sentinel value for "All" options in filters
 
 export default function AssessmentRepositoryManager() {
   const { user, loading: authLoading } = useAuth();
@@ -155,11 +156,10 @@ export default function AssessmentRepositoryManager() {
   }, [user, toast, lastVisiblePublicDoc]);
 
   useEffect(() => {
-    if (activeTab === "public-repository" && publicAssessments.length === 0 && user) {
+    if (activeTab === "public-repository" && publicAssessments.length === 0 && user && hasMorePublic && !isLoadingPublicAssessments) {
       fetchPublicAssessments(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, user]); // Only re-fetch initially if tab changes or user logs in
+  }, [activeTab, user, publicAssessments.length, fetchPublicAssessments, hasMorePublic, isLoadingPublicAssessments]);
 
   const handleOpenForm = (assessment: SharedAssessmentDocument | null = null) => {
     setEditingAssessment(assessment);
@@ -225,7 +225,7 @@ export default function AssessmentRepositoryManager() {
       setIsFormOpen(false);
       form.reset();
       if (activeTab === "public-repository" && assessmentData.isPublic) {
-        fetchPublicAssessments(true); // Refresh public list
+        fetchPublicAssessments(true); 
       }
     } catch (error) {
       console.error("Error saving assessment:", error);
@@ -240,7 +240,7 @@ export default function AssessmentRepositoryManager() {
       await deleteDoc(doc(db, 'sharedAssessments', assessmentId));
       toast({ title: "Assessment Deleted", description: "The assessment has been successfully deleted." });
       if (activeTab === "public-repository") {
-        fetchPublicAssessments(true); // Refresh public list
+        fetchPublicAssessments(true); 
       }
     } catch (error) {
       console.error("Error deleting assessment:", error);
@@ -253,7 +253,7 @@ export default function AssessmentRepositoryManager() {
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = (
         assessment.title.toLowerCase().includes(searchLower) ||
-        assessment.content.toLowerCase().substring(0, 200).includes(searchLower) || // Search a snippet of content
+        assessment.content.toLowerCase().substring(0, 200).includes(searchLower) || 
         (assessment.keywords && assessment.keywords.some(kw => kw.toLowerCase().includes(searchLower)))
       );
       const matchesType = filterType ? assessment.assessmentType === filterType : true;
@@ -303,7 +303,6 @@ export default function AssessmentRepositoryManager() {
         )}
       </CardContent>
       <CardFooter className="flex justify-end space-x-2 pt-4 mt-auto">
-        {/* TODO: Add a "View Full" button that opens a dialog */}
         {isOwner && (
           <>
             <Button variant="outline" size="sm" onClick={() => handleOpenForm(assessment)}>
@@ -401,7 +400,7 @@ export default function AssessmentRepositoryManager() {
                         <Select onValueChange={field.onChange} value={field.value || ''}>
                           <FormControl><SelectTrigger><SelectValue placeholder="Select style (optional)" /></SelectTrigger></FormControl>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
+                            {/* <SelectItem value="">None</SelectItem> Removed to prevent error */}
                             {INTERVIEW_STYLES.map(style => <SelectItem key={style.value} value={style.value}>{style.label}</SelectItem>)}
                           </SelectContent>
                         </Select><FormMessage />
@@ -412,7 +411,7 @@ export default function AssessmentRepositoryManager() {
                         <Select onValueChange={field.onChange} value={field.value || ''}>
                           <FormControl><SelectTrigger><SelectValue placeholder="Select level (optional)" /></SelectTrigger></FormControl>
                           <SelectContent>
-                             <SelectItem value="">None</SelectItem>
+                             {/* <SelectItem value="">None</SelectItem> Removed to prevent error */}
                             {FAANG_LEVELS.map(level => <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>)}
                           </SelectContent>
                         </Select><FormMessage />
@@ -500,24 +499,30 @@ export default function AssessmentRepositoryManager() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="text-sm"
               />
-              <Select value={filterType} onValueChange={(value) => setFilterType(value as InterviewType | '')}>
+              <Select 
+                value={filterType || ALL_FILTER_SENTINEL} 
+                onValueChange={(value) => setFilterType(value === ALL_FILTER_SENTINEL ? "" : value as InterviewType | '')}
+              >
                 <SelectTrigger className="text-sm"><SelectValue placeholder="Filter by Type..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value={ALL_FILTER_SENTINEL}>All Types</SelectItem>
                   {INTERVIEW_TYPES.map(type => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={filterLevel} onValueChange={(value) => setFilterLevel(value as FaangLevel | '')}>
+              <Select 
+                value={filterLevel || ALL_FILTER_SENTINEL} 
+                onValueChange={(value) => setFilterLevel(value === ALL_FILTER_SENTINEL ? "" : value as FaangLevel | '')}
+              >
                 <SelectTrigger className="text-sm"><SelectValue placeholder="Filter by Level..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Levels</SelectItem>
+                  <SelectItem value={ALL_FILTER_SENTINEL}>All Levels</SelectItem>
                   {FAANG_LEVELS.map(level => <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </Card>
 
-          {isLoadingPublicAssessments && publicAssessments.length === 0 ? ( // Initial load spinner
+          {isLoadingPublicAssessments && publicAssessments.length === 0 ? ( 
              <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : filteredPublicAssessments.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed border-border rounded-lg mt-6">
@@ -550,6 +555,3 @@ export default function AssessmentRepositoryManager() {
     </div>
   );
 }
-
-
-    

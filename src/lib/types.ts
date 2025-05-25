@@ -15,6 +15,7 @@ export interface InterviewSetupData {
   interviewFocus?: string;
   selectedThemeId?: string;
   interviewerPersona?: InterviewerPersona | string; // Allow string for 'standard' or custom
+  caseStudyNotes?: string | null; // Added from cover letter crafter
 }
 
 export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId'>> {
@@ -72,11 +73,13 @@ export interface DeepDiveFeedback {
   suggestedStudyConcepts: string[];
 }
 
+export type AdminFeedbackTargetType = 'overall_session' | 'ai_question_quality' | 'ai_feedback_quality' | 'user_answer_quality';
+
 export interface AdminFeedbackItem {
   adminId: string;
   adminEmail?: string;
   feedbackText: string;
-  targetType: 'overall_session' | 'ai_question_quality' | 'ai_feedback_quality' | 'user_answer_quality';
+  targetType: AdminFeedbackTargetType;
   targetQuestionId?: string; // If feedback is for a specific question or answer to it
   createdAt: Timestamp;
 }
@@ -85,7 +88,7 @@ export interface InterviewSessionData extends InterviewSetupData {
   questions: InterviewQuestion[];
   answers: Answer[];
   currentQuestionIndex: number;
-  currentQuestionStartTime?: number;
+  currentQuestionStartTime?: number | null;
   isLoading: boolean;
   error?: string | null;
   interviewStarted: boolean;
@@ -93,12 +96,11 @@ export interface InterviewSessionData extends InterviewSetupData {
   feedback?: InterviewFeedback | null;
   deepDives?: Record<string, DeepDiveFeedback>;
   sampleAnswers?: Record<string, string>;
-  currentCaseTurnNumber?: number;
+  currentCaseTurnNumber?: number | null;
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
-  caseStudyNotes?: string;
   isLoggedToServer?: boolean;
-  firestoreDocId?: string; // To store the Firestore document ID of the logged session
-  completedAt?: Timestamp; // To store the server timestamp when it's logged
+  firestoreDocId?: string;
+  completedAt?: Timestamp | any; // Allow any for serverTimestamp sentinel
   adminFeedback?: AdminFeedbackItem[];
 }
 
@@ -138,7 +140,6 @@ export interface SavedInterviewSetup {
   updatedAt?: any;
 }
 
-
 // Types for Resume Lab AI Flows
 export interface ResumeAnalysis {
   strengths: string[];
@@ -176,4 +177,23 @@ export interface AnalyzeTakeHomeSubmissionOutput {
     strengthsOfSubmission: string[];
     areasForImprovementInSubmission: string[];
     actionableSuggestionsForRevision: string[];
+}
+
+export interface SharedAssessmentDocument {
+  id?: string;
+  userId: string;
+  uploaderEmail?: string;
+  title: string;
+  assessmentType: InterviewType;
+  assessmentStyle?: InterviewStyle | ''; // Allow empty string for "None" or optional
+  difficultyLevel?: FaangLevel | ''; // Allow empty string for "None" or optional
+  content: string;
+  keywords?: string[]; // Stored as array, input as comma-separated string
+  notes?: string;
+  source?: string; // e.g., "Uploaded by user", "Company X Prep Material"
+  createdAt?: any; // Firestore Timestamp or serverTimestamp()
+  updatedAt?: any; // Firestore Timestamp or serverTimestamp()
+  // For future use
+  // isPublic?: boolean; 
+  // upvotes?: number;
 }

@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, setDoc, deleteDoc, serverTimestamp, where, limit, startAfter, getDocs, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 import { useAuth } from '@/contexts/auth-context';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { PlusCircle, Edit3, Trash2, Loader2, AlertTriangle, Library, FileText, Tag, StickyNote, Briefcase, Eye, Search, Filter } from 'lucide-react';
@@ -34,8 +34,8 @@ const assessmentFormSchema = z.object({
   difficultyLevel: z.custom<FaangLevel | ''>((val) => val === '' || FAANG_LEVELS.some(fl => fl.value === val)).optional(),
   content: z.string().min(50, "Assessment content must be at least 50 characters.").max(10000, "Content must be 10000 characters or less."),
   keywords: z.string().optional().describe("Comma-separated list of keywords/tags."),
-  notes: z.string().optional().max(1000, "Notes must be 1000 characters or less."),
-  source: z.string().optional().max(150, "Source must be 150 characters or less."),
+  notes: z.string().max(1000, "Notes must be 1000 characters or less.").optional(),
+  source: z.string().max(150, "Source must be 150 characters or less.").optional(),
   isPublic: z.boolean().default(false).optional(),
 });
 

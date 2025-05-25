@@ -6,7 +6,7 @@ import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, setD
 import { useAuth } from '@/contexts/auth-context';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter as UiDialogFooter } from '@/components/ui/dialog'; // Renamed DialogFooter to UiDialogFooter
 import { PlusCircle, Edit3, Trash2, Loader2, AlertTriangle, Library, FileText, Tag, StickyNote, Briefcase, Eye, Search, Filter } from 'lucide-react';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { z } from "zod";
 import type { SharedAssessmentDocument, InterviewType, InterviewStyle, FaangLevel } from '@/lib/types';
 import { INTERVIEW_TYPES, INTERVIEW_STYLES, FAANG_LEVELS } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter as UiAlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter as UiAlertDialogFooterAgain, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"; // Renamed AlertDialogFooter again
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -82,7 +82,7 @@ export default function AssessmentRepositoryManager() {
     if (!user || authLoading) {
       if (!authLoading) {
         setIsLoadingUserAssessments(false);
-        setIsLoadingPublicAssessments(false);
+        // Do not set isLoadingPublicAssessments here, it's controlled by its own fetch
       }
       return;
     }
@@ -113,13 +113,14 @@ export default function AssessmentRepositoryManager() {
   }, [user, authLoading, toast]);
 
   const fetchPublicAssessments = useCallback(async (initialFetch = false) => {
-    if (!user) return;
+    if (!user) return; // Ensure user is available for authenticated reads
     if (initialFetch) {
       setIsLoadingPublicAssessments(true);
       setPublicAssessments([]);
       setLastVisiblePublicDoc(null);
-      setHasMorePublic(true);
+      setHasMorePublic(true); // Assume there might be more until first fetch
     } else {
+      if (!hasMorePublic) return; // Don't fetch if we know there's no more
       setIsLoadingMorePublic(true);
     }
 
@@ -149,17 +150,23 @@ export default function AssessmentRepositoryManager() {
         description: "Could not load public assessments. Please try again later.",
         variant: "destructive",
       });
+      if (initialFetch) {
+        setHasMorePublic(false); // Stop trying to fetch if initial load fails
+      }
     } finally {
       if (initialFetch) setIsLoadingPublicAssessments(false);
       else setIsLoadingMorePublic(false);
     }
-  }, [user, toast, lastVisiblePublicDoc]);
+  }, [user, toast, lastVisiblePublicDoc, hasMorePublic]); // Added hasMorePublic
 
   useEffect(() => {
-    if (activeTab === "public-repository" && publicAssessments.length === 0 && user && hasMorePublic && !isLoadingPublicAssessments) {
-      fetchPublicAssessments(true);
+    if (activeTab === "public-repository" && user && !isLoadingPublicAssessments) {
+      if (publicAssessments.length === 0 && hasMorePublic) { // Only fetch if empty and might have more
+         fetchPublicAssessments(true);
+      }
     }
   }, [activeTab, user, publicAssessments.length, fetchPublicAssessments, hasMorePublic, isLoadingPublicAssessments]);
+
 
   const handleOpenForm = (assessment: SharedAssessmentDocument | null = null) => {
     setEditingAssessment(assessment);
@@ -206,9 +213,9 @@ export default function AssessmentRepositoryManager() {
       isPublic: data.isPublic || false,
       updatedAt: serverTimestamp(),
     };
-
+    
     const assessmentData: any = { ...baseData };
-
+    
     if (user.email) {
       assessmentData.uploaderEmail = user.email;
     }
@@ -218,11 +225,9 @@ export default function AssessmentRepositoryManager() {
     if (data.difficultyLevel && data.difficultyLevel !== '') {
       assessmentData.difficultyLevel = data.difficultyLevel;
     }
-    // Only include notes if it's a non-empty string
     if (data.notes && data.notes.trim() !== "") {
       assessmentData.notes = data.notes;
     }
-    // Only include source if it's a non-empty string
     if (data.source && data.source.trim() !== "") {
       assessmentData.source = data.source;
     }
@@ -240,6 +245,7 @@ export default function AssessmentRepositoryManager() {
       }
       setIsFormOpen(false);
       form.reset();
+      // If a public assessment was added/edited, refresh the public list
       if (activeTab === "public-repository" && assessmentData.isPublic) {
         fetchPublicAssessments(true); 
       }
@@ -255,8 +261,13 @@ export default function AssessmentRepositoryManager() {
     try {
       await deleteDoc(doc(db, 'sharedAssessments', assessmentId));
       toast({ title: "Assessment Deleted", description: "The assessment has been successfully deleted." });
+      // If the deleted assessment might have been in the public list, refresh it
       if (activeTab === "public-repository") {
-        fetchPublicAssessments(true); 
+        // Check if the deleted item was in the public list to decide if refresh is needed
+        const wasPublic = publicAssessments.find(a => a.id === assessmentId)?.isPublic;
+        if (wasPublic) {
+            fetchPublicAssessments(true); 
+        }
       }
     } catch (error) {
       console.error("Error deleting assessment:", error);
@@ -319,6 +330,7 @@ export default function AssessmentRepositoryManager() {
         )}
       </CardContent>
       <CardFooter className="flex justify-end space-x-2 pt-4 mt-auto">
+        {/* TODO: Add a view full assessment dialog */}
         {isOwner && (
           <>
             <Button variant="outline" size="sm" onClick={() => handleOpenForm(assessment)}>
@@ -337,12 +349,12 @@ export default function AssessmentRepositoryManager() {
                     This action cannot be undone. This will permanently delete "{assessment.title}".
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <UiAlertDialogFooter>
+                <UiAlertDialogFooterAgain>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={() => handleDeleteAssessment(assessment.id!)}>
                     Yes, delete
                   </AlertDialogAction>
-                </UiAlertDialogFooter>
+                </UiAlertDialogFooterAgain>
               </AlertDialogContent>
             </AlertDialog>
           </>
@@ -416,6 +428,7 @@ export default function AssessmentRepositoryManager() {
                         <Select onValueChange={field.onChange} value={field.value || ''}>
                           <FormControl><SelectTrigger><SelectValue placeholder="Select style (optional)" /></SelectTrigger></FormControl>
                           <SelectContent>
+                            <SelectItem value="">None</SelectItem>
                             {INTERVIEW_STYLES.map(style => <SelectItem key={style.value} value={style.value}>{style.label}</SelectItem>)}
                           </SelectContent>
                         </Select><FormMessage />
@@ -426,6 +439,7 @@ export default function AssessmentRepositoryManager() {
                         <Select onValueChange={field.onChange} value={field.value || ''}>
                           <FormControl><SelectTrigger><SelectValue placeholder="Select level (optional)" /></SelectTrigger></FormControl>
                           <SelectContent>
+                            <SelectItem value="">None</SelectItem>
                             {FAANG_LEVELS.map(level => <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>)}
                           </SelectContent>
                         </Select><FormMessage />
@@ -465,13 +479,13 @@ export default function AssessmentRepositoryManager() {
                             </FormItem>
                         )}
                         />
-                    <DialogFooter className="pt-4">
+                    <UiDialogFooter className="pt-4">
                       <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                       <Button type="submit" disabled={form.formState.isSubmitting}>
                         {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {editingAssessment ? 'Save Changes' : 'Upload Assessment'}
                       </Button>
-                    </DialogFooter>
+                    </UiDialogFooter>
                   </form>
                 </Form>
               </ScrollArea>
@@ -549,9 +563,10 @@ export default function AssessmentRepositoryManager() {
               <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 mt-6">
                 {filteredPublicAssessments.map((assessment) => renderAssessmentCard(assessment, assessment.userId === user?.uid))}
               </div>
-              {hasMorePublic && !isLoadingMorePublic && (
+              {hasMorePublic && filteredPublicAssessments.length >= publicAssessments.length && !isLoadingMorePublic && ( // Only show if filters are not hiding results
                 <div className="mt-6 text-center">
-                  <Button onClick={() => fetchPublicAssessments(false)}>
+                  <Button onClick={() => fetchPublicAssessments(false)} disabled={isLoadingMorePublic}>
+                    {isLoadingMorePublic && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Load More Assessments
                   </Button>
                 </div>
@@ -569,3 +584,4 @@ export default function AssessmentRepositoryManager() {
     </div>
   );
 }
+

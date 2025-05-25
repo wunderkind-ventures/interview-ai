@@ -51,7 +51,7 @@ interface ClarificationContext {
   feedbackItemType: 'areaForImprovement' | 'specificSuggestion' | 'critique' | 'strength' | 'idealAnswerPointer' | 'reflectionPrompt';
 }
 
-type AdminFeedbackTargetType = AdminFeedbackTargetTypeType; 
+type AdminFeedbackTargetType = AdminFeedbackTargetTypeType;
 
 function InterviewSummaryContent() {
   const router = useRouter();
@@ -98,7 +98,7 @@ function InterviewSummaryContent() {
   const [adminFeedbackTargetQuestionId, setAdminFeedbackTargetQuestionId] = useState<string>("");
   const [isSubmittingAdminFeedback, setIsSubmittingAdminFeedback] = useState(false);
 
-  const isAdmin = authUser?.email === 'admin@example.com'; 
+  const isAdmin = authUser?.email === 'admin@example.com';
 
   const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData, docId?: string) => {
     if (getApps().length === 0) {
@@ -123,7 +123,7 @@ function InterviewSummaryContent() {
       return;
     }
 
-    const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
+    const documentId = docId || dataToLog.firestoreDocId || doc(collection(getFirestore(), "users", authUser.uid, "interviews")).id;
     const db = getFirestore();
 
     const payloadToSave: Partial<InterviewSessionData> = {
@@ -189,8 +189,7 @@ function InterviewSummaryContent() {
         })),
         caseConversationHistory: dataToLog.caseConversationHistory && dataToLog.caseConversationHistory.length > 0 ? dataToLog.caseConversationHistory : [],
     };
-    
-    // Explicitly remove any top-level undefined keys
+
     Object.keys(payloadToSave).forEach(key => {
         if (payloadToSave[key as keyof InterviewSessionData] === undefined) {
             delete payloadToSave[key as keyof InterviewSessionData];
@@ -215,7 +214,7 @@ function InterviewSummaryContent() {
         return updatedSession;
       });
     } catch (error: any) {
-      console.error("Error logging interview session to backend:", error, "Payload attempted:", payloadToSave); 
+      console.error("Error logging interview session to backend:", error, "Payload attempted:", payloadToSave);
       setTimeout(() => {
         toast({
           title: "Logging Error",
@@ -223,9 +222,11 @@ function InterviewSummaryContent() {
           variant: "destructive",
         });
       }, 0);
-      setSessionData(prev => {
+       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; 
+        // Still mark as logged to prevent loops, even if it failed.
+        // The error toast will inform the user.
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -343,15 +344,14 @@ function InterviewSummaryContent() {
                 error: null,
                 isLoggedToServer: true,
                 firestoreDocId: docSnap.id,
-                interviewerPersona: firestoreData.interviewerPersona || INTERVIEWER_PERSONAS[0].value, 
-                selectedThemeId: firestoreData.selectedThemeId || "custom", 
+                interviewerPersona: firestoreData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+                selectedThemeId: firestoreData.selectedThemeId || "custom",
             };
             setSessionData(loadedSessionData);
             localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData));
 
-            if (!loadedSessionData.feedback && loadedSessionData.answers.length > 0) {
-              fetchAndSetFeedback(loadedSessionData);
-            }
+            // Do not automatically fetch feedback if it's missing when loading from history.
+            // User must click "Generate Feedback" button.
 
           } else {
             setTimeout(() => {
@@ -399,9 +399,10 @@ function InterviewSummaryContent() {
             }
             setSessionData(parsedSession);
 
-            if (!parsedSession.feedback && parsedSession.answers.length > 0) {
-              fetchAndSetFeedback(parsedSession);
-            } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer && authUser) {
+            // Do not automatically fetch feedback if it's missing.
+            // User must click "Generate Feedback" button.
+            // However, if feedback exists AND it's not logged, try to log.
+            if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer && authUser) {
               saveInterviewToBackend(parsedSession, parsedSession.firestoreDocId);
             }
           } catch (e: any) {
@@ -423,7 +424,7 @@ function InterviewSummaryContent() {
 
     loadSession();
 
-  }, [router, toast, fetchAndSetFeedback, saveInterviewToBackend, authLoading, authUser, searchParams]);
+  }, [router, toast, saveInterviewToBackend, authLoading, authUser, searchParams]);
 
   const handleOpenDeepDive = async (questionId: string) => {
     if (!sessionData) return;
@@ -910,205 +911,14 @@ function InterviewSummaryContent() {
             </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold mb-3 flex items-center text-foreground">
-              <FileText className="mr-2 h-6 w-6 text-accent" />
-              {isTakeHomeStyle ? "Assignment & Submission Feedback" : "Questions, Answers & Feedback"}
-            </h3>
-            {sessionData.questions.length > 0 ? (
-              isTakeHomeStyle ? (
-                  sessionData.questions.map((question) => {
-                      const answerInfo = getAnswerInfoForQuestion(question.id);
-                      const feedbackItem = getFeedbackItemForQuestion(question.id);
-                      return (
-                          <div key={question.id} className="space-y-4 p-4 border rounded-md bg-card">
-                              <div>
-                                  <h4 className="font-semibold text-muted-foreground mb-1">Assignment Description:</h4>
-                                  <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{question.text}</p>
-                                  {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
-                                    <Alert variant="default" className="mt-2 bg-blue-50 border-blue-200">
-                                      <Info className="h-4 w-4 text-blue-600" />
-                                      <AlertTitle className="text-xs font-semibold text-blue-700">AI's Ideal Answer Characteristics (for Assignment Design):</AlertTitle>
-                                      <AlertDescription>
-                                        <ul className="list-disc list-inside pl-1 space-y-0.5">
-                                          {question.idealAnswerCharacteristics.map((char, idx) => (
-                                            <li key={idx} className="text-xs text-blue-600">{char}</li>
-                                          ))}
-                                        </ul>
-                                      </AlertDescription>
-                                    </Alert>
-                                  )}
-                              </div>
-                              <div>
-                                  <h4 className="font-semibold text-muted-foreground mb-1">Your Submission:</h4>
-                                  <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{answerInfo.answerText}</p>
-                              </div>
-                              {feedbackItem && (
-                                  <div className="mt-4 p-3 rounded-md bg-accent/5 border border-accent/20">
-                                      <h4 className="font-semibold text-accent mb-2 flex items-center">
-                                          <Sparkles className="h-5 w-5 mr-2" />
-                                          AI Feedback on Submission:
-                                      </h4>
-                                      {feedbackItem.critique && (
-                                        <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
-                                                    <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
-                                                    </h5>
-                                                    <p className="text-sm">{feedbackItem.critique}</p>
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
-                                                    onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
-                                                    title="Ask for clarification on this critique"
-                                                >
-                                                    <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
-                                                </Button>
-                                            </div>
-                                        </div>
-                                      )}
-                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
-                                      <div className="flex space-x-2 mt-4">
-                                          <Button
-                                              onClick={() => handleOpenDeepDive(question.id)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
-                                              disabled={!feedbackItem}
-                                          >
-                                              <Layers className="mr-2 h-4 w-4" /> Deep Dive
-                                          </Button>
-                                          <Button
-                                              onClick={() => handleOpenSampleAnswer(question.id)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
-                                          >
-                                              <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
-                                          </Button>
-                                      </div>
-                                  </div>
-                              )}
-                          </div>
-                      );
-                  })
-              ) : (
-                  <Accordion type="single" collapsible className="w-full">
-                  {sessionData.questions.map((question, index) => {
-                      const answerInfo = getAnswerInfoForQuestion(question.id);
-                      const feedbackItem = getFeedbackItemForQuestion(question.id);
-                      const displayTime = formatMilliseconds(answerInfo.timeTakenMs);
-
-                      return (
-                      <AccordionItem value={`item-${index}`} key={question.id}>
-                          <AccordionTrigger className="text-lg hover:no-underline">
-                          <div className="flex items-start text-left w-full">
-                              <MessageSquare className="h-5 w-5 mr-3 mt-1 shrink-0 text-primary" />
-                              <span className="flex-1">Question {index + 1}: {question.text}</span>
-                          </div>
-                          </AccordionTrigger>
-                          <AccordionContent className="text-base pl-8 space-y-4">
-                              {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
-                                <Alert variant="default" className="mb-2 bg-blue-50 border-blue-200">
-                                  <Info className="h-4 w-4 text-blue-600" />
-                                  <AlertTitle className="text-xs font-semibold text-blue-700">AI's Ideal Answer Characteristics (for Question Design):</AlertTitle>
-                                  <AlertDescription>
-                                    <ul className="list-disc list-inside pl-1 space-y-0.5">
-                                      {question.idealAnswerCharacteristics.map((char, idx) => (
-                                        <li key={idx} className="text-xs text-blue-600">{char}</li>
-                                      ))}
-                                    </ul>
-                                  </AlertDescription>
-                                </Alert>
-                              )}
-                              <div>
-                                  <div className="flex justify-between items-center mb-1">
-                                      <p className="font-semibold text-muted-foreground">Your Answer:</p>
-                                      <div className="flex items-center space-x-3">
-                                        {answerInfo.confidenceScore !== undefined && (
-                                          <div className="flex items-center text-xs text-muted-foreground">
-                                            <span className="mr-1">Confidence:</span> {renderConfidenceStars(answerInfo.confidenceScore)}
-                                          </div>
-                                        )}
-                                        {answerInfo.timeTakenMs !== undefined && (
-                                            <p className="text-xs text-muted-foreground flex items-center">
-                                                <TimerIcon className="h-3 w-3 mr-1" /> {displayTime}
-                                            </p>
-                                        )}
-                                      </div>
-                                  </div>
-                                  <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md">{answerInfo.answerText}</p>
-                              </div>
-                              {feedbackItem && (
-                                  <div className="mt-3 p-3 rounded-md bg-accent/5 border border-accent/20">
-                                      <h4 className="font-semibold text-accent mb-2 flex items-center">
-                                          <Sparkles className="h-5 w-5 mr-2" />
-                                          AI Feedback:
-                                      </h4>
-                                      {feedbackItem.critique && (
-                                        <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
-                                                    <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
-                                                    </h5>
-                                                    <p className="text-sm">{feedbackItem.critique}</p>
-                                                </div>
-                                                 <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
-                                                    onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
-                                                    title="Ask for clarification on this critique"
-                                                >
-                                                    <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
-                                                </Button>
-                                            </div>
-                                        </div>
-                                      )}
-                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
-                                      <div className="flex space-x-2 mt-4">
-                                          <Button
-                                              onClick={() => handleOpenDeepDive(question.id)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
-                                              disabled={!feedbackItem}
-                                          >
-                                              <Layers className="mr-2 h-4 w-4" /> Deep Dive
-                                          </Button>
-                                          <Button
-                                              onClick={() => handleOpenSampleAnswer(question.id)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
-                                          >
-                                              <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
-                                          </Button>
-                                      </div>
-                                  </div>
-                              )}
-                          </AccordionContent>
-                      </AccordionItem>
-                      );
-                  })}
-                  </Accordion>
-              )
-            ) : (
-              <p className="text-center text-muted-foreground">No questions were asked in this session.</p>
-            )}
-          </div>
+          {sessionData.interviewFinished && !sessionData.feedback && !isFeedbackLoading && !feedbackError && (
+            <div className="text-center py-4">
+              <Button onClick={() => fetchAndSetFeedback(sessionData)} size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                <Sparkles className="mr-2 h-5 w-5" />
+                Generate My Feedback
+              </Button>
+            </div>
+          )}
 
           {(isFeedbackLoading && sessionData.answers.length > 0) && (
             <div className="flex flex-col items-center justify-center py-6">
@@ -1129,15 +939,216 @@ function InterviewSummaryContent() {
           )}
 
           {sessionData.feedback && !isFeedbackLoading && !feedbackError && (
-            <div>
-              <h3 className="text-xl font-semibold mb-3 flex items-center text-foreground">
-                <Sparkles className="mr-2 h-6 w-6 text-accent" />
-                Overall Summary & Advice
-              </h3>
-              <div className="whitespace-pre-wrap bg-accent/10 p-4 rounded-md border border-accent/30 text-base">
-                {sessionData.feedback.overallSummary}
+            <>
+              <div>
+                <h3 className="text-xl font-semibold mb-3 flex items-center text-foreground">
+                  <FileText className="mr-2 h-6 w-6 text-accent" />
+                  {isTakeHomeStyle ? "Assignment & Submission Feedback" : "Questions, Answers & Feedback"}
+                </h3>
+                {sessionData.questions.length > 0 ? (
+                  isTakeHomeStyle ? (
+                      sessionData.questions.map((question) => {
+                          const answerInfo = getAnswerInfoForQuestion(question.id);
+                          const feedbackItem = getFeedbackItemForQuestion(question.id);
+                          return (
+                              <div key={question.id} className="space-y-4 p-4 border rounded-md bg-card">
+                                  <div>
+                                      <h4 className="font-semibold text-muted-foreground mb-1">Assignment Description:</h4>
+                                      <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{question.text}</p>
+                                      {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
+                                        <Alert variant="default" className="mt-2 bg-blue-50 border-blue-200">
+                                          <Info className="h-4 w-4 text-blue-600" />
+                                          <AlertTitle className="text-xs font-semibold text-blue-700">AI's Ideal Answer Characteristics (for Assignment Design):</AlertTitle>
+                                          <AlertDescription>
+                                            <ul className="list-disc list-inside pl-1 space-y-0.5">
+                                              {question.idealAnswerCharacteristics.map((char, idx) => (
+                                                <li key={idx} className="text-xs text-blue-600">{char}</li>
+                                              ))}
+                                            </ul>
+                                          </AlertDescription>
+                                        </Alert>
+                                      )}
+                                  </div>
+                                  <div>
+                                      <h4 className="font-semibold text-muted-foreground mb-1">Your Submission:</h4>
+                                      <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{answerInfo.answerText}</p>
+                                  </div>
+                                  {feedbackItem && (
+                                      <div className="mt-4 p-3 rounded-md bg-accent/5 border border-accent/20">
+                                          <h4 className="font-semibold text-accent mb-2 flex items-center">
+                                              <Sparkles className="h-5 w-5 mr-2" />
+                                              AI Feedback on Submission:
+                                          </h4>
+                                          {feedbackItem.critique && (
+                                            <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
+                                                        <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
+                                                        </h5>
+                                                        <p className="text-sm">{feedbackItem.critique}</p>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                                        onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
+                                                        title="Ask for clarification on this critique"
+                                                    >
+                                                        <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                          )}
+                                          {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
+                                          <div className="flex space-x-2 mt-4">
+                                              <Button
+                                                  onClick={() => handleOpenDeepDive(question.id)}
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
+                                                  disabled={!feedbackItem}
+                                              >
+                                                  <Layers className="mr-2 h-4 w-4" /> Deep Dive
+                                              </Button>
+                                              <Button
+                                                  onClick={() => handleOpenSampleAnswer(question.id)}
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
+                                              >
+                                                  <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
+                                              </Button>
+                                          </div>
+                                      </div>
+                                  )}
+                              </div>
+                          );
+                      })
+                  ) : (
+                      <Accordion type="single" collapsible className="w-full">
+                      {sessionData.questions.map((question, index) => {
+                          const answerInfo = getAnswerInfoForQuestion(question.id);
+                          const feedbackItem = getFeedbackItemForQuestion(question.id);
+                          const displayTime = formatMilliseconds(answerInfo.timeTakenMs);
+
+                          return (
+                          <AccordionItem value={`item-${index}`} key={question.id}>
+                              <AccordionTrigger className="text-lg hover:no-underline">
+                              <div className="flex items-start text-left w-full">
+                                  <MessageSquare className="h-5 w-5 mr-3 mt-1 shrink-0 text-primary" />
+                                  <span className="flex-1">Question {index + 1}: {question.text}</span>
+                              </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="text-base pl-8 space-y-4">
+                                  {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
+                                    <Alert variant="default" className="mb-2 bg-blue-50 border-blue-200">
+                                      <Info className="h-4 w-4 text-blue-600" />
+                                      <AlertTitle className="text-xs font-semibold text-blue-700">AI's Ideal Answer Characteristics (for Question Design):</AlertTitle>
+                                      <AlertDescription>
+                                        <ul className="list-disc list-inside pl-1 space-y-0.5">
+                                          {question.idealAnswerCharacteristics.map((char, idx) => (
+                                            <li key={idx} className="text-xs text-blue-600">{char}</li>
+                                          ))}
+                                        </ul>
+                                      </AlertDescription>
+                                    </Alert>
+                                  )}
+                                  <div>
+                                      <div className="flex justify-between items-center mb-1">
+                                          <p className="font-semibold text-muted-foreground">Your Answer:</p>
+                                          <div className="flex items-center space-x-3">
+                                            {answerInfo.confidenceScore !== undefined && (
+                                              <div className="flex items-center text-xs text-muted-foreground">
+                                                <span className="mr-1">Confidence:</span> {renderConfidenceStars(answerInfo.confidenceScore)}
+                                              </div>
+                                            )}
+                                            {answerInfo.timeTakenMs !== undefined && (
+                                                <p className="text-xs text-muted-foreground flex items-center">
+                                                    <TimerIcon className="h-3 w-3 mr-1" /> {displayTime}
+                                                </p>
+                                            )}
+                                          </div>
+                                      </div>
+                                      <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md">{answerInfo.answerText}</p>
+                                  </div>
+                                  {feedbackItem && (
+                                      <div className="mt-3 p-3 rounded-md bg-accent/5 border border-accent/20">
+                                          <h4 className="font-semibold text-accent mb-2 flex items-center">
+                                              <Sparkles className="h-5 w-5 mr-2" />
+                                              AI Feedback:
+                                          </h4>
+                                          {feedbackItem.critique && (
+                                            <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
+                                                        <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
+                                                        </h5>
+                                                        <p className="text-sm">{feedbackItem.critique}</p>
+                                                    </div>
+                                                     <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                                        onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
+                                                        title="Ask for clarification on this critique"
+                                                    >
+                                                        <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                          )}
+                                          {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
+                                          <div className="flex space-x-2 mt-4">
+                                              <Button
+                                                  onClick={() => handleOpenDeepDive(question.id)}
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
+                                                  disabled={!feedbackItem}
+                                              >
+                                                  <Layers className="mr-2 h-4 w-4" /> Deep Dive
+                                              </Button>
+                                              <Button
+                                                  onClick={() => handleOpenSampleAnswer(question.id)}
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
+                                              >
+                                                  <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
+                                              </Button>
+                                          </div>
+                                      </div>
+                                  )}
+                              </AccordionContent>
+                          </AccordionItem>
+                          );
+                      })}
+                      </Accordion>
+                  )
+                ) : (
+                  <p className="text-center text-muted-foreground">No questions were asked in this session.</p>
+                )}
               </div>
-            </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-3 flex items-center text-foreground">
+                  <Sparkles className="mr-2 h-6 w-6 text-accent" />
+                  Overall Summary & Advice
+                </h3>
+                <div className="whitespace-pre-wrap bg-accent/10 p-4 rounded-md border border-accent/30 text-base">
+                  {sessionData.feedback.overallSummary}
+                </div>
+              </div>
+            </>
           )}
 
           {sessionData.answers.length === 0 && !isFeedbackLoading && (

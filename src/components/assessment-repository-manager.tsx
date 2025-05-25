@@ -1,13 +1,13 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, setDoc, deleteDoc, serverTimestamp, where, limit, startAfter, getDocs, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, setDoc, deleteDoc, serverTimestamp, where, limit, startAfter, getDocs, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, Edit3, Trash2, Loader2, AlertTriangle, Library, FileText, Tag, StickyNote, Briefcase, Eye, Search } from 'lucide-react';
+import { PlusCircle, Edit3, Trash2, Loader2, AlertTriangle, Library, FileText, Tag, StickyNote, Briefcase, Eye, Search, Filter } from 'lucide-react';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from './ui/badge';
 
 
 const assessmentFormSchema = z.object({
@@ -40,7 +41,7 @@ const assessmentFormSchema = z.object({
 
 type AssessmentFormValues = z.infer<typeof assessmentFormSchema>;
 
-const ITEMS_PER_PAGE = 9; // For pagination later
+const ITEMS_PER_PAGE = 6;
 
 export default function AssessmentRepositoryManager() {
   const { user, loading: authLoading } = useAuth();
@@ -53,9 +54,13 @@ export default function AssessmentRepositoryManager() {
   const [editingAssessment, setEditingAssessment] = useState<SharedAssessmentDocument | null>(null);
   const [activeTab, setActiveTab] = useState("my-uploads");
 
-  // TODO: Implement pagination for public assessments
-  // const [lastVisiblePublicDoc, setLastVisiblePublicDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
-  // const [hasMorePublic, setHasMorePublic] = useState(true);
+  const [lastVisiblePublicDoc, setLastVisiblePublicDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMorePublic, setHasMorePublic] = useState(true);
+  const [isLoadingMorePublic, setIsLoadingMorePublic] = useState(false);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterType, setFilterType] = useState<InterviewType | ''>('');
+  const [filterLevel, setFilterLevel] = useState<FaangLevel | ''>('');
 
   const form = useForm<AssessmentFormValues>({
     resolver: zodResolver(assessmentFormSchema),
@@ -81,7 +86,6 @@ export default function AssessmentRepositoryManager() {
       return;
     }
 
-    // Fetch User's Uploads
     setIsLoadingUserAssessments(true);
     const db = getFirestore();
     const assessmentsCol = collection(db, 'sharedAssessments');
@@ -104,33 +108,38 @@ export default function AssessmentRepositoryManager() {
       setIsLoadingUserAssessments(false);
     });
 
-    return () => {
-      unsubscribeUser();
-    };
+    return () => unsubscribeUser();
   }, [user, authLoading, toast]);
 
-  const fetchPublicAssessments = useCallback(async (initialFetch = true) => {
+  const fetchPublicAssessments = useCallback(async (initialFetch = false) => {
     if (!user) return;
-    setIsLoadingPublicAssessments(true);
+    if (initialFetch) {
+      setIsLoadingPublicAssessments(true);
+      setPublicAssessments([]);
+      setLastVisiblePublicDoc(null);
+      setHasMorePublic(true);
+    } else {
+      setIsLoadingMorePublic(true);
+    }
+
     const db = getFirestore();
     const publicAssessmentsCol = collection(db, 'sharedAssessments');
     let q = query(publicAssessmentsCol, where("isPublic", "==", true), orderBy('createdAt', 'desc'), limit(ITEMS_PER_PAGE));
 
-    // if (!initialFetch && lastVisiblePublicDoc) {
-    //   q = query(q, startAfter(lastVisiblePublicDoc));
-    // }
+    if (!initialFetch && lastVisiblePublicDoc) {
+      q = query(q, startAfter(lastVisiblePublicDoc));
+    }
 
     try {
       const querySnapshot = await getDocs(q);
-      const fetchedPublicAssessments: SharedAssessmentDocument[] = [];
+      const fetchedBatch: SharedAssessmentDocument[] = [];
       querySnapshot.forEach((doc) => {
-        fetchedPublicAssessments.push({ id: doc.id, ...doc.data() } as SharedAssessmentDocument);
+        fetchedBatch.push({ id: doc.id, ...doc.data() } as SharedAssessmentDocument);
       });
 
-      // setPublicAssessments(prev => initialFetch ? fetchedPublicAssessments : [...prev, ...fetchedPublicAssessments]);
-      // setLastVisiblePublicDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
-      // setHasMorePublic(querySnapshot.docs.length === ITEMS_PER_PAGE);
-      setPublicAssessments(fetchedPublicAssessments); // Simplified for now without pagination
+      setPublicAssessments(prev => initialFetch ? fetchedBatch : [...prev, ...fetchedBatch]);
+      setLastVisiblePublicDoc(querySnapshot.docs[querySnapshot.docs.length - 1] || null);
+      setHasMorePublic(querySnapshot.docs.length === ITEMS_PER_PAGE);
 
     } catch (error) {
       console.error("Error fetching public assessments:", error);
@@ -140,16 +149,17 @@ export default function AssessmentRepositoryManager() {
         variant: "destructive",
       });
     } finally {
-      setIsLoadingPublicAssessments(false);
+      if (initialFetch) setIsLoadingPublicAssessments(false);
+      else setIsLoadingMorePublic(false);
     }
-  }, [user, toast]);
+  }, [user, toast, lastVisiblePublicDoc]);
 
   useEffect(() => {
-    if (activeTab === "public-repository") {
+    if (activeTab === "public-repository" && publicAssessments.length === 0) {
       fetchPublicAssessments(true);
     }
-  }, [activeTab, fetchPublicAssessments]);
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user]); // Only re-fetch initially if tab changes or user logs in
 
   const handleOpenForm = (assessment: SharedAssessmentDocument | null = null) => {
     setEditingAssessment(assessment);
@@ -214,9 +224,8 @@ export default function AssessmentRepositoryManager() {
       }
       setIsFormOpen(false);
       form.reset();
-      // If public tab is active and assessment made public, refresh public list
       if (activeTab === "public-repository" && assessmentData.isPublic) {
-        fetchPublicAssessments(true);
+        fetchPublicAssessments(true); // Refresh public list
       }
     } catch (error) {
       console.error("Error saving assessment:", error);
@@ -230,15 +239,28 @@ export default function AssessmentRepositoryManager() {
     try {
       await deleteDoc(doc(db, 'sharedAssessments', assessmentId));
       toast({ title: "Assessment Deleted", description: "The assessment has been successfully deleted." });
-       // If public tab is active, refresh public list
       if (activeTab === "public-repository") {
-        fetchPublicAssessments(true);
+        fetchPublicAssessments(true); // Refresh public list
       }
     } catch (error) {
       console.error("Error deleting assessment:", error);
       toast({ title: "Delete Error", description: "Could not delete the assessment.", variant: "destructive" });
     }
   };
+
+  const filteredPublicAssessments = useMemo(() => {
+    return publicAssessments.filter(assessment => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = (
+        assessment.title.toLowerCase().includes(searchLower) ||
+        assessment.content.toLowerCase().substring(0, 200).includes(searchLower) || // Search a snippet of content
+        (assessment.keywords && assessment.keywords.some(kw => kw.toLowerCase().includes(searchLower)))
+      );
+      const matchesType = filterType ? assessment.assessmentType === filterType : true;
+      const matchesLevel = filterLevel ? assessment.difficultyLevel === filterLevel : true;
+      return matchesSearch && matchesType && matchesLevel;
+    });
+  }, [publicAssessments, searchTerm, filterType, filterLevel]);
   
   const renderAssessmentCard = (assessment: SharedAssessmentDocument, isOwner: boolean) => (
     <Card key={assessment.id} className="shadow-md hover:shadow-lg transition-shadow flex flex-col">
@@ -469,27 +491,58 @@ export default function AssessmentRepositoryManager() {
           )}
         </TabsContent>
         <TabsContent value="public-repository">
-          {/* TODO: Add search/filter inputs here */}
-          {isLoadingPublicAssessments && publicAssessments.length === 0 ? (
+          <Card className="my-4 p-4 shadow">
+            <CardTitle className="text-md mb-3 flex items-center"><Filter className="mr-2 h-5 w-5 text-primary" /> Filter & Search Public Assessments</CardTitle>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input
+                placeholder="Search by title, keyword..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="text-sm"
+              />
+              <Select value={filterType} onValueChange={(value) => setFilterType(value as InterviewType | '')}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Filter by Type..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Types</SelectItem>
+                  {INTERVIEW_TYPES.map(type => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={filterLevel} onValueChange={(value) => setFilterLevel(value as FaangLevel | '')}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Filter by Level..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Levels</SelectItem>
+                  {FAANG_LEVELS.map(level => <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+
+          {isLoadingPublicAssessments && publicAssessments.length === 0 ? ( // Initial load spinner
              <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : publicAssessments.length === 0 && !isLoadingPublicAssessments ? (
+          ) : filteredPublicAssessments.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed border-border rounded-lg mt-6">
               <Search className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
-              <h3 className="text-xl font-semibold text-muted-foreground">No Public Assessments Yet</h3>
-              <p className="text-muted-foreground mt-1">Be the first to share an assessment with the community or check back later!</p>
+              <h3 className="text-xl font-semibold text-muted-foreground">No Public Assessments Found</h3>
+              <p className="text-muted-foreground mt-1">No assessments match your current filters, or the repository is empty. Try adjusting your search or check back later!</p>
             </div>
           ) : (
             <>
               <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 mt-6">
-                {publicAssessments.map((assessment) => renderAssessmentCard(assessment, assessment.userId === user?.uid))}
+                {filteredPublicAssessments.map((assessment) => renderAssessmentCard(assessment, assessment.userId === user?.uid))}
               </div>
-              {/* TODO: Add "Load More" button for pagination
-              {hasMorePublic && !isLoadingPublicAssessments && (
+              {hasMorePublic && !isLoadingMorePublic && (
                 <div className="mt-6 text-center">
-                  <Button onClick={() => fetchPublicAssessments(false)}>Load More</Button>
+                  <Button onClick={() => fetchPublicAssessments(false)}>
+                    Load More Assessments
+                  </Button>
                 </div>
               )}
-              */}
+              {isLoadingMorePublic && (
+                <div className="mt-6 flex justify-center items-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="ml-2 text-muted-foreground">Loading more...</span>
+                </div>
+              )}
             </>
           )}
         </TabsContent>
@@ -497,3 +550,6 @@ export default function AssessmentRepositoryManager() {
     </div>
   );
 }
+
+
+    

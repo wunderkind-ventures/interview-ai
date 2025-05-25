@@ -13,7 +13,7 @@ import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 
-// Input schema for the flow (NOT EXPORTED)
+// Input schema for the flow
 const GenerateTakeHomeAssignmentInputSchema = z.object({
   interviewType: z
     .enum(['product sense', 'technical system design', 'behavioral', 'machine learning', 'data structures & algorithms'])
@@ -44,11 +44,11 @@ const GenerateTakeHomeAssignmentInputSchema = z.object({
   interviewerPersona: z.string().optional().describe("The AI interviewer's persona, which can influence the assignment's tone or focus."),
 });
 
-export type GenerateTakeHomeAssignmentInput = z.infer< // EXPORTED (Type)
+export type GenerateTakeHomeAssignmentInput = z.infer<
   typeof GenerateTakeHomeAssignmentInputSchema
 >;
 
-// Output schema for the flow (NOT EXPORTED)
+// Output schema for the flow
 const GenerateTakeHomeAssignmentOutputSchema = z.object({
   assignmentText: z
     .string()
@@ -56,12 +56,12 @@ const GenerateTakeHomeAssignmentOutputSchema = z.object({
   idealSubmissionCharacteristics: z.array(z.string()).optional().describe("Key characteristics or elements a strong submission for this take-home assignment would demonstrate, considering the problem, deliverables, and FAANG level."),
 });
 
-export type GenerateTakeHomeAssignmentOutput = z.infer< // EXPORTED (Type)
+export type GenerateTakeHomeAssignmentOutput = z.infer<
   typeof GenerateTakeHomeAssignmentOutputSchema
 >;
 
 // Main exported function that calls the flow
-export async function generateTakeHomeAssignment( // EXPORTED (Async Function)
+export async function generateTakeHomeAssignment(
   input: GenerateTakeHomeAssignmentInput
 ): Promise<GenerateTakeHomeAssignmentOutput> {
   return generateTakeHomeAssignmentFlow(input);
@@ -80,8 +80,13 @@ const prompt = ai.definePrompt({
   prompt: `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate a single, comprehensive, and self-contained take-home assignment based on the provided specifications.
 If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), subtly adapt the framing or expectations of the assignment to reflect this persona. For example:
-- 'skeptical_hiring_manager': The assignment might ask for more explicit justifications or risk assessments.
-- 'time_pressed_technical_lead': The assignment might emphasize conciseness and core technical delivery.
+- 'standard': Balanced and typical assignment.
+- 'friendly_peer': Assignment framing might be more collaborative or suggestive.
+- 'skeptical_hiring_manager': The assignment might ask for more explicit justifications, risk assessments, or defense of choices.
+- 'time_pressed_technical_lead': The assignment might emphasize conciseness, core technical delivery, and efficient solutions.
+- 'behavioral_specialist': If the assignment has behavioral elements (e.g., product innovation story), it might ask for deeper reflection on interpersonal dynamics or learning.
+- 'antagonistic_challenger': The assignment problem itself might be highly constrained, controversial, or require difficult trade-offs, and the expected deliverable might demand rigorous defense of choices.
+- 'apathetic_business_lead': The assignment brief might be intentionally high-level or less directive, requiring the candidate to define the scope and structure their response proactively to demonstrate value.
 
 The output MUST be a JSON object with 'assignmentText' (string) and 'idealSubmissionCharacteristics' (array of strings). The 'assignmentText' should contain the full assignment, formatted with Markdown-like headings (e.g., "## Title", "### Goal").
 
@@ -137,14 +142,14 @@ Before finalizing the assignment, briefly consider the key characteristics or el
     *   **### The Exercise - Problem Scenario**:
         *   Provide a detailed and specific problem scenario. 'interviewFocus' MUST be central.
         *   Calibrate technical depth based on 'interviewType', 'jobTitle', 'jobDescription', and 'faangLevel'.
-            If the interviewType is "product sense":
+            If the 'interviewType' is "product sense":
                 If 'jobTitle' or 'jobDescription' suggest a highly technical PM role (e.g., "PM, Machine Learning Platforms"), the scenario should involve more technical considerations (e.g., API design, data model implications, ML feasibility). Base the scenario on the 'interviewFocus' if provided.
                 Else if 'interviewFocus' relates to personal reflection or past work (e.g., "describe an innovative product you delivered"), generate a "Product Innovation Story" style assignment: ask the candidate to describe an innovative product they delivered, focusing on context, journey, impact, and lessons learned.
                 Else, default to product strategy, market entry analysis, feature deep-dive, or metrics definition based on 'interviewFocus'.
-            If the interviewType is "technical system design": A specific technical system design challenge (e.g., "Design a scalable notification system," "Architect a real-time analytics pipeline"). The problem must be directly related to the 'interviewFocus' if provided.
-            If the interviewType is "behavioral": A reflective exercise asking the candidate to describe a complex past project, a significant challenge, or a strategic decision they drove. Focus on role, actions, outcomes, learnings (STAR method implicitly encouraged), especially if 'interviewFocus' aligns with such a reflection.
-            If the interviewType is "machine learning": A detailed ML system design challenge (e.g., "Design a fraud detection system") or a comprehensive proposal for an ML initiative (e.g., "Propose an ML-based solution to improve user retention"). The problem should be directly based on 'interviewFocus'.
-            If the interviewType is "data structures & algorithms": A comprehensive algorithmic problem requiring detailed textual design, pseudo-code, complexity analysis, and discussion of edge cases. More involved than a typical live coding problem. The problem should relate to 'interviewFocus' if applicable.
+            If the 'interviewType' is "technical system design": A specific technical system design challenge (e.g., "Design a scalable notification system," "Architect a real-time analytics pipeline"). The problem must be directly related to the 'interviewFocus' if provided.
+            If the 'interviewType' is "behavioral": A reflective exercise asking the candidate to describe a complex past project, a significant challenge, or a strategic decision they drove. Focus on role, actions, outcomes, learnings (STAR method implicitly encouraged), especially if 'interviewFocus' aligns with such a reflection.
+            If the 'interviewType' is "machine learning": A detailed ML system design challenge (e.g., "Design a fraud detection system") or a comprehensive proposal for an ML initiative (e.g., "Propose an ML-based solution to improve user retention"). The problem should be directly based on 'interviewFocus'.
+            If the 'interviewType' is "data structures & algorithms": A comprehensive algorithmic problem requiring detailed textual design, pseudo-code, complexity analysis, and discussion of edge cases. More involved than a typical live coding problem. The problem should relate to 'interviewFocus' if applicable.
 
     *   **### Key Aspects to Consider / Guiding Questions**:
         *   List 5-8 bullet points or explicit questions tailored to the 'Problem Scenario', 'interviewFocus', 'interviewType', and 'faangLevel'.
@@ -193,8 +198,8 @@ Output a JSON object with two keys:
 const generateTakeHomeAssignmentFlow = ai.defineFlow(
   {
     name: 'generateTakeHomeAssignmentFlow',
-    inputSchema: GenerateTakeHomeAssignmentInputSchema, // Use internal schema
-    outputSchema: GenerateTakeHomeAssignmentOutputSchema, // Use internal schema
+    inputSchema: GenerateTakeHomeAssignmentInputSchema,
+    outputSchema: GenerateTakeHomeAssignmentOutputSchema,
   },
   async (input: GenerateTakeHomeAssignmentInput): Promise<GenerateTakeHomeAssignmentOutput> => {
     try {
@@ -239,10 +244,10 @@ A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, 
           `Depth of analysis appropriate for ${input.faangLevel}.`,
           "Clear and concise communication of ideas."
         ];
-        
+
         console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated. Input: ${JSON.stringify(saneInput)}. This might be due to an issue with the AI model or prompt.`);
 
-        return { 
+        return {
           assignmentText: fallbackText,
           idealSubmissionCharacteristics: fallbackCharacteristics
         };
@@ -261,9 +266,9 @@ We encountered an error while trying to generate your take-home assignment for:
 - Persona: ${input.interviewerPersona || 'Standard'}
 
 Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment. The error was: ${errMessage}`;
-        
+
         const errorCharacteristics = ["Error during generation - please report this."];
-        
+
         return {
             assignmentText: errorAssignmentText,
             idealSubmissionCharacteristics: errorCharacteristics

@@ -35,6 +35,8 @@ export const INTERVIEWER_PERSONAS = [
   { value: "skeptical_hiring_manager", label: "Skeptical Hiring Manager" },
   { value: "time_pressed_technical_lead", label: "Time-Pressed Technical Lead" },
   { value: "behavioral_specialist", label: "Behavioral Specialist (STAR Method Focus)" },
+  { value: "antagonistic_challenger", label: "Antagonistic Challenger (Consulting/IB Style)" },
+  { value: "apathetic_business_lead", label: "Apathetic Business Lead (Consulting/IB Style)" },
 ] as const;
 
 export type InterviewerPersona = typeof INTERVIEWER_PERSONAS[number]['value'];

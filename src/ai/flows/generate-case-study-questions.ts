@@ -64,6 +64,8 @@ If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), en
 - 'skeptical_hiring_manager': Scenario might subtly include more red herrings or challenges to test critical thinking.
 - 'time_pressed_technical_lead': Scenario and first question are direct and to the point.
 - 'behavioral_specialist': Scenario might be more focused on complex interpersonal or ethical dilemmas.
+- 'antagonistic_challenger': The scenario itself might present a controversial or difficult situation, and the first question could be a direct challenge to the candidate's initial assumptions or approach.
+- 'apathetic_business_lead': The scenario might be presented with minimal enthusiasm, and the first question might be overly broad or vague, requiring the candidate to proactively structure the problem.
 
 This setup includes:
 1.  A 'caseTitle'.
@@ -100,12 +102,13 @@ Targeted Skills:
 {{#if interviewFocus}}Specific Focus: {{{interviewFocus}}}{{/if}}
 
 **Scenario Generation Logic:**
-- **Theme:**
-    If the interviewType is "technical system design": The scenario will be a system to design or a major architectural challenge. Design a realistic, multi-faceted problem.
-    If the interviewType is "product sense": A product strategy, market entry, feature design, or problem-solving challenge. Ensure it's engaging and requires strategic thinking.
-    If the interviewType is "behavioral": A complex hypothetical workplace situation requiring judgment and principle-based decision-making. Frame it as a leadership challenge if appropriate for the level.
-    If the interviewType is "machine learning": An ML System Design problem or a strategic ML initiative. The scenario should be detailed enough to allow for discussion of data, models, evaluation, and deployment.
-    If the interviewType is "data structures & algorithms": A complex algorithmic problem that requires significant decomposition and discussion before coding. The 'firstQuestionToAsk' might be about understanding requirements or initial approaches for this multi-faceted problem.
+Based on the 'interviewType' ('{{{interviewType}}}' for this request), generate the case study:
+
+If the 'interviewType' is "technical system design": The scenario will be a system to design or a major architectural challenge. Design a realistic, multi-faceted problem.
+If the 'interviewType' is "product sense": A product strategy, market entry, feature design, or problem-solving challenge. Ensure it's engaging and requires strategic thinking.
+If the 'interviewType' is "behavioral": A complex hypothetical workplace situation requiring judgment and principle-based decision-making. Frame it as a leadership challenge if appropriate for the level.
+If the 'interviewType' is "machine learning": An ML System Design problem or a strategic ML initiative. The scenario should be detailed enough to allow for discussion of data, models, evaluation, and deployment.
+If the 'interviewType' is "data structures & algorithms": A complex algorithmic problem that requires significant decomposition and discussion before coding. The 'firstQuestionToAsk' might be about understanding requirements or initial approaches for this multi-faceted problem.
 
 {{#if targetCompany}}
 If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
@@ -135,7 +138,7 @@ Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema.
 
 const generateInitialCaseSetupFlow = ai.defineFlow(
   {
-    name: 'generateInitialCaseSetupFlow', // Renamed flow
+    name: 'generateInitialCaseSetupFlow',
     inputSchema: CustomizeInterviewQuestionsInputSchema,
     outputSchema: GenerateInitialCaseSetupOutputSchema,
   },

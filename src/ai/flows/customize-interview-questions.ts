@@ -30,6 +30,7 @@ const OrchestratorQuestionOutputSchema = z.object({
     isInitialCaseQuestion: z.boolean().optional(),
     fullScenarioDescription: z.string().optional().describe("The full descriptive text of the case scenario, provided for the first question of a case study."),
     internalNotesForFollowUpGenerator: z.string().optional().describe("Context for the AI to generate the next dynamic follow-up question in a case study."),
+    isLikelyFinalFollowUp: z.boolean().optional().describe("Indicates if this question (in a case study) is likely the final one."),
 });
 
 // This schema is for the final output of the orchestrator
@@ -102,7 +103,6 @@ export async function customizeInterviewQuestions(
     } catch (error) {
         console.error("Error generating initial case setup:", error);
         const fallbackScenario = `Considering your role as a ${saneInput.jobTitle || 'professional'} and the interview focus on ${saneInput.interviewFocus || saneInput.interviewType}, describe a complex project or challenge you've faced. This will serve as our initial case.`;
-        const fallbackFollowUp = "What was the situation, your approach, and the outcome?";
         return {
           customizedQuestions: [
             {
@@ -145,10 +145,10 @@ const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
   name: 'customizeSimpleQAInterviewQuestionsPrompt',
   tools: [getTechnologyBriefTool],
   input: {
-    schema: SimpleQAPromptInputSchema, 
+    schema: SimpleQAPromptInputSchema,
   },
   output: {
-    schema: SimpleQAQuestionsOutputSchema 
+    schema: SimpleQAQuestionsOutputSchema
   },
   prompt: `You are an **Expert Interview Architect AI**, embodying the persona of a **seasoned hiring manager and curriculum designer from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate tailored interview content for the 'simple-qa' style ONLY, based on the detailed specifications provided.
@@ -159,6 +159,8 @@ If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), ad
 - 'skeptical_hiring_manager': Questions might probe for weaknesses, edge cases, or justifications more directly.
 - 'time_pressed_technical_lead': Questions might be more direct, focused on core technical competency, expecting concise answers.
 - 'behavioral_specialist': Deep focus on STAR method and specific behavioral competencies.
+- 'antagonistic_challenger': Questions will be challenging, probing, and designed to test resilience and conviction. Expect pushback on assumptions and demand strong justifications.
+- 'apathetic_business_lead': Questions may seem broad, disengaged, or slightly vague. The candidate will need to drive the conversation and clearly articulate value to keep this persona engaged.
 
 DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; those are handled by specialized processes. If for some reason you are asked to generate those styles here, state that they are handled separately.
 
@@ -317,10 +319,10 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
             { questionText: "How do you handle ambiguity in requirements or project goals?", idealAnswerCharacteristics: ["Strategies for clarification", "Proactive communication", "Decision making under uncertainty"] },
             { questionText: "Describe a situation where you had to make a difficult trade-off in a project.", idealAnswerCharacteristics: ["Context of trade-off", "Rationale for decision", "Impact of the decision"] }
         ];
-        const numQuestions = (input.interviewType === 'Data Structures & Algorithms' || input.interviewType === 'Technical System Design') ? 5 : 7;
+        const numQuestions = (input.interviewType === 'data structures & algorithms' || input.interviewType === 'technical system design') ? 5 : 7;
         const selectedFallback = fallbackQuestions.slice(0, Math.min(numQuestions, fallbackQuestions.length));
 
-        return { customizedQuestions: selectedFallback.map(q => ({...q, isInitialCaseQuestion: undefined, fullScenarioDescription: undefined, internalNotesForFollowUpGenerator: undefined })) };
+        return { customizedQuestions: selectedFallback.map(q => ({...q, isInitialCaseQuestion: undefined, fullScenarioDescription: undefined, internalNotesForFollowUpGenerator: undefined, isLikelyFinalFollowUp: undefined })) };
     }
 
     // Ensure the output conforms to OrchestratorQuestionOutputSchema fields by removing unused ones
@@ -331,6 +333,7 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
         isInitialCaseQuestion: undefined,
         fullScenarioDescription: undefined,
         internalNotesForFollowUpGenerator: undefined,
+        isLikelyFinalFollowUp: undefined, // Ensure this is also undefined
     }));
     return { customizedQuestions: compliantOutput };
   }

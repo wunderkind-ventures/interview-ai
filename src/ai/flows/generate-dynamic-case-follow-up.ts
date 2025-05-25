@@ -13,7 +13,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import type { InterviewSetupData } from '@/lib/types'; // For interviewContext
-import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
+import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 
 const GenerateDynamicCaseFollowUpInputSchema = z.object({
   internalNotesFromInitialScenario: z
@@ -65,6 +65,14 @@ const dynamicCaseFollowUpPrompt = ai.definePrompt({
   output: { schema: GenerateDynamicCaseFollowUpOutputSchema },
   prompt: `You are an **Expert Interviewer AI**, skilled at conducting dynamic, multi-turn case study interviews.
 Your current task is to generate the **next single follow-up question** based on the ongoing case study.
+Your adopted interviewer persona for this interaction is: '{{{interviewContext.interviewerPersona}}}'. Adapt your question style and probing depth accordingly:
+- 'standard': Balanced and typical follow-up.
+- 'friendly_peer': Collaborative tone, might ask "What if we considered X?" or "How would you think about Y together?".
+- 'skeptical_hiring_manager': Follow-up might directly challenge an assumption made, or ask for stronger justification of a point.
+- 'time_pressed_technical_lead': Follow-up will be very direct, focusing on core logic or a key trade-off.
+- 'behavioral_specialist': If the case has behavioral elements, probe deeper into decision-making rationale or interpersonal dynamics.
+- 'antagonistic_challenger': Vigorously probe the candidate's last response, question their assumptions, or introduce a difficult constraint to test their thinking under pressure.
+- 'apathetic_business_lead': Ask a somewhat general follow-up that requires the candidate to re-engage you and demonstrate the value of their continued thought process.
 
 **Overall Case Context (from initial setup):**
 {{internalNotesFromInitialScenario}}
@@ -147,7 +155,15 @@ const generateDynamicCaseFollowUpFlow = ai.defineFlow(
         };
     }
 
-    const {output} = await dynamicCaseFollowUpPrompt(input);
+    const saneInput = {
+      ...input,
+      interviewContext: {
+        ...input.interviewContext,
+        interviewerPersona: input.interviewContext.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+      }
+    };
+
+    const {output} = await dynamicCaseFollowUpPrompt(saneInput);
 
     if (!output || !output.followUpQuestionText) {
         // Basic fallback if AI fails

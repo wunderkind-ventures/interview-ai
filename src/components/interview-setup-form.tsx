@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2, UploadCloud, Save, List, AlertCircle, Trash2, Cog, HelpCircle, Users2 } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2, UploadCloud, Save, List, AlertCircle, Trash2, Cog, HelpCircle, Users2, CloudUpload } from "lucide-react";
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, deleteDoc, orderBy } from "firebase/firestore";
 import { useAuth } from '@/contexts/auth-context';
@@ -96,6 +96,8 @@ export default function InterviewSetupForm() {
   const [isLoadSetupDialogOpen, setIsLoadSetupDialogOpen] = useState(false);
   const [savedSetups, setSavedSetups] = useState<SavedInterviewSetup[]>([]);
   const [isLoadingSetups, setIsLoadingSetups] = useState(false);
+
+  const [isGoogleDriveInfoDialogOpen, setIsGoogleDriveInfoDialogOpen] = useState(false);
 
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -618,96 +620,98 @@ export default function InterviewSetupForm() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <Card className="bg-secondary/30">
-              <CardHeader className="flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xl">Interview Configuration</CardTitle>
-                 <div className="flex items-center space-x-2">
-                    <Dialog open={isLoadSetupDialogOpen} onOpenChange={setIsLoadSetupDialogOpen}>
-                        <DialogTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} onClick={handleOpenLoadSetupDialog}>
-                            <Cog className="mr-2 h-4 w-4" /> Load Setup
-                        </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                                <DialogTitle>Load Saved Interview Setup</DialogTitle>
-                                <DialogDescription>Select a setup to load into the form.</DialogDescription>
-                            </DialogHeader>
-                            {isLoadingSetups ? (
-                                <div className="flex justify-center items-center h-32">
-                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                </div>
-                            ) : savedSetups.length > 0 ? (
-                                <ScrollArea className="h-[200px] my-4">
-                                    <div className="space-y-2 pr-2">
-                                    {savedSetups.map((setup) => (
-                                        <Card key={setup.id} className="p-3 flex justify-between items-center hover:bg-background/80">
-                                            <div>
-                                                <p className="font-medium text-sm">{setup.title}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Saved: {setup.createdAt?.toDate ? setup.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center space-x-1">
-                                                <Button variant="ghost" size="sm" onClick={() => handleLoadSetup(setup)}>Load</Button>
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Delete Saved Setup?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                Are you sure you want to delete "{setup.title}"? This action cannot be undone.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteSetup(setup.id!)} className={buttonVariants({ variant: "destructive" })}>
-                                                                Delete
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
-                                        </Card>
-                                    ))}
-                                    </div>
-                                </ScrollArea>
-                            ) : (
-                                <p className="text-sm text-muted-foreground text-center py-4">No saved interview setups found.</p>
-                            )}
-                            <DialogFooter>
-                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                    <Dialog open={isSaveSetupDialogOpen} onOpenChange={setIsSaveSetupDialogOpen}>
-                        <DialogTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" disabled={!user || authLoading}>
-                            <Save className="mr-2 h-4 w-4" /> Save Setup
-                        </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Save Interview Setup</DialogTitle>
-                            <DialogDescription>Enter a title for this interview configuration.</DialogDescription>
-                        </DialogHeader>
-                        <Input
-                            placeholder="e.g., FAANG PM L5 Prep, Behavioral Practice"
-                            value={newSetupTitle}
-                            onChange={(e) => setNewSetupTitle(e.target.value)}
-                            className="my-4"
-                        />
-                        <DialogFooter>
-                            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                            <Button onClick={handleSaveCurrentSetup} disabled={isSavingSetup || !newSetupTitle.trim()}>
-                            {isSavingSetup && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
-                            </Button>
-                        </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xl">Interview Configuration</CardTitle>
+                   <div className="flex items-center space-x-2">
+                      <Dialog open={isLoadSetupDialogOpen} onOpenChange={setIsLoadSetupDialogOpen}>
+                          <DialogTrigger asChild>
+                          <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} onClick={handleOpenLoadSetupDialog}>
+                              <Cog className="mr-2 h-4 w-4" /> Load Setup
+                          </Button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-md">
+                              <DialogHeader>
+                                  <DialogTitle>Load Saved Interview Setup</DialogTitle>
+                                  <DialogDescription>Select a setup to load into the form.</DialogDescription>
+                              </DialogHeader>
+                              {isLoadingSetups ? (
+                                  <div className="flex justify-center items-center h-32">
+                                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                  </div>
+                              ) : savedSetups.length > 0 ? (
+                                  <ScrollArea className="h-[200px] my-4">
+                                      <div className="space-y-2 pr-2">
+                                      {savedSetups.map((setup) => (
+                                          <Card key={setup.id} className="p-3 flex justify-between items-center hover:bg-background/80">
+                                              <div>
+                                                  <p className="font-medium text-sm">{setup.title}</p>
+                                                  <p className="text-xs text-muted-foreground">
+                                                      Saved: {setup.createdAt?.toDate ? setup.createdAt.toDate().toLocaleDateString() : 'Date N/A'}
+                                                  </p>
+                                              </div>
+                                              <div className="flex items-center space-x-1">
+                                                  <Button variant="ghost" size="sm" onClick={() => handleLoadSetup(setup)}>Load</Button>
+                                                  <AlertDialog>
+                                                      <AlertDialogTrigger asChild>
+                                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive">
+                                                          <Trash2 className="h-3.5 w-3.5" />
+                                                          </Button>
+                                                      </AlertDialogTrigger>
+                                                      <AlertDialogContent>
+                                                          <AlertDialogHeader>
+                                                              <AlertDialogTitle>Delete Saved Setup?</AlertDialogTitle>
+                                                              <AlertDialogDescription>
+                                                                  Are you sure you want to delete "{setup.title}"? This action cannot be undone.
+                                                              </AlertDialogDescription>
+                                                          </AlertDialogHeader>
+                                                          <AlertDialogFooter>
+                                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                              <AlertDialogAction onClick={() => handleDeleteSetup(setup.id!)} className={buttonVariants({ variant: "destructive" })}>
+                                                                  Delete
+                                                              </AlertDialogAction>
+                                                          </AlertDialogFooter>
+                                                      </AlertDialogContent>
+                                                  </AlertDialog>
+                                              </div>
+                                          </Card>
+                                      ))}
+                                      </div>
+                                  </ScrollArea>
+                              ) : (
+                                  <p className="text-sm text-muted-foreground text-center py-4">No saved interview setups found.</p>
+                              )}
+                              <DialogFooter>
+                                  <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                              </DialogFooter>
+                          </DialogContent>
+                      </Dialog>
+                      <Dialog open={isSaveSetupDialogOpen} onOpenChange={setIsSaveSetupDialogOpen}>
+                          <DialogTrigger asChild>
+                          <Button type="button" variant="outline" size="sm" disabled={!user || authLoading}>
+                              <Save className="mr-2 h-4 w-4" /> Save Setup
+                          </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                          <DialogHeader>
+                              <DialogTitle>Save Interview Setup</DialogTitle>
+                              <DialogDescription>Enter a title for this interview configuration.</DialogDescription>
+                          </DialogHeader>
+                          <Input
+                              placeholder="e.g., FAANG PM L5 Prep, Behavioral Practice"
+                              value={newSetupTitle}
+                              onChange={(e) => setNewSetupTitle(e.target.value)}
+                              className="my-4"
+                          />
+                          <DialogFooter>
+                              <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                              <Button onClick={handleSaveCurrentSetup} disabled={isSavingSetup || !newSetupTitle.trim()}>
+                              {isSavingSetup && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
+                              </Button>
+                          </DialogFooter>
+                          </DialogContent>
+                      </Dialog>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6 pt-4">
@@ -1032,6 +1036,16 @@ export default function InterviewSetupForm() {
                                   <UploadCloud className="mr-1.5 h-3.5 w-3.5" />
                                   Upload .txt
                               </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                className="text-xs"
+                                onClick={() => setIsGoogleDriveInfoDialogOpen(true)}
+                              >
+                                <CloudUpload className="mr-1.5 h-3.5 w-3.5" />
+                                Import Google Drive
+                              </Button>
                               <Dialog open={isSaveResumeDialogOpen} onOpenChange={setIsSaveResumeDialogOpen}>
                                   <DialogTrigger asChild>
                                   <Button type="button" variant="outline" size="xs" className="text-xs" disabled={!user || !currentResumeContent?.trim()} onClick={() => setNewResumeTitle("")}>
@@ -1240,6 +1254,31 @@ export default function InterviewSetupForm() {
         </Form>
       </CardContent>
     </Card>
+
+    <Dialog open={isGoogleDriveInfoDialogOpen} onOpenChange={setIsGoogleDriveInfoDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center">
+            <CloudUpload className="mr-2 h-5 w-5 text-primary" />
+            Import from Google Drive
+          </DialogTitle>
+          <DialogDescription className="pt-2">
+            This feature allows importing your resume directly from Google Drive.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-2">
+          <p className="text-sm text-muted-foreground">
+            To enable this functionality, full integration with the Google Drive API and Google Picker API, including OAuth 2.0 for user authorization, would be required. This involves setup in the Google Cloud Console.
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            For now, please use the "Upload .txt" option or copy-paste your resume content into the textarea.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => setIsGoogleDriveInfoDialogOpen(false)}>Got it</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }

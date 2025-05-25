@@ -6,7 +6,7 @@ import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, setD
 import { useAuth } from '@/contexts/auth-context';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from '@/components/ui/dialog'; // Added DialogFooter
 import { PlusCircle, Edit3, Trash2, Loader2, AlertTriangle, Library, FileText, Tag, StickyNote, Briefcase, Eye, Search, Filter } from 'lucide-react';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { z } from "zod";
 import type { SharedAssessmentDocument, InterviewType, InterviewStyle, FaangLevel } from '@/lib/types';
 import { INTERVIEW_TYPES, INTERVIEW_STYLES, FAANG_LEVELS } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter as UiAlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"; // Renamed to avoid conflict if DialogFooter was also AlertDialogFooter
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -155,7 +155,7 @@ export default function AssessmentRepositoryManager() {
   }, [user, toast, lastVisiblePublicDoc]);
 
   useEffect(() => {
-    if (activeTab === "public-repository" && publicAssessments.length === 0) {
+    if (activeTab === "public-repository" && publicAssessments.length === 0 && user) {
       fetchPublicAssessments(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -322,12 +322,12 @@ export default function AssessmentRepositoryManager() {
                     This action cannot be undone. This will permanently delete "{assessment.title}".
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
+                <UiAlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={() => handleDeleteAssessment(assessment.id!)}>
                     Yes, delete
                   </AlertDialogAction>
-                </AlertDialogFooter>
+                </UiAlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           </>

@@ -42,7 +42,7 @@ const assessmentFormSchema = z.object({
 type AssessmentFormValues = z.infer<typeof assessmentFormSchema>;
 
 const ITEMS_PER_PAGE = 6;
-const ALL_FILTER_SENTINEL = "__ALL__"; // Sentinel value for "All" options in filters
+const ALL_FILTER_SENTINEL = "__ALL__";
 
 export default function AssessmentRepositoryManager() {
   const { user, loading: authLoading } = useAuth();
@@ -197,20 +197,36 @@ export default function AssessmentRepositoryManager() {
       return;
     }
 
-    const assessmentData: Omit<SharedAssessmentDocument, 'id' | 'createdAt' | 'updatedAt'> & { createdAt?: any, updatedAt: any } = {
+    const baseData = {
       userId: user.uid,
-      uploaderEmail: user.email || undefined,
       title: data.title,
       assessmentType: data.assessmentType,
-      assessmentStyle: data.assessmentStyle || undefined,
-      difficultyLevel: data.difficultyLevel || undefined,
       content: data.content,
       keywords: data.keywords?.split(',').map(k => k.trim()).filter(k => k) || [],
-      notes: data.notes || undefined,
-      source: data.source || undefined,
       isPublic: data.isPublic || false,
       updatedAt: serverTimestamp(),
     };
+
+    const assessmentData: any = { ...baseData };
+
+    if (user.email) {
+      assessmentData.uploaderEmail = user.email;
+    }
+    if (data.assessmentStyle && data.assessmentStyle !== '') {
+      assessmentData.assessmentStyle = data.assessmentStyle;
+    }
+    if (data.difficultyLevel && data.difficultyLevel !== '') {
+      assessmentData.difficultyLevel = data.difficultyLevel;
+    }
+    // Only include notes if it's a non-empty string
+    if (data.notes && data.notes.trim() !== "") {
+      assessmentData.notes = data.notes;
+    }
+    // Only include source if it's a non-empty string
+    if (data.source && data.source.trim() !== "") {
+      assessmentData.source = data.source;
+    }
+
 
     const db = getFirestore();
     try {
@@ -400,7 +416,6 @@ export default function AssessmentRepositoryManager() {
                         <Select onValueChange={field.onChange} value={field.value || ''}>
                           <FormControl><SelectTrigger><SelectValue placeholder="Select style (optional)" /></SelectTrigger></FormControl>
                           <SelectContent>
-                            {/* <SelectItem value="">None</SelectItem> Removed to prevent error */}
                             {INTERVIEW_STYLES.map(style => <SelectItem key={style.value} value={style.value}>{style.label}</SelectItem>)}
                           </SelectContent>
                         </Select><FormMessage />
@@ -411,7 +426,6 @@ export default function AssessmentRepositoryManager() {
                         <Select onValueChange={field.onChange} value={field.value || ''}>
                           <FormControl><SelectTrigger><SelectValue placeholder="Select level (optional)" /></SelectTrigger></FormControl>
                           <SelectContent>
-                             {/* <SelectItem value="">None</SelectItem> Removed to prevent error */}
                             {FAANG_LEVELS.map(level => <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>)}
                           </SelectContent>
                         </Select><FormMessage />

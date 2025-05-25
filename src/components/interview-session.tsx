@@ -13,8 +13,8 @@ import { generateHint } from "@/ai/flows/generate-hint";
 import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint";
 import { generateSampleAnswer } from "@/ai/flows/generate-sample-answer";
 import type { GenerateSampleAnswerInput, GenerateSampleAnswerOutput } from "@/ai/flows/generate-sample-answer";
-import { clarifyInterviewQuestion } from "@/ai/flows/clarify-interview-question"; // New import
-import type { ClarifyInterviewQuestionInput, ClarifyInterviewQuestionOutput } from "@/ai/flows/clarify-interview-question"; // New import
+import { clarifyInterviewQuestion } from "@/ai/flows/clarify-interview-question";
+import type { ClarifyInterviewQuestionInput, ClarifyInterviewQuestionOutput } from "@/ai/flows/clarify-interview-question";
 
 
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical, UserCheck2, MessageCircleQuestion } from "lucide-react"; // Added MessageCircleQuestion
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical, UserCheck2, MessageCircleQuestion } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEWER_PERSONAS } from "@/lib/constants";
 import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer, InterviewerPersona } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -34,7 +34,7 @@ import { formatMilliseconds } from "@/lib/utils";
 
 const MAX_CASE_FOLLOW_UPS = 4;
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, caseStudyNotes?: string, interviewerPersona?: InterviewerPersona | string } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, interviewerPersona?: InterviewerPersona | string, caseStudyNotes?: string } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -86,7 +86,6 @@ export default function InterviewSession() {
   const [isFetchingSampleAnswer, setIsFetchingSampleAnswer] = useState(false);
   const [sampleAnswerError, setSampleAnswerError] = useState<string | null>(null);
 
-  // New state for Clarify Interview Question
   const [isClarifyQuestionDialogOpen, setIsClarifyQuestionDialogOpen] = useState(false);
   const [userClarifyingQuestionInput, setUserClarifyingQuestionInput] = useState("");
   const [clarificationForQuestion, setClarificationForQuestion] = useState<string | null>(null);
@@ -94,7 +93,6 @@ export default function InterviewSession() {
   const [questionClarificationError, setQuestionClarificationError] = useState<string | null>(null);
 
 
-  // Speech-to-text state
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeechApiSupported, setIsSpeechApiSupported] = useState(false);
   const [micPermissionStatus, setMicPermissionStatus] = useState<'idle' | 'pending' | 'granted' | 'denied'>('idle');
@@ -102,7 +100,6 @@ export default function InterviewSession() {
   const [speechError, setSpeechError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for Web Speech API support
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognitionAPI) {
       setIsSpeechApiSupported(true);
@@ -155,7 +152,6 @@ export default function InterviewSession() {
     }
   }, [isSpeechApiSupported, toast]);
 
-  // Cleanup recognition on unmount
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
@@ -262,7 +258,7 @@ export default function InterviewSession() {
     if (sessionData?.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime) {
       setCurrentTime(Date.now() - sessionData.currentQuestionStartTime);
       timerInterval = setInterval(() => {
-        if (sessionData.currentQuestionStartTime) { // Check if currentQuestionStartTime is still defined
+        if (sessionData?.currentQuestionStartTime) { 
           setCurrentTime(Date.now() - sessionData.currentQuestionStartTime);
         }
       }, 1000);
@@ -291,7 +287,7 @@ export default function InterviewSession() {
     setSessionData(prev => ({
       ...(prev || setupData),
       ...setupData,
-      ...initialSessionState, // Resets questions, answers, etc.
+      ...initialSessionState, 
       isLoading: true,
       interviewStarted: true,
       currentQuestionStartTime: Date.now(),
@@ -299,12 +295,12 @@ export default function InterviewSession() {
       interviewerPersona: setupData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
-      caseStudyNotes: setupData.interviewStyle === 'case-study' ? (prev?.caseStudyNotes || "") : undefined,
+      caseStudyNotes: setupData.interviewStyle === 'case-study' ? (prev?.caseStudyNotes || "") : "",
       targetedSkills: setupData.targetedSkills || [],
       targetCompany: setupData.targetCompany || "",
       jobTitle: setupData.jobTitle || "",
       interviewFocus: setupData.interviewFocus || "",
-      sampleAnswers: prev?.sampleAnswers || {}, // Preserve sample answers if reloading setup
+      sampleAnswers: prev?.sampleAnswers || {}, 
     }));
 
     try {
@@ -354,35 +350,36 @@ export default function InterviewSession() {
   }, [toast, sessionData?.caseStudyNotes]);
 
   useEffect(() => {
-    let storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+    let storedSessionJson = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
     let parsedSession: InterviewSessionData | null = null;
 
-    if (storedSession) {
+    if (storedSessionJson) {
       try {
-        parsedSession = JSON.parse(storedSession);
+        parsedSession = JSON.parse(storedSessionJson);
       } catch (e) {
         console.error("Failed to parse stored interview session:", e);
         toast({ title: "Session Error", description: "Corrupted session data. Please configure your interview again.", variant: "destructive"});
         localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
-        storedSession = null;
+        storedSessionJson = null; 
       }
     }
+    
+    const currentSession = parsedSession;
 
-    if (parsedSession) {
-      if (parsedSession.interviewFinished) {
+    if (currentSession) {
+      if (currentSession.interviewFinished) {
         router.replace("/feedback");
         return;
       }
-      // Ensure all fields are correctly initialized from parsedSession
-      parsedSession.interviewerPersona = parsedSession.interviewerPersona || INTERVIEWER_PERSONAS[0].value;
-      parsedSession.currentCaseTurnNumber = parsedSession.interviewStyle === 'case-study' ? (parsedSession.currentCaseTurnNumber ?? 0) : undefined;
-      parsedSession.caseConversationHistory = parsedSession.interviewStyle === 'case-study' ? (parsedSession.caseConversationHistory ?? []) : undefined;
-      parsedSession.caseStudyNotes = parsedSession.interviewStyle === 'case-study' ? (parsedSession.caseStudyNotes ?? "") : undefined;
-      parsedSession.sampleAnswers = parsedSession.sampleAnswers ?? {};
+      currentSession.interviewerPersona = currentSession.interviewerPersona || INTERVIEWER_PERSONAS[0].value;
+      currentSession.currentCaseTurnNumber = currentSession.interviewStyle === 'case-study' ? (currentSession.currentCaseTurnNumber ?? 0) : undefined;
+      currentSession.caseConversationHistory = currentSession.interviewStyle === 'case-study' ? (currentSession.caseConversationHistory ?? []) : undefined;
+      currentSession.caseStudyNotes = currentSession.interviewStyle === 'case-study' ? (currentSession.caseStudyNotes ?? "") : "";
+      currentSession.sampleAnswers = currentSession.sampleAnswers ?? {};
 
 
-      setSessionData(parsedSession);
-      if (parsedSession.interviewStarted && !parsedSession.interviewFinished && !parsedSession.currentQuestionStartTime && parsedSession.questions.length > 0) {
+      setSessionData(currentSession);
+      if (currentSession.interviewStarted && !currentSession.interviewFinished && !currentSession.currentQuestionStartTime && currentSession.questions.length > 0) {
         setSessionData(prev => {
           if (!prev) return null;
           const updatedSession = {...prev, currentQuestionStartTime: Date.now()};
@@ -391,32 +388,32 @@ export default function InterviewSession() {
         });
       }
 
-      if (parsedSession.interviewStarted && parsedSession.questions.length === 0 && !parsedSession.error && !parsedSession.isLoading) {
+      if (currentSession.interviewStarted && currentSession.questions.length === 0 && !currentSession.error && !currentSession.isLoading) {
          const setupData: InterviewSetupData = {
-          interviewType: parsedSession.interviewType,
-          interviewStyle: parsedSession.interviewStyle,
-          faangLevel: parsedSession.faangLevel,
-          jobTitle: parsedSession.jobTitle,
-          jobDescription: parsedSession.jobDescription,
-          resume: parsedSession.resume,
-          targetedSkills: parsedSession.targetedSkills,
-          targetCompany: parsedSession.targetCompany,
-          interviewFocus: parsedSession.interviewFocus,
-          interviewerPersona: parsedSession.interviewerPersona,
+          interviewType: currentSession.interviewType,
+          interviewStyle: currentSession.interviewStyle,
+          faangLevel: currentSession.faangLevel,
+          jobTitle: currentSession.jobTitle,
+          jobDescription: currentSession.jobDescription,
+          resume: currentSession.resume,
+          targetedSkills: currentSession.targetedSkills,
+          targetCompany: currentSession.targetCompany,
+          interviewFocus: currentSession.interviewFocus,
+          interviewerPersona: currentSession.interviewerPersona,
         };
         loadInterview(setupData);
-      } else if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
+      } else if (currentSession.isLoading && currentSession.interviewStarted && !currentSession.error) {
          const setupData: InterviewSetupData = {
-          interviewType: parsedSession.interviewType,
-          interviewStyle: parsedSession.interviewStyle,
-          faangLevel: parsedSession.faangLevel,
-          jobTitle: parsedSession.jobTitle,
-          jobDescription: parsedSession.jobDescription,
-          resume: parsedSession.resume,
-          targetedSkills: parsedSession.targetedSkills,
-          targetCompany: parsedSession.targetCompany,
-          interviewFocus: parsedSession.interviewFocus,
-          interviewerPersona: parsedSession.interviewerPersona,
+          interviewType: currentSession.interviewType,
+          interviewStyle: currentSession.interviewStyle,
+          faangLevel: currentSession.faangLevel,
+          jobTitle: currentSession.jobTitle,
+          jobDescription: currentSession.jobDescription,
+          resume: currentSession.resume,
+          targetedSkills: currentSession.targetedSkills,
+          targetCompany: currentSession.targetCompany,
+          interviewFocus: currentSession.interviewFocus,
+          interviewerPersona: currentSession.interviewerPersona,
         };
         loadInterview(setupData);
       }
@@ -680,7 +677,7 @@ export default function InterviewSession() {
     setIsFetchingSampleAnswer(true);
     setSampleAnswerText(null);
     setSampleAnswerError(null);
-    setIsSampleAnswerDialogOpen(true); // Open dialog immediately to show loading state
+    setIsSampleAnswerDialogOpen(true); 
 
     try {
       const input: GenerateSampleAnswerInput = {
@@ -693,7 +690,6 @@ export default function InterviewSession() {
       };
       const result: GenerateSampleAnswerOutput = await generateSampleAnswer(input);
       setSampleAnswerText(result.sampleAnswerText);
-      // Cache the fetched sample answer
       setSessionData(prev => {
         if (!prev) return null;
         const updatedSampleAnswers = { ...(prev.sampleAnswers || {}), [currentQ.id]: result.sampleAnswerText };
@@ -711,7 +707,6 @@ export default function InterviewSession() {
     }
   };
 
-  // New: Handle Clarify Interview Question
   const openClarifyQuestionDialog = () => {
     setUserClarifyingQuestionInput("");
     setClarificationForQuestion(null);
@@ -846,46 +841,35 @@ export default function InterviewSession() {
           <MessageSquare className="mr-3 h-7 w-7 text-primary" />
           Interview: {sessionData.interviewType} ({styleLabel})
         </CardTitle>
-        <div className="flex flex-wrap justify-between items-center text-sm text-muted-foreground gap-y-1">
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
+        <div className="flex flex-wrap justify-between items-center text-sm text-muted-foreground gap-x-4 gap-y-2 mt-1">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 items-center">
             {sessionData.jobTitle && (
-              <span className="flex items-center">
-                <Briefcase className="h-4 w-4 mr-1 text-primary" /> Role: {sessionData.jobTitle}
-              </span>
+              <span className="flex items-center"><Briefcase className="h-4 w-4 mr-1 text-primary/80" />{sessionData.jobTitle}</span>
             )}
-            <span>Level: {sessionData.faangLevel}</span>
+            <span className="flex items-center"><Star className="h-4 w-4 mr-1 text-primary/80" />Level: {sessionData.faangLevel}</span>
              {sessionData.interviewerPersona && (
-              <span className="flex items-center">
-                <UserCheck2 className="h-4 w-4 mr-1 text-primary" /> Persona: {personaLabel}
-              </span>
+              <span className="flex items-center"><UserCheck2 className="h-4 w-4 mr-1 text-primary/80" />Persona: {personaLabel}</span>
             )}
             {isCaseStudyStyle ? (
-              <span className="flex items-center">
-                <Layers className="h-4 w-4 mr-1 text-primary" />
-                Turn: {(sessionData.currentCaseTurnNumber ?? 0) + 1}
-              </span>
+              <span className="flex items-center"><Layers className="h-4 w-4 mr-1 text-primary/80" />Turn: {(sessionData.currentCaseTurnNumber ?? 0) + 1}</span>
             ) : (
-               <span>Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}</span>
+               <span className="flex items-center">Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}</span>
             )}
             {sessionData.targetCompany && (
-              <span className="flex items-center">
-                <Building className="h-4 w-4 mr-1 text-primary" /> Target: {sessionData.targetCompany}
-              </span>
+              <span className="flex items-center"><Building className="h-4 w-4 mr-1 text-primary/80" />Target: {sessionData.targetCompany}</span>
             )}
             {sessionData.interviewFocus && (
-              <span className="flex items-center">
-                <SearchCheck className="h-4 w-4 mr-1 text-primary" /> Focus: {sessionData.interviewFocus}
-              </span>
+              <span className="flex items-center"><SearchCheck className="h-4 w-4 mr-1 text-primary/80" />Focus: {sessionData.interviewFocus}</span>
             )}
           </div>
           {sessionData.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime && sessionData.interviewStyle !== 'take-home' && (
-            <div className="flex items-center text-sm text-muted-foreground">
+            <div className="flex items-center text-sm text-muted-foreground shrink-0">
               <TimerIcon className="h-4 w-4 mr-1" />
               {formatMilliseconds(currentTime)}
             </div>
           )}
         </div>
-        <Progress value={progressValue} className="mt-2" />
+        <Progress value={progressValue} className="mt-3" />
       </CardHeader>
       <CardContent className="space-y-6">
         {isCaseStudyStyle && sessionData.caseConversationHistory && sessionData.caseConversationHistory.length > 0 && (
@@ -934,15 +918,15 @@ export default function InterviewSession() {
              <p className={`text-lg mb-3 ${sessionData.interviewStyle === 'take-home' ? 'whitespace-pre-wrap p-4 border rounded-md bg-secondary/30' : ''}`}>
                 {currentQuestion.text}
             </p>
-            <div className="flex space-x-1 mb-3 items-center">
+            <div className="mb-3">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="text-xs text-muted-foreground hover:text-primary">
+                        <Button variant="outline" size="sm" className="text-xs text-muted-foreground hover:text-primary hover:bg-secondary/50">
                             <HelpCircle className="mr-1.5 h-3.5 w-3.5" /> Help Tools
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
-                        <DropdownMenuItem onClick={openClarifyQuestionDialog}> {/* New Item */}
+                        <DropdownMenuItem onClick={openClarifyQuestionDialog}>
                             <MessageCircleQuestion className="mr-2 h-4 w-4" /> Clarify This Question
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={openExplainTermDialog}>
@@ -1031,7 +1015,6 @@ export default function InterviewSession() {
       </CardFooter>
     </Card>
 
-    {/* Explain Term Dialog */}
     <Dialog open={isExplainTermDialogOpen} onOpenChange={setIsExplainTermDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1085,7 +1068,6 @@ export default function InterviewSession() {
         </DialogContent>
       </Dialog>
 
-      {/* Get Hint Dialog */}
       <Dialog open={isHintDialogOpen} onOpenChange={setIsHintDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1134,7 +1116,6 @@ export default function InterviewSession() {
         </DialogContent>
       </Dialog>
 
-      {/* Sample Answer Dialog */}
       <Dialog open={isSampleAnswerDialogOpen} onOpenChange={setIsSampleAnswerDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
@@ -1177,7 +1158,6 @@ export default function InterviewSession() {
         </DialogContent>
       </Dialog>
 
-      {/* Clarify Interview Question Dialog (New) */}
       <Dialog open={isClarifyQuestionDialogOpen} onOpenChange={setIsClarifyQuestionDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -1230,3 +1210,4 @@ export default function InterviewSession() {
     </>
   );
 }
+

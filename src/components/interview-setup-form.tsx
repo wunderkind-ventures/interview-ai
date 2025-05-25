@@ -123,6 +123,7 @@ export default function InterviewSetupForm() {
     return SKILLS_BY_INTERVIEW_TYPE[watchedInterviewType] || [];
   }, [watchedInterviewType]);
 
+
   useEffect(() => {
     if (form.getValues("selectedThemeId") === "custom" && availableSkills.length > 0) {
       const currentTargetedSkills = form.getValues("targetedSkills") || [];
@@ -617,17 +618,16 @@ export default function InterviewSetupForm() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <Card className="bg-secondary/30">
-              <CardHeader>
+              <CardHeader className="flex-row items-center justify-between pb-2">
                 <CardTitle className="text-xl">Interview Configuration</CardTitle>
-                <div className="flex flex-col sm:flex-row sm:items-end gap-2 pt-2 sm:pt-0 shrink-0">
+                 <div className="flex items-center space-x-2">
                     <Dialog open={isLoadSetupDialogOpen} onOpenChange={setIsLoadSetupDialogOpen}>
                         <DialogTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} onClick={handleOpenLoadSetupDialog} className="w-full sm:w-auto">
+                        <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} onClick={handleOpenLoadSetupDialog}>
                             <Cog className="mr-2 h-4 w-4" /> Load Setup
                         </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-md">
-                            {/* Load Setup Dialog Content */}
                             <DialogHeader>
                                 <DialogTitle>Load Saved Interview Setup</DialogTitle>
                                 <DialogDescription>Select a setup to load into the form.</DialogDescription>
@@ -685,7 +685,7 @@ export default function InterviewSetupForm() {
                     </Dialog>
                     <Dialog open={isSaveSetupDialogOpen} onOpenChange={setIsSaveSetupDialogOpen}>
                         <DialogTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} className="w-full sm:w-auto">
+                        <Button type="button" variant="outline" size="sm" disabled={!user || authLoading}>
                             <Save className="mr-2 h-4 w-4" /> Save Setup
                         </Button>
                         </DialogTrigger>
@@ -710,7 +710,7 @@ export default function InterviewSetupForm() {
                     </Dialog>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-6 pt-4">
                  <FormField
                     control={form.control}
                     name="selectedThemeId"
@@ -960,7 +960,7 @@ export default function InterviewSetupForm() {
                           <Target className="mr-2 h-5 w-5 text-primary" />
                           Targeted Skills
                         </FormLabel>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 p-3 border rounded-md bg-background">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 p-4 border rounded-md bg-background shadow-sm">
                           {availableSkills.map((skill) => (
                             <FormField
                               key={skill.value}

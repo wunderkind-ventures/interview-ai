@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download, MessageSquarePlus, ShieldCheck, ListChecks } from "lucide-react";
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEW_TYPES, FAANG_LEVELS, INTERVIEWER_PERSONAS } from "@/lib/constants";
-import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion, AdminFeedbackItem, AdminFeedbackTargetType as AdminFeedbackTargetTypeType } from "@/lib/types"; // Renamed to avoid conflict
+import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion, AdminFeedbackItem, AdminFeedbackTargetType as AdminFeedbackTargetTypeType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
 import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
@@ -51,7 +51,7 @@ interface ClarificationContext {
   feedbackItemType: 'areaForImprovement' | 'specificSuggestion' | 'critique' | 'strength' | 'idealAnswerPointer' | 'reflectionPrompt';
 }
 
-type AdminFeedbackTargetType = AdminFeedbackTargetTypeType; // Alias for clarity
+type AdminFeedbackTargetType = AdminFeedbackTargetTypeType; 
 
 function InterviewSummaryContent() {
   const router = useRouter();
@@ -93,13 +93,12 @@ function InterviewSummaryContent() {
     includeOverallSummary: true,
   });
 
-  // Admin Feedback State
   const [adminFeedbackText, setAdminFeedbackText] = useState("");
   const [adminFeedbackTargetType, setAdminFeedbackTargetType] = useState<AdminFeedbackTargetType>('overall_session');
   const [adminFeedbackTargetQuestionId, setAdminFeedbackTargetQuestionId] = useState<string>("");
   const [isSubmittingAdminFeedback, setIsSubmittingAdminFeedback] = useState(false);
 
-  const isAdmin = authUser?.email === 'admin@example.com'; // Conceptual admin check
+  const isAdmin = authUser?.email === 'admin@example.com'; 
 
   const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData, docId?: string) => {
     if (getApps().length === 0) {
@@ -124,149 +123,82 @@ function InterviewSummaryContent() {
       return;
     }
 
-    try {
-      const db = getFirestore();
-      const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
+    const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
+    const db = getFirestore();
 
-      const {
-        // Exclude fields that are client-side state or handled manually
-        isLoading: _iL,
-        isLoggedToServer: _iLTS,
-        error: _clientError, // Not saving this UI error state to Firestore
-        // firestoreDocId is handled by `documentId`
-        firestoreDocId: _fDI,
-        // Complex objects to be processed/mapped
-        questions: dataQuestions,
-        answers: dataAnswers,
-        feedback: dataFeedback,
-        deepDives: dataDeepDives,
-        sampleAnswers: dataSampleAnswers,
-        adminFeedback: dataAdminFeedback,
-        caseConversationHistory: dataCaseConversationHistory,
-        ...coreSessionProps // Contains InterviewSetupData fields + other InterviewSessionData direct props
-      } = dataToLog;
-
-      const payloadToSave: Record<string, any> = {
+    const payloadToSave: Partial<InterviewSessionData> = {
         userId: authUser.uid,
-        completedAt: coreSessionProps.completedAt instanceof Timestamp ? coreSessionProps.completedAt : serverTimestamp(),
-
-        // Explicitly add all known fields from InterviewSetupData and relevant InterviewSessionData props
-        interviewType: coreSessionProps.interviewType,
-        interviewStyle: coreSessionProps.interviewStyle,
-        faangLevel: coreSessionProps.faangLevel,
-        jobTitle: coreSessionProps.jobTitle ?? null,
-        jobDescription: coreSessionProps.jobDescription ?? null,
-        resume: coreSessionProps.resume ?? null,
-        targetedSkills: coreSessionProps.targetedSkills ?? [],
-        targetCompany: coreSessionProps.targetCompany ?? null,
-        interviewFocus: coreSessionProps.interviewFocus ?? null,
-        selectedThemeId: coreSessionProps.selectedThemeId ?? "custom",
-        interviewerPersona: coreSessionProps.interviewerPersona ?? INTERVIEWER_PERSONAS[0].value,
-
-        currentQuestionIndex: coreSessionProps.currentQuestionIndex,
-        interviewStarted: coreSessionProps.interviewStarted,
-        interviewFinished: coreSessionProps.interviewFinished,
-        currentQuestionStartTime: coreSessionProps.currentQuestionStartTime === undefined ? null : coreSessionProps.currentQuestionStartTime,
-        currentCaseTurnNumber: coreSessionProps.currentCaseTurnNumber === undefined ? null : coreSessionProps.currentCaseTurnNumber,
-        caseStudyNotes: coreSessionProps.caseStudyNotes ?? null,
-      };
-      
-      payloadToSave.questions = (dataQuestions || []).map(q => {
-        const cleanQ: Record<string, any> = { id: q.id, text: q.text };
-        if (q.idealAnswerCharacteristics && q.idealAnswerCharacteristics.length > 0) cleanQ.idealAnswerCharacteristics = q.idealAnswerCharacteristics;
-        if (q.isInitialCaseQuestion !== undefined) cleanQ.isInitialCaseQuestion = q.isInitialCaseQuestion;
-        if (q.fullScenarioDescription) cleanQ.fullScenarioDescription = q.fullScenarioDescription;
-        if (q.internalNotesForFollowUpGenerator) cleanQ.internalNotesForFollowUpGenerator = q.internalNotesForFollowUpGenerator;
-        if (q.isLikelyFinalFollowUp !== undefined) cleanQ.isLikelyFinalFollowUp = q.isLikelyFinalFollowUp;
-        return cleanQ;
-      });
-
-      payloadToSave.answers = (dataAnswers || []).map(a => {
-        const cleanA: Record<string, any> = { questionId: a.questionId, answerText: a.answerText };
-        if (a.timeTakenMs !== undefined) cleanA.timeTakenMs = a.timeTakenMs;
-        if (a.confidenceScore !== undefined) cleanA.confidenceScore = a.confidenceScore;
-        return cleanA;
-      });
-
-      if (dataFeedback) {
-        payloadToSave.feedback = {
-          overallSummary: dataFeedback.overallSummary,
-          feedbackItems: (dataFeedback.feedbackItems || []).map(item => {
-            const cleanItem: Record<string, any> = {
-              questionId: item.questionId,
-              questionText: item.questionText,
-              answerText: item.answerText,
-            };
-            if (item.strengths && item.strengths.length > 0) cleanItem.strengths = item.strengths;
-            if (item.areasForImprovement && item.areasForImprovement.length > 0) cleanItem.areasForImprovement = item.areasForImprovement;
-            if (item.specificSuggestions && item.specificSuggestions.length > 0) cleanItem.specificSuggestions = item.specificSuggestions;
-            if (item.critique) cleanItem.critique = item.critique;
-            if (item.idealAnswerPointers && item.idealAnswerPointers.length > 0) cleanItem.idealAnswerPointers = item.idealAnswerPointers;
-            if (item.timeTakenMs !== undefined) cleanItem.timeTakenMs = item.timeTakenMs;
-            if (item.confidenceScore !== undefined) cleanItem.confidenceScore = item.confidenceScore;
-            if (item.reflectionPrompts && item.reflectionPrompts.length > 0) cleanItem.reflectionPrompts = item.reflectionPrompts;
-            return cleanItem;
-          }),
-        };
-      } else {
-        payloadToSave.feedback = null;
-      }
-
-      if (dataDeepDives && Object.keys(dataDeepDives).length > 0) {
-        payloadToSave.deepDives = {};
-        for (const qId in dataDeepDives) {
-          if (Object.prototype.hasOwnProperty.call(dataDeepDives, qId)) {
-            const dive = dataDeepDives[qId];
-            payloadToSave.deepDives[qId] = {
-              detailedIdealAnswerBreakdown: dive.detailedIdealAnswerBreakdown ?? [],
-              alternativeApproaches: dive.alternativeApproaches ?? [],
-              followUpScenarios: dive.followUpScenarios ?? [],
-              suggestedStudyConcepts: dive.suggestedStudyConcepts ?? [],
-            };
-          }
+        completedAt: dataToLog.completedAt instanceof Timestamp ? dataToLog.completedAt : serverTimestamp(),
+        interviewType: dataToLog.interviewType,
+        interviewStyle: dataToLog.interviewStyle,
+        faangLevel: dataToLog.faangLevel,
+        jobTitle: dataToLog.jobTitle ?? null,
+        jobDescription: dataToLog.jobDescription ?? null,
+        resume: dataToLog.resume ?? null,
+        targetedSkills: dataToLog.targetedSkills ?? [],
+        targetCompany: dataToLog.targetCompany ?? null,
+        interviewFocus: dataToLog.interviewFocus ?? null,
+        selectedThemeId: dataToLog.selectedThemeId ?? "custom",
+        interviewerPersona: dataToLog.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+        currentQuestionIndex: dataToLog.currentQuestionIndex,
+        interviewStarted: dataToLog.interviewStarted,
+        interviewFinished: dataToLog.interviewFinished,
+        currentQuestionStartTime: dataToLog.currentQuestionStartTime === undefined ? null : dataToLog.currentQuestionStartTime,
+        currentCaseTurnNumber: dataToLog.currentCaseTurnNumber === undefined ? null : dataToLog.currentCaseTurnNumber,
+        caseStudyNotes: dataToLog.caseStudyNotes ?? null,
+        questions: (dataToLog.questions || []).map(q => ({
+            id: q.id,
+            text: q.text,
+            ...(q.idealAnswerCharacteristics && q.idealAnswerCharacteristics.length > 0 && { idealAnswerCharacteristics: q.idealAnswerCharacteristics }),
+            ...(q.isInitialCaseQuestion !== undefined && { isInitialCaseQuestion: q.isInitialCaseQuestion }),
+            ...(q.fullScenarioDescription && { fullScenarioDescription: q.fullScenarioDescription }),
+            ...(q.internalNotesForFollowUpGenerator && { internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator }),
+            ...(q.isLikelyFinalFollowUp !== undefined && { isLikelyFinalFollowUp: q.isLikelyFinalFollowUp }),
+        })),
+        answers: (dataToLog.answers || []).map(a => ({
+            questionId: a.questionId,
+            answerText: a.answerText,
+            ...(a.timeTakenMs !== undefined && { timeTakenMs: a.timeTakenMs }),
+            ...(a.confidenceScore !== undefined && { confidenceScore: a.confidenceScore }),
+        })),
+        feedback: dataToLog.feedback ? {
+            overallSummary: dataToLog.feedback.overallSummary,
+            feedbackItems: (dataToLog.feedback.feedbackItems || []).map(item => ({
+                questionId: item.questionId,
+                questionText: item.questionText,
+                answerText: item.answerText,
+                ...(item.strengths && item.strengths.length > 0 && { strengths: item.strengths }),
+                ...(item.areasForImprovement && item.areasForImprovement.length > 0 && { areasForImprovement: item.areasForImprovement }),
+                ...(item.specificSuggestions && item.specificSuggestions.length > 0 && { specificSuggestions: item.specificSuggestions }),
+                ...(item.critique && { critique: item.critique }),
+                ...(item.idealAnswerPointers && item.idealAnswerPointers.length > 0 && { idealAnswerPointers: item.idealAnswerPointers }),
+                ...(item.timeTakenMs !== undefined && { timeTakenMs: item.timeTakenMs }),
+                ...(item.confidenceScore !== undefined && { confidenceScore: item.confidenceScore }),
+                ...(item.reflectionPrompts && item.reflectionPrompts.length > 0 && { reflectionPrompts: item.reflectionPrompts }),
+            })),
+        } : null,
+        deepDives: dataToLog.deepDives ? { ...dataToLog.deepDives } : {},
+        sampleAnswers: dataToLog.sampleAnswers ? { ...dataToLog.sampleAnswers } : {},
+        adminFeedback: (dataToLog.adminFeedback || []).map(fb => ({
+          adminId: fb.adminId,
+          adminEmail: fb.adminEmail ?? null,
+          feedbackText: fb.feedbackText,
+          targetType: fb.targetType,
+          targetQuestionId: fb.targetQuestionId ?? null,
+          createdAt: fb.createdAt instanceof Timestamp ? fb.createdAt : Timestamp.now(),
+        })),
+        caseConversationHistory: dataToLog.caseConversationHistory && dataToLog.caseConversationHistory.length > 0 ? dataToLog.caseConversationHistory : [],
+    };
+    
+    // Explicitly remove any top-level undefined keys
+    Object.keys(payloadToSave).forEach(key => {
+        if (payloadToSave[key as keyof InterviewSessionData] === undefined) {
+            delete payloadToSave[key as keyof InterviewSessionData];
         }
-      } else {
-        payloadToSave.deepDives = {};
-      }
-      if (dataSampleAnswers && Object.keys(dataSampleAnswers).length > 0) {
-        payloadToSave.sampleAnswers = { ...dataSampleAnswers }; // Shallow copy is fine for string values
-      } else {
-        payloadToSave.sampleAnswers = {};
-      }
-      if (dataAdminFeedback && dataAdminFeedback.length > 0) {
-        payloadToSave.adminFeedback = dataAdminFeedback.map(fb => {
-          const cleanFb: Record<string, any> = {
-            adminId: fb.adminId,
-            feedbackText: fb.feedbackText,
-            targetType: fb.targetType,
-            createdAt: fb.createdAt instanceof Timestamp ? fb.createdAt : Timestamp.now(),
-          };
-          if (fb.adminEmail) cleanFb.adminEmail = fb.adminEmail;
-          if (fb.targetQuestionId) cleanFb.targetQuestionId = fb.targetQuestionId;
-          return cleanFb;
-        });
-      } else {
-         payloadToSave.adminFeedback = [];
-      }
+    });
 
-      if (dataCaseConversationHistory && dataCaseConversationHistory.length > 0) {
-        payloadToSave.caseConversationHistory = dataCaseConversationHistory.map(turn => ({
-            questionText: turn.questionText,
-            answerText: turn.answerText,
-        }));
-      } else {
-        payloadToSave.caseConversationHistory = [];
-      }
-      
-      // Remove any top-level undefined properties before saving
-      Object.keys(payloadToSave).forEach(key => {
-        if (payloadToSave[key] === undefined) {
-          delete payloadToSave[key];
-        }
-      });
-      
+    try {
       await setDoc(doc(db, "users", authUser.uid, "interviews", documentId), payloadToSave, { merge: true });
-
       console.log("Interview session logged/updated successfully:", documentId);
       setTimeout(() => {
         toast({
@@ -275,7 +207,6 @@ function InterviewSummaryContent() {
           variant: "default",
         });
       }, 0);
-
 
       setSessionData(prev => {
         if (!prev) return null;
@@ -294,7 +225,7 @@ function InterviewSummaryContent() {
       }, 0);
       setSessionData(prev => {
         if (!prev) return null;
-        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; // Still mark as attempt
+        const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId }; 
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
@@ -995,14 +926,17 @@ function InterviewSummaryContent() {
                                   <h4 className="font-semibold text-muted-foreground mb-1">Assignment Description:</h4>
                                   <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{question.text}</p>
                                   {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
-                                    <div className="mt-2 p-2 rounded-md bg-blue-50 border border-blue-200">
-                                      <h5 className="text-xs font-semibold text-blue-700 mb-1 flex items-center"><Info className="h-3.5 w-3.5 mr-1.5"/>AI's Ideal Answer Characteristics (for Assignment Design):</h5>
-                                      <ul className="list-disc list-inside pl-1 space-y-0.5">
-                                        {question.idealAnswerCharacteristics.map((char, idx) => (
-                                          <li key={idx} className="text-xs text-blue-600">{char}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
+                                    <Alert variant="default" className="mt-2 bg-blue-50 border-blue-200">
+                                      <Info className="h-4 w-4 text-blue-600" />
+                                      <AlertTitle className="text-xs font-semibold text-blue-700">AI's Ideal Answer Characteristics (for Assignment Design):</AlertTitle>
+                                      <AlertDescription>
+                                        <ul className="list-disc list-inside pl-1 space-y-0.5">
+                                          {question.idealAnswerCharacteristics.map((char, idx) => (
+                                            <li key={idx} className="text-xs text-blue-600">{char}</li>
+                                          ))}
+                                        </ul>
+                                      </AlertDescription>
+                                    </Alert>
                                   )}
                               </div>
                               <div>
@@ -1082,14 +1016,17 @@ function InterviewSummaryContent() {
                           </AccordionTrigger>
                           <AccordionContent className="text-base pl-8 space-y-4">
                               {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
-                                <div className="mb-2 p-2 rounded-md bg-blue-50 border border-blue-200">
-                                  <h5 className="text-xs font-semibold text-blue-700 mb-1 flex items-center"><Info className="h-3.5 w-3.5 mr-1.5"/>AI's Ideal Answer Characteristics (for Question Design):</h5>
-                                  <ul className="list-disc list-inside pl-1 space-y-0.5">
-                                    {question.idealAnswerCharacteristics.map((char, idx) => (
-                                      <li key={idx} className="text-xs text-blue-600">{char}</li>
-                                    ))}
-                                  </ul>
-                                </div>
+                                <Alert variant="default" className="mb-2 bg-blue-50 border-blue-200">
+                                  <Info className="h-4 w-4 text-blue-600" />
+                                  <AlertTitle className="text-xs font-semibold text-blue-700">AI's Ideal Answer Characteristics (for Question Design):</AlertTitle>
+                                  <AlertDescription>
+                                    <ul className="list-disc list-inside pl-1 space-y-0.5">
+                                      {question.idealAnswerCharacteristics.map((char, idx) => (
+                                        <li key={idx} className="text-xs text-blue-600">{char}</li>
+                                      ))}
+                                    </ul>
+                                  </AlertDescription>
+                                </Alert>
                               )}
                               <div>
                                   <div className="flex justify-between items-center mb-1">
@@ -1124,7 +1061,7 @@ function InterviewSummaryContent() {
                                                     </h5>
                                                     <p className="text-sm">{feedbackItem.critique}</p>
                                                 </div>
-                                                <Button
+                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
                                                     className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
@@ -1214,7 +1151,7 @@ function InterviewSummaryContent() {
           )}
 
           {isAdmin && sessionData && sessionData.firestoreDocId && (
-            <Card className="mt-8 border-primary/50">
+            <Card className="mt-8 border-primary/30 bg-primary/5">
               <CardHeader>
                 <CardTitle className="text-lg text-primary flex items-center">
                   <ShieldCheck className="mr-2 h-5 w-5" /> Admin Feedback
@@ -1225,10 +1162,10 @@ function InterviewSummaryContent() {
                 {sessionData.adminFeedback && sessionData.adminFeedback.length > 0 && (
                   <div className="space-y-3">
                     <h4 className="font-semibold text-muted-foreground">Existing Admin Feedback:</h4>
-                    <ScrollArea className="h-40 border rounded-md p-3">
+                    <ScrollArea className="h-40 border rounded-md p-3 bg-background">
                       {sessionData.adminFeedback.map((fb, index) => (
                         <div key={index} className="text-xs mb-2 pb-2 border-b last:border-b-0 last:mb-0">
-                          <p className="font-medium">{fb.adminEmail || fb.adminId} ({fb.targetType}{fb.targetQuestionId ? ` - QID: ${fb.targetQuestionId}` : ''}):</p>
+                          <p className="font-medium">{fb.adminEmail || fb.adminId} ({fb.targetType}{fb.targetQuestionId ? ` - QID: ${fb.targetQuestionId.substring(0,8)}...` : ''}):</p>
                           <p className="whitespace-pre-wrap text-foreground/80">{fb.feedbackText}</p>
                           <p className="text-muted-foreground/70 mt-0.5">{fb.createdAt.toDate().toLocaleString()}</p>
                         </div>
@@ -1437,7 +1374,6 @@ function InterviewSummaryContent() {
           </DialogContent>
         </Dialog>
 
-        {/* Clarify Feedback Dialog */}
         <Dialog open={isClarifyFeedbackDialogOpen} onOpenChange={setIsClarifyFeedbackDialogOpen}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
@@ -1524,4 +1460,3 @@ export default function InterviewSummaryPage() {
   );
 }
 
-    

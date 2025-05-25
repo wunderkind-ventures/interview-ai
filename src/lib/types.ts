@@ -185,15 +185,13 @@ export interface SharedAssessmentDocument {
   uploaderEmail?: string;
   title: string;
   assessmentType: InterviewType;
-  assessmentStyle?: InterviewStyle | ''; // Allow empty string for "None" or optional
-  difficultyLevel?: FaangLevel | ''; // Allow empty string for "None" or optional
+  assessmentStyle?: InterviewStyle | '';
+  difficultyLevel?: FaangLevel | '';
   content: string;
-  keywords?: string[]; // Stored as array, input as comma-separated string
+  keywords?: string[];
   notes?: string;
-  source?: string; // e.g., "Uploaded by user", "Company X Prep Material"
-  createdAt?: any; // Firestore Timestamp or serverTimestamp()
-  updatedAt?: any; // Firestore Timestamp or serverTimestamp()
-  // For future use
-  // isPublic?: boolean; 
-  // upvotes?: number;
+  source?: string;
+  isPublic?: boolean; // New field
+  createdAt?: any;
+  updatedAt?: any;
 }

@@ -1,13 +1,13 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, setDoc, deleteDoc, serverTimestamp, where } from 'firebase/firestore';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, addDoc, setDoc, deleteDoc, serverTimestamp, where, limit, startAfter, getDocs, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, Edit3, Trash2, Loader2, AlertTriangle, Library, FileText, Tag, StickyNote, Briefcase } from 'lucide-react';
+import { PlusCircle, Edit3, Trash2, Loader2, AlertTriangle, Library, FileText, Tag, StickyNote, Briefcase, Eye, Search } from 'lucide-react';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +20,9 @@ import { INTERVIEW_TYPES, INTERVIEW_STYLES, FAANG_LEVELS } from '@/lib/constants
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ScrollArea } from './ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+
 
 const assessmentFormSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters.").max(150, "Title must be 150 characters or less."),
@@ -32,17 +35,27 @@ const assessmentFormSchema = z.object({
   keywords: z.string().optional().describe("Comma-separated list of keywords/tags."),
   notes: z.string().optional().max(1000, "Notes must be 1000 characters or less."),
   source: z.string().optional().max(150, "Source must be 150 characters or less."),
+  isPublic: z.boolean().default(false).optional(),
 });
 
 type AssessmentFormValues = z.infer<typeof assessmentFormSchema>;
+
+const ITEMS_PER_PAGE = 9; // For pagination later
 
 export default function AssessmentRepositoryManager() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [userAssessments, setUserAssessments] = useState<SharedAssessmentDocument[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [publicAssessments, setPublicAssessments] = useState<SharedAssessmentDocument[]>([]);
+  const [isLoadingUserAssessments, setIsLoadingUserAssessments] = useState(true);
+  const [isLoadingPublicAssessments, setIsLoadingPublicAssessments] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingAssessment, setEditingAssessment] = useState<SharedAssessmentDocument | null>(null);
+  const [activeTab, setActiveTab] = useState("my-uploads");
+
+  // TODO: Implement pagination for public assessments
+  // const [lastVisiblePublicDoc, setLastVisiblePublicDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  // const [hasMorePublic, setHasMorePublic] = useState(true);
 
   const form = useForm<AssessmentFormValues>({
     resolver: zodResolver(assessmentFormSchema),
@@ -55,39 +68,88 @@ export default function AssessmentRepositoryManager() {
       keywords: "",
       notes: "",
       source: "",
+      isPublic: false,
     },
   });
 
   useEffect(() => {
     if (!user || authLoading) {
-      if (!authLoading) setIsLoading(false);
+      if (!authLoading) {
+        setIsLoadingUserAssessments(false);
+        setIsLoadingPublicAssessments(false);
+      }
       return;
     }
 
-    setIsLoading(true);
+    // Fetch User's Uploads
+    setIsLoadingUserAssessments(true);
     const db = getFirestore();
     const assessmentsCol = collection(db, 'sharedAssessments');
-    const q = query(assessmentsCol, where("userId", "==", user.uid), orderBy('createdAt', 'desc'));
+    const userQuery = query(assessmentsCol, where("userId", "==", user.uid), orderBy('createdAt', 'desc'));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribeUser = onSnapshot(userQuery, (querySnapshot) => {
       const fetchedAssessments: SharedAssessmentDocument[] = [];
       querySnapshot.forEach((doc) => {
         fetchedAssessments.push({ id: doc.id, ...doc.data() } as SharedAssessmentDocument);
       });
       setUserAssessments(fetchedAssessments);
-      setIsLoading(false);
+      setIsLoadingUserAssessments(false);
     }, (error) => {
       console.error("Error fetching user assessments:", error);
       toast({
-        title: "Error Fetching Assessments",
+        title: "Error Fetching Your Assessments",
         description: "Could not load your contributed assessments. Please try again later.",
         variant: "destructive",
       });
-      setIsLoading(false);
+      setIsLoadingUserAssessments(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeUser();
+    };
   }, [user, authLoading, toast]);
+
+  const fetchPublicAssessments = useCallback(async (initialFetch = true) => {
+    if (!user) return;
+    setIsLoadingPublicAssessments(true);
+    const db = getFirestore();
+    const publicAssessmentsCol = collection(db, 'sharedAssessments');
+    let q = query(publicAssessmentsCol, where("isPublic", "==", true), orderBy('createdAt', 'desc'), limit(ITEMS_PER_PAGE));
+
+    // if (!initialFetch && lastVisiblePublicDoc) {
+    //   q = query(q, startAfter(lastVisiblePublicDoc));
+    // }
+
+    try {
+      const querySnapshot = await getDocs(q);
+      const fetchedPublicAssessments: SharedAssessmentDocument[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedPublicAssessments.push({ id: doc.id, ...doc.data() } as SharedAssessmentDocument);
+      });
+
+      // setPublicAssessments(prev => initialFetch ? fetchedPublicAssessments : [...prev, ...fetchedPublicAssessments]);
+      // setLastVisiblePublicDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
+      // setHasMorePublic(querySnapshot.docs.length === ITEMS_PER_PAGE);
+      setPublicAssessments(fetchedPublicAssessments); // Simplified for now without pagination
+
+    } catch (error) {
+      console.error("Error fetching public assessments:", error);
+      toast({
+        title: "Error Fetching Public Assessments",
+        description: "Could not load public assessments. Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingPublicAssessments(false);
+    }
+  }, [user, toast]);
+
+  useEffect(() => {
+    if (activeTab === "public-repository") {
+      fetchPublicAssessments(true);
+    }
+  }, [activeTab, fetchPublicAssessments]);
+
 
   const handleOpenForm = (assessment: SharedAssessmentDocument | null = null) => {
     setEditingAssessment(assessment);
@@ -101,6 +163,7 @@ export default function AssessmentRepositoryManager() {
         keywords: assessment.keywords?.join(', ') || '',
         notes: assessment.notes || '',
         source: assessment.source || '',
+        isPublic: assessment.isPublic || false,
       });
     } else {
       form.reset({
@@ -112,6 +175,7 @@ export default function AssessmentRepositoryManager() {
         keywords: "",
         notes: "",
         source: "",
+        isPublic: false,
       });
     }
     setIsFormOpen(true);
@@ -134,6 +198,7 @@ export default function AssessmentRepositoryManager() {
       keywords: data.keywords?.split(',').map(k => k.trim()).filter(k => k) || [],
       notes: data.notes || undefined,
       source: data.source || undefined,
+      isPublic: data.isPublic || false,
       updatedAt: serverTimestamp(),
     };
 
@@ -145,10 +210,14 @@ export default function AssessmentRepositoryManager() {
       } else {
         assessmentData.createdAt = serverTimestamp();
         await addDoc(collection(db, 'sharedAssessments'), assessmentData);
-        toast({ title: "Assessment Uploaded", description: "Your assessment has been successfully added to the repository." });
+        toast({ title: "Assessment Uploaded", description: "Your assessment has been successfully added." });
       }
       setIsFormOpen(false);
       form.reset();
+      // If public tab is active and assessment made public, refresh public list
+      if (activeTab === "public-repository" && assessmentData.isPublic) {
+        fetchPublicAssessments(true);
+      }
     } catch (error) {
       console.error("Error saving assessment:", error);
       toast({ title: "Save Error", description: "Could not save the assessment. Please try again.", variant: "destructive" });
@@ -161,13 +230,91 @@ export default function AssessmentRepositoryManager() {
     try {
       await deleteDoc(doc(db, 'sharedAssessments', assessmentId));
       toast({ title: "Assessment Deleted", description: "The assessment has been successfully deleted." });
+       // If public tab is active, refresh public list
+      if (activeTab === "public-repository") {
+        fetchPublicAssessments(true);
+      }
     } catch (error) {
       console.error("Error deleting assessment:", error);
       toast({ title: "Delete Error", description: "Could not delete the assessment.", variant: "destructive" });
     }
   };
   
-  if (authLoading || isLoading) {
+  const renderAssessmentCard = (assessment: SharedAssessmentDocument, isOwner: boolean) => (
+    <Card key={assessment.id} className="shadow-md hover:shadow-lg transition-shadow flex flex-col">
+      <CardHeader>
+        <CardTitle className="text-lg text-primary">{assessment.title}</CardTitle>
+        <CardDescription className="text-xs">
+          Type: {INTERVIEW_TYPES.find(t => t.value === assessment.assessmentType)?.label || assessment.assessmentType}
+          {assessment.assessmentStyle && ` | Style: ${INTERVIEW_STYLES.find(s => s.value === assessment.assessmentStyle)?.label || assessment.assessmentStyle}`}
+          {assessment.difficultyLevel && ` | Level: ${FAANG_LEVELS.find(l => l.value === assessment.difficultyLevel)?.label || assessment.difficultyLevel}`}
+          <br />
+          {assessment.uploaderEmail && `By: ${assessment.uploaderEmail} | `}
+          Uploaded: {assessment.createdAt?.toDate ? assessment.createdAt.toDate().toLocaleDateString() : 'N/A'}
+          {assessment.isPublic && <Badge variant="outline" className="ml-2 text-xs text-green-600 border-green-500">Public</Badge>}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm flex-grow">
+        <div className="line-clamp-4">
+          <h4 className="font-semibold text-muted-foreground text-xs">Content Preview:</h4>
+          <p className="whitespace-pre-wrap text-foreground/90 text-xs">{assessment.content}</p>
+        </div>
+        {assessment.keywords && assessment.keywords.length > 0 && (
+          <div>
+            <h4 className="font-semibold text-muted-foreground text-xs mt-2 flex items-center"><Tag className="h-3 w-3 mr-1" />Keywords:</h4>
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {assessment.keywords.map(kw => <span key={kw} className="px-1.5 py-0.5 text-xs bg-secondary text-secondary-foreground rounded-full">{kw}</span>)}
+            </div>
+          </div>
+        )}
+        {assessment.source && (
+           <div>
+              <h4 className="font-semibold text-muted-foreground text-xs mt-2 flex items-center"><Briefcase className="h-3 w-3 mr-1" />Source:</h4>
+              <p className="text-xs text-foreground/90">{assessment.source}</p>
+          </div>
+        )}
+        {assessment.notes && (
+          <div>
+              <h4 className="font-semibold text-muted-foreground text-xs mt-2 flex items-center"><StickyNote className="h-3 w-3 mr-1" />Notes:</h4>
+              <p className="text-xs text-foreground/90 line-clamp-2">{assessment.notes}</p>
+          </div>
+        )}
+      </CardContent>
+      <CardFooter className="flex justify-end space-x-2 pt-4 mt-auto">
+        {/* TODO: Add a "View Full" button that opens a dialog */}
+        {isOwner && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => handleOpenForm(assessment)}>
+              <Edit3 className="mr-1.5 h-3.5 w-3.5" /> Edit
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete "{assessment.title}".
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => handleDeleteAssessment(assessment.id!)}>
+                    Yes, delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        )}
+      </CardFooter>
+    </Card>
+  );
+
+  if (authLoading) {
     return (
       <div className="flex justify-center items-center py-12">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -195,7 +342,7 @@ export default function AssessmentRepositoryManager() {
               <Library className="mr-3 h-8 w-8" /> Assessment Repository
             </CardTitle>
             <CardDescription>
-              Manage your contributed interview assessments. For now, only you can see your uploads.
+              Contribute, manage, and browse interview assessments.
             </CardDescription>
           </div>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
@@ -261,6 +408,28 @@ export default function AssessmentRepositoryManager() {
                     <FormField control={form.control} name="notes" render={({ field }) => (
                       <FormItem><FormLabel>Your Notes (Optional)</FormLabel><FormControl><Textarea placeholder="Any additional notes about this assessment, why it's useful, etc." {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
+                    <FormField
+                        control={form.control}
+                        name="isPublic"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
+                            <FormControl>
+                                <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                                <FormLabel>
+                                Make this assessment publicly visible?
+                                </FormLabel>
+                                <FormDescription>
+                                If checked, other logged-in users will be able to view this assessment in the "Public Repository" tab.
+                                </FormDescription>
+                            </div>
+                            </FormItem>
+                        )}
+                        />
                     <DialogFooter className="pt-4">
                       <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                       <Button type="submit" disabled={form.formState.isSubmitting}>
@@ -276,85 +445,55 @@ export default function AssessmentRepositoryManager() {
         </CardHeader>
       </Card>
 
-      {userAssessments.length === 0 && !isLoading && (
-        <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
-          <FileText className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
-          <h3 className="text-xl font-semibold text-muted-foreground">No Assessments Uploaded Yet</h3>
-          <p className="text-muted-foreground mt-1">Contribute your first interview assessment to the repository!</p>
-          <Button onClick={() => handleOpenForm(null)} className="mt-6">
-            <PlusCircle className="mr-2 h-5 w-5" /> Upload Your First Assessment
-          </Button>
-        </div>
-      )}
-
-      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-        {userAssessments.map((assessment) => (
-          <Card key={assessment.id} className="shadow-md hover:shadow-lg transition-shadow flex flex-col">
-            <CardHeader>
-              <CardTitle className="text-lg text-primary">{assessment.title}</CardTitle>
-              <CardDescription className="text-xs">
-                Type: {INTERVIEW_TYPES.find(t => t.value === assessment.assessmentType)?.label || assessment.assessmentType}
-                {assessment.assessmentStyle && ` | Style: ${INTERVIEW_STYLES.find(s => s.value === assessment.assessmentStyle)?.label || assessment.assessmentStyle}`}
-                {assessment.difficultyLevel && ` | Level: ${FAANG_LEVELS.find(l => l.value === assessment.difficultyLevel)?.label || assessment.difficultyLevel}`}
-                <br />
-                Uploaded: {assessment.createdAt?.toDate ? assessment.createdAt.toDate().toLocaleDateString() : 'N/A'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm flex-grow">
-              <div className="line-clamp-4">
-                <h4 className="font-semibold text-muted-foreground text-xs">Content Preview:</h4>
-                <p className="whitespace-pre-wrap text-foreground/90 text-xs">{assessment.content}</p>
-              </div>
-              {assessment.keywords && assessment.keywords.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-muted-foreground text-xs mt-2 flex items-center"><Tag className="h-3 w-3 mr-1" />Keywords:</h4>
-                  <div className="flex flex-wrap gap-1 mt-0.5">
-                    {assessment.keywords.map(kw => <span key={kw} className="px-1.5 py-0.5 text-xs bg-secondary text-secondary-foreground rounded-full">{kw}</span>)}
-                  </div>
-                </div>
-              )}
-              {assessment.source && (
-                 <div>
-                    <h4 className="font-semibold text-muted-foreground text-xs mt-2 flex items-center"><Briefcase className="h-3 w-3 mr-1" />Source:</h4>
-                    <p className="text-xs text-foreground/90">{assessment.source}</p>
-                </div>
-              )}
-              {assessment.notes && (
-                <div>
-                    <h4 className="font-semibold text-muted-foreground text-xs mt-2 flex items-center"><StickyNote className="h-3 w-3 mr-1" />Notes:</h4>
-                    <p className="text-xs text-foreground/90 line-clamp-2">{assessment.notes}</p>
-                </div>
-              )}
-            </CardContent>
-            <CardFooter className="flex justify-end space-x-2 pt-4 mt-auto">
-              <Button variant="outline" size="sm" onClick={() => handleOpenForm(assessment)}>
-                <Edit3 className="mr-1.5 h-3.5 w-3.5" /> Edit
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="my-uploads">My Uploads</TabsTrigger>
+          <TabsTrigger value="public-repository">Public Repository</TabsTrigger>
+        </TabsList>
+        <TabsContent value="my-uploads">
+          {isLoadingUserAssessments ? (
+             <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          ) : userAssessments.length === 0 ? (
+            <div className="text-center py-12 border-2 border-dashed border-border rounded-lg mt-6">
+              <FileText className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
+              <h3 className="text-xl font-semibold text-muted-foreground">No Assessments Uploaded Yet</h3>
+              <p className="text-muted-foreground mt-1">Contribute your first interview assessment!</p>
+              <Button onClick={() => handleOpenForm(null)} className="mt-6">
+                <PlusCircle className="mr-2 h-5 w-5" /> Upload Your First Assessment
               </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm">
-                    <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete "{assessment.title}".
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleDeleteAssessment(assessment.id!)}>
-                      Yes, delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 mt-6">
+              {userAssessments.map((assessment) => renderAssessmentCard(assessment, true))}
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="public-repository">
+          {/* TODO: Add search/filter inputs here */}
+          {isLoadingPublicAssessments && publicAssessments.length === 0 ? (
+             <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          ) : publicAssessments.length === 0 && !isLoadingPublicAssessments ? (
+            <div className="text-center py-12 border-2 border-dashed border-border rounded-lg mt-6">
+              <Search className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
+              <h3 className="text-xl font-semibold text-muted-foreground">No Public Assessments Yet</h3>
+              <p className="text-muted-foreground mt-1">Be the first to share an assessment with the community or check back later!</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 mt-6">
+                {publicAssessments.map((assessment) => renderAssessmentCard(assessment, assessment.userId === user?.uid))}
+              </div>
+              {/* TODO: Add "Load More" button for pagination
+              {hasMorePublic && !isLoadingPublicAssessments && (
+                <div className="mt-6 text-center">
+                  <Button onClick={() => fetchPublicAssessments(false)}>Load More</Button>
+                </div>
+              )}
+              */}
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

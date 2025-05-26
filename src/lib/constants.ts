@@ -112,16 +112,16 @@ export const AMAZON_LEADERSHIP_PRINCIPLES = [
 
 export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
   {
-    id: 'amazon-sde2-behavioral-lp',
-    label: 'Amazon SDE II - Behavioral & LP Focus',
-    description: 'Focuses on behavioral questions tailored for an Amazon SDE II role, emphasizing Leadership Principles.',
+    id: 'amazon-final-round-behavioral-lp',
+    label: 'Amazon Final Round (Behavioral LP Focus)',
+    description: 'Simulates an Amazon behavioral interview block, focusing on Leadership Principles and STAR method answers. Tailored for L4+ roles.',
     config: {
       interviewType: 'behavioral',
-      faangLevel: 'L5',
+      faangLevel: 'L4', // Defaulting to L4 for broader applicability, user can change
       targetCompany: 'Amazon',
-      jobTitle: 'Software Engineer II',
-      targetedSkills: ['leadership', 'problem-solving-decision-making', 'communication-skills'],
-      interviewFocus: 'Demonstrating Amazon Leadership Principles through past experiences',
+      jobTitle: 'Software Development Engineer', // Generic SDE title
+      targetedSkills: ['leadership', 'problem-solving-decision-making', 'deliver-results-lp'], // Example, can refine
+      interviewFocus: 'Demonstrating Amazon Leadership Principles using the STAR method and quantifying impact.',
       interviewStyle: 'simple-qa',
       interviewerPersona: 'behavioral_specialist',
     },
@@ -225,4 +225,3 @@ export const THEMED_INTERVIEW_PACKS: ThemedInterviewPack[] = [
     },
   },
 ];
-

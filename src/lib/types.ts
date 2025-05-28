@@ -14,8 +14,8 @@ export interface InterviewSetupData {
   targetCompany?: string;
   interviewFocus?: string;
   selectedThemeId?: string;
-  interviewerPersona?: InterviewerPersona | string; // Allow string for 'standard' or custom
-  caseStudyNotes?: string | null; // Added from cover letter crafter
+  interviewerPersona?: InterviewerPersona | string;
+  caseStudyNotes?: string | null;
 }
 
 export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId'>> {
@@ -80,7 +80,7 @@ export interface AdminFeedbackItem {
   adminEmail?: string;
   feedbackText: string;
   targetType: AdminFeedbackTargetType;
-  targetQuestionId?: string; // If feedback is for a specific question or answer to it
+  targetQuestionId?: string;
   createdAt: Timestamp;
 }
 
@@ -100,8 +100,9 @@ export interface InterviewSessionData extends InterviewSetupData {
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
   isLoggedToServer?: boolean;
   firestoreDocId?: string;
-  completedAt?: Timestamp | any; // Allow any for serverTimestamp sentinel
+  completedAt?: Timestamp | any;
   adminFeedback?: AdminFeedbackItem[];
+  userId?: string; // Added to explicitly store user ID with session data
 }
 
 export interface Achievement {
@@ -135,17 +136,16 @@ export interface SavedInterviewSetup {
   id?: string;
   userId?: string;
   title: string;
-  config: InterviewSetupData; // The actual setup data
+  config: InterviewSetupData;
   createdAt?: any;
   updatedAt?: any;
 }
 
-// Types for Resume Lab AI Flows
 export interface ResumeAnalysis {
   strengths: string[];
   areasForImprovement: string[];
-  clarityScore: number; // 1-5
-  impactScore: number; // 1-5
+  clarityScore: number;
+  impactScore: number;
   overallFeedback: string;
   actionableSuggestions: string[];
 }
@@ -158,7 +158,6 @@ export interface ResumeTailoringSuggestions {
   overallFitAssessment: string;
 }
 
-// Types for Analyze Take-Home Submission AI Flow
 export interface AnalyzeTakeHomeSubmissionContext {
     interviewType: string;
     faangLevel: string;
@@ -191,7 +190,11 @@ export interface SharedAssessmentDocument {
   keywords?: string[];
   notes?: string;
   source?: string;
-  isPublic?: boolean; // New field
+  isPublic?: boolean;
   createdAt?: any;
   updatedAt?: any;
+}
+
+export interface AppSecrets {
+  geminiApiKey?: string;
 }

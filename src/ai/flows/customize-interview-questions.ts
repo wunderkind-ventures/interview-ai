@@ -11,27 +11,38 @@
  * - CustomizeInterviewQuestionsOutput - The return type for the orchestrator.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { genkit, ZodError, z } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAI } from '@/ai/genkit'; // Use a different name to avoid conflict
+
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool';
 
 import { generateTakeHomeAssignment } from './generate-take-home-assignment';
-import type { GenerateTakeHomeAssignmentInput, GenerateTakeHomeAssignmentOutput } from './generate-take-home-assignment';
+import type { GenerateTakeHomeAssignmentInput } from './generate-take-home-assignment';
 
 import { generateInitialCaseSetup } from './generate-case-study-questions';
 import type { GenerateInitialCaseSetupInput, GenerateInitialCaseSetupOutput } from './generate-case-study-questions';
 
-import { CustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput } from '../schemas';
+import { CustomizeInterviewQuestionsInputSchema as BaseCustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput as BaseCustomizeInterviewQuestionsInput } from '../schemas';
 
+// Extend the base input schema to include userApiKey
+const CustomizeInterviewQuestionsInputSchema = BaseCustomizeInterviewQuestionsInputSchema.extend({
+    userApiKey: z.string().optional().describe("Optional user-provided Gemini API key."),
+});
+export type CustomizeInterviewQuestionsInput = z.infer<typeof CustomizeInterviewQuestionsInputSchema>;
+
+
+// Output schema for individual questions from ANY generation path
 const OrchestratorQuestionOutputSchema = z.object({
     questionText: z.string(),
     idealAnswerCharacteristics: z.array(z.string()).optional().describe("Brief key characteristics or elements a strong answer to this specific question/assignment would demonstrate."),
+    // Fields specific to case study initial setup
     isInitialCaseQuestion: z.boolean().optional(),
     fullScenarioDescription: z.string().optional().describe("The full descriptive text of the case scenario, provided for the first question of a case study."),
     internalNotesForFollowUpGenerator: z.string().optional().describe("Context for the AI to generate the next dynamic follow-up question in a case study."),
-    isLikelyFinalFollowUp: z.boolean().optional().describe("Indicates if this question (in a case study) is likely the final one."),
+    isLikelyFinalFollowUp: z.boolean().optional().describe("Indicates if this question (in a case study) is likely the final one for the initial setup. Note: dynamic follow-ups will manage their own finality."),
 });
 
 // This schema is for the final output of the orchestrator
@@ -58,10 +69,26 @@ export async function customizeInterviewQuestions(
     targetCompany: input.targetCompany || "",
     interviewFocus: input.interviewFocus || "",
     interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-    previousConversation: input.previousConversation || "",
-    currentQuestion: input.currentQuestion || "",
-    caseStudyNotes: input.caseStudyNotes || "",
+    previousConversation: input.previousConversation || "", // Likely unused now with specialized flows
+    currentQuestion: input.currentQuestion || "",        // Likely unused now
+    caseStudyNotes: input.caseStudyNotes || "",            // Used by initial case setup
+    userApiKey: input.userApiKey, // Pass through the user API key
   };
+
+  let currentAI = globalAI; // Default to global AI instance
+  if (saneInput.userApiKey) {
+    try {
+      console.log("[BYOK] Using user-provided API key for customizeInterviewQuestions.");
+      currentAI = genkit({
+        plugins: [googleAI({ apiKey: saneInput.userApiKey })],
+        // Ensure the model is consistent or configurable if needed
+        model: globalAI.getModel().name, // Use the same model as the global instance by default
+      });
+    } catch (e) {
+      console.warn(`[BYOK] Failed to initialize Genkit with user-provided API key: ${(e as Error).message}. Falling back to default key.`);
+      // Fallback to globalAI is already default
+    }
+  }
 
 
   if (saneInput.interviewStyle === 'take-home') {
@@ -74,9 +101,11 @@ export async function customizeInterviewQuestions(
       targetCompany: saneInput.targetCompany,
       interviewFocus: saneInput.interviewFocus,
       interviewerPersona: saneInput.interviewerPersona,
+      // Pass userApiKey to specialized flow
+      userApiKey: saneInput.userApiKey,
     };
     try {
-      const takeHomeOutput: GenerateTakeHomeAssignmentOutput = await generateTakeHomeAssignment(takeHomeInput);
+      const takeHomeOutput = await generateTakeHomeAssignment(takeHomeInput);
       return {
         customizedQuestions: [{
           questionText: takeHomeOutput.assignmentText,
@@ -90,8 +119,8 @@ export async function customizeInterviewQuestions(
     }
   } else if (saneInput.interviewStyle === 'case-study') {
     try {
-        const initialCaseInput: GenerateInitialCaseSetupInput = { ...saneInput };
-        const initialCaseOutput: GenerateInitialCaseSetupOutput = await generateInitialCaseSetup(initialCaseInput);
+        // Pass the full saneInput which includes userApiKey to the initial case setup
+        const initialCaseOutput: GenerateInitialCaseSetupOutput = await generateInitialCaseSetup(saneInput as unknown as GenerateInitialCaseSetupInput); // Cast for now, ensure types align
         return {
           customizedQuestions: [{
             questionText: initialCaseOutput.firstQuestionToAsk,
@@ -117,12 +146,12 @@ export async function customizeInterviewQuestions(
         };
     }
   }
-  // Default to simple Q&A
-  return customizeSimpleQAInterviewQuestionsFlow(saneInput);
+  // Default to simple Q&A, passing the currentAI instance (which might be user-specific)
+  return customizeSimpleQAInterviewQuestionsFlow(saneInput, currentAI);
 }
 
 // Extended input schema for the Simple Q&A prompt, including boolean flags
-const SimpleQAPromptInputSchema = CustomizeInterviewQuestionsInputSchema.extend({
+const SimpleQAPromptInputSchema = BaseCustomizeInterviewQuestionsInputSchema.extend({
     isBehavioral: z.boolean(),
     isProductSense: z.boolean(),
     isTechnicalSystemDesign: z.boolean(),
@@ -137,12 +166,12 @@ type SimpleQAPromptInput = z.infer<typeof SimpleQAPromptInputSchema>;
 // Schema for the output of the Simple Q&A specialist flow
 const SimpleQAQuestionsOutputSchema = z.object({
   customizedQuestions: z.array(
-    OrchestratorQuestionOutputSchema
+    OrchestratorQuestionOutputSchema // Use the same single question output schema
   ).describe('An array of 5-10 customized Q&A questions (or 2-3 for Amazon behavioral), each with text and ideal answer characteristics.'),
 });
 
 
-const customizeSimpleQAInterviewQuestionsPrompt = ai.definePrompt({
+const customizeSimpleQAInterviewQuestionsPrompt = globalAI.definePrompt({ // Define with globalAI, as it's a definition
   name: 'customizeSimpleQAInterviewQuestionsPrompt',
   tools: [getTechnologyBriefTool, findRelevantAssessmentsTool],
   input: {
@@ -164,13 +193,14 @@ For example:
 - 'antagonistic_challenger': Questions will be challenging, probing, and designed to test resilience and conviction. Expect pushback on assumptions and demand strong justifications.
 - 'apathetic_business_lead': Questions may seem broad, disengaged, or slightly vague. The candidate will need to drive the conversation and clearly articulate value to keep this persona engaged.
 
+
 DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; those are handled by specialized processes.
 
 **Core Instructions & Persona Nuances:**
 - Your persona is that of a seasoned hiring manager. Your goal is to craft questions that not only test skills but also make the candidate think critically and reveal their problem-solving process. You want them to leave the mock interview feeling challenged yet enlightened.
 - You are creating questions for a mock interview, designed to help candidates prepare effectively.
 - Ensure every question directly reflects the provided inputs.
-- AVOID asking questions that can be answered with a simple 'yes' or 'no', especially for L4+ roles. FOCUS on questions that elicit problem-solving approaches and trade-off discussions.
+- For L4+ roles, AVOID asking questions that can be answered with a simple 'yes' or 'no'. FOCUS on questions that elicit problem-solving approaches and trade-off discussions.
 
 **Input Utilization & Context:**
 - **Job Title & Description:** Use 'jobTitle' and 'jobDescription' (if provided) to deeply tailor the questions. The technical depth required should be directly influenced by these.
@@ -180,6 +210,7 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
 
 **Tool Usage for RAG:**
 - If you need inspiration for question types, scenarios, or common pitfalls (e.g., for '{{{interviewType}}}' at '{{{faangLevel}}}' focusing on '{{{interviewFocus}}}'), you MAY use the \`findRelevantAssessmentsTool\`.
+- Formulate a query for the tool based on '{{{interviewType}}}', '{{{faangLevel}}}', and '{{{interviewFocus}}}'.
 - Use the tool's output to help you generate *new, unique, and relevant* questions. **DO NOT simply copy the retrieved content.** Adapt and synthesize.
 
 **General Principles for All Questions (for 'simple-qa'):**
@@ -212,8 +243,8 @@ Targeted Skills:
 
 {{#if isBehavioral}}
   {{#if isAmazonTarget}}
-    You are an **experienced Amazon Bar Raiser or Senior Hiring Manager**. Your primary goal is to craft 2-3 distinct behavioral questions that thoroughly assess Amazon's Leadership Principles (LPs) using the STAR method.
-    1.  Generate 2-3 behavioral questions for a simulated 1-hour interview block. Each question should be designed to give the candidate an opportunity to share specific experiences demonstrating one or more LPs. Aim for a diverse set of LPs across these questions.
+    You are an **experienced Amazon Bar Raiser or Senior Hiring Manager**. Your primary goal is to craft 2-3 distinct behavioral questions for a simulated 1-hour interview block. Each question should be designed to give the candidate an opportunity to share specific experiences demonstrating one or more Amazon Leadership Principles (LPs) using the STAR method.
+    1.  Generate 2-3 behavioral questions. Each question should target one or more LPs. Aim for a diverse set of LPs across these questions.
     2.  Phrase questions to naturally elicit STAR method responses (e.g., "Tell me about a time when...", "Describe a situation where...", "Give me an example of...").
     3.  Ensure questions prompt for details about the candidate's specific actions, the impact of those actions, and what they learned. Aim to include questions that allow the candidate to showcase instances where they excelled, and at least one question that specifically probes a situation involving a challenge, setback, or a time they learned from a mistake or failure.
     4.  For each question, the 'idealAnswerCharacteristics' MUST include:
@@ -282,19 +313,19 @@ Output a JSON object with a 'customizedQuestions' key. This key holds an array o
 });
 
 // This flow is now specialized for Simple Q&A
-const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
-  {
-    name: 'customizeSimpleQAInterviewQuestionsFlow',
-    inputSchema: CustomizeInterviewQuestionsInputSchema, // Still takes the general input
-    outputSchema: SimpleQAQuestionsOutputSchema,
-  },
-  async (input: CustomizeInterviewQuestionsInput): Promise<z.infer<typeof SimpleQAQuestionsOutputSchema>> => {
+async function customizeSimpleQAInterviewQuestionsFlow(
+  input: CustomizeInterviewQuestionsInput,
+  aiInstance: any // Accept an AI instance (could be globalAI or userSpecificAI)
+): Promise<z.infer<typeof SimpleQAQuestionsOutputSchema>> {
      if (input.interviewStyle !== 'simple-qa') {
         return { customizedQuestions: [{ questionText: `This flow is for 'simple-qa' only. Style '${input.interviewStyle}' should be handled by a specialist.`, idealAnswerCharacteristics: [] }] };
     }
 
     const promptInput: SimpleQAPromptInput = {
         ...input,
+        interviewType: input.interviewType, // Already present from BaseCustomize...
+        interviewStyle: input.interviewStyle, // Already present
+        faangLevel: input.faangLevel, // Already present
         interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         isBehavioral: input.interviewType === 'behavioral',
         isProductSense: input.interviewType === 'product sense',
@@ -305,7 +336,8 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
         isGeneralInterviewType: !['behavioral', 'product sense', 'technical system design', 'machine learning', 'data structures & algorithms'].includes(input.interviewType),
     };
 
-    const {output} = await customizeSimpleQAInterviewQuestionsPrompt(promptInput);
+    // Use the passed AI instance to call the prompt
+    const {output} = await aiInstance.run(customizeSimpleQAInterviewQuestionsPrompt, promptInput);
     if (!output || !output.customizedQuestions || output.customizedQuestions.length === 0) {
         const fallbackQuestions = [
             { questionText: "Can you describe a challenging project you've worked on and your role in it?", idealAnswerCharacteristics: ["Clear context", "Specific personal contribution", "Quantifiable impact if possible"] },
@@ -316,7 +348,7 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
             { questionText: "How do you handle ambiguity in requirements or project goals?", idealAnswerCharacteristics: ["Strategies for clarification", "Proactive communication", "Decision making under uncertainty"] },
             { questionText: "Describe a situation where you had to make a difficult trade-off in a project.", idealAnswerCharacteristics: ["Context of trade-off", "Rationale for decision", "Impact of the decision"] }
         ];
-        const numQuestions = (input.interviewType === 'data structures & algorithms' || input.interviewType === 'technical system design' || (input.interviewType === 'behavioral' && input.targetCompany?.toLowerCase() === 'amazon') ) ? 3 : 5; // Amazon behavioral tends to be fewer, deeper questions.
+        const numQuestions = (input.interviewType === 'behavioral' && input.targetCompany?.toLowerCase() === 'amazon') ? 3 : 5;
         const selectedFallback = fallbackQuestions.slice(0, Math.min(numQuestions, fallbackQuestions.length));
 
         return { customizedQuestions: selectedFallback.map(q => ({...q, isInitialCaseQuestion: undefined, fullScenarioDescription: undefined, internalNotesForFollowUpGenerator: undefined, isLikelyFinalFollowUp: undefined })) };
@@ -325,16 +357,14 @@ const customizeSimpleQAInterviewQuestionsFlow = ai.defineFlow(
     const compliantOutput = output.customizedQuestions.map(q => ({
         questionText: q.questionText,
         idealAnswerCharacteristics: q.idealAnswerCharacteristics || [],
-        isInitialCaseQuestion: undefined,
-        fullScenarioDescription: undefined,
-        internalNotesForFollowUpGenerator: undefined,
-        isLikelyFinalFollowUp: undefined,
+        isInitialCaseQuestion: undefined, // Not relevant for Simple Q&A
+        fullScenarioDescription: undefined, // Not relevant for Simple Q&A
+        internalNotesForFollowUpGenerator: undefined, // Not relevant for Simple Q&A
+        isLikelyFinalFollowUp: undefined, // Not relevant for Simple Q&A
     }));
     return { customizedQuestions: compliantOutput };
   }
-);
 
-export type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput as CustomizeInterviewQuestionsOrchestratorOutput };
-    
 
-    
+// Export the main orchestrator type, which now includes userApiKey
+export type { CustomizeInterviewQuestionsInput as CustomizeInterviewQuestionsOrchestratorInput, CustomizeInterviewQuestionsOutput as CustomizeInterviewQuestionsOrchestratorOutput };

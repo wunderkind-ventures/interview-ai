@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History, FileEdit, MailPlus, Library } from 'lucide-react'; // Added Library
+import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History, FileEdit, MailPlus, Library, SettingsIcon } from 'lucide-react'; // Added Library & SettingsIcon
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -79,8 +79,14 @@ export default function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/assessment-repository" className="flex items-center w-full">
-                    <Library className="mr-2 h-4 w-4" /> 
+                    <Library className="mr-2 h-4 w-4" />
                     <span>Assessment Repository</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="flex items-center w-full">
+                    <SettingsIcon className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

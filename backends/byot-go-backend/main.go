@@ -24,7 +24,7 @@ const (
 	// Replace with the path to your Firebase service account key JSON file
 	// This is needed if your backend needs to verify Firebase ID tokens
 	// For GCP hosted services, you might use workload identity instead.
-	firebaseServiceAccountKeyPath = "path/to/your/serviceAccountKey.json"
+	firebaseServiceAccountKeyPath = ".local/serviceAccountKey.json"
 	// Base URL of your Next.js application
 	nextjsBaseURL = "http://localhost:3000"
 )

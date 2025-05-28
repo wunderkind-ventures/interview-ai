@@ -8,43 +8,16 @@
  * - GenerateTakeHomeAssignmentOutput - The return type containing the assignment text.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai as globalAI} from '@/ai/genkit'; // Use globalAI for defining prompt
 import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
-import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; // Import RAG tool
+import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; 
+import type { CustomizeInterviewQuestionsInput as BaseFlowInputType } from '../schemas'; // Use the base schema type from orchestrator
 
-// Input schema for the flow
-const GenerateTakeHomeAssignmentInputSchema = z.object({
-  interviewType: z
-    .enum(['product sense', 'technical system design', 'behavioral', 'machine learning', 'data structures & algorithms'])
-    .describe('The type of interview the take-home assignment is for.'),
-  jobTitle: z
-    .string()
-    .optional()
-    .describe('The job title, crucial for tailoring technical depth and context.'),
-  jobDescription: z
-    .string()
-    .optional()
-    .describe('The job description, used to extract key responsibilities and technologies.'),
-  faangLevel: z
-    .string()
-    .describe('The target FAANG level for difficulty and complexity calibration. This will influence the expected ambiguity, scope, and complexity of the assignment.'),
-  targetedSkills: z
-    .array(z.string())
-    .optional()
-    .describe('Specific skills the assignment should aim to assess.'),
-  targetCompany: z
-    .string()
-    .optional()
-    .describe('The target company, which can influence style and thematic focus (e.g., Amazon and LPs).'),
-  interviewFocus: z
-    .string()
-    .optional()
-    .describe('A specific focus area or sub-topic to be the central theme of the assignment.'),
-  interviewerPersona: z.string().optional().describe("The AI interviewer's persona, which can influence the assignment's tone or focus."),
-});
-
+// Input schema for the flow - this is what this specific flow expects.
+// It should be compatible with what the orchestrator passes.
+const GenerateTakeHomeAssignmentInputSchema = BaseFlowInputType; // For this flow, input is largely the same as orchestrator's base
 export type GenerateTakeHomeAssignmentInput = z.infer<
   typeof GenerateTakeHomeAssignmentInputSchema
 >;
@@ -63,17 +36,18 @@ export type GenerateTakeHomeAssignmentOutput = z.infer<
 
 // Main exported function that calls the flow
 export async function generateTakeHomeAssignment(
-  input: GenerateTakeHomeAssignmentInput
+  input: GenerateTakeHomeAssignmentInput,
+  aiInstance: any // Expect an AI instance to be passed
 ): Promise<GenerateTakeHomeAssignmentOutput> {
-  return generateTakeHomeAssignmentFlow(input);
+  return generateTakeHomeAssignmentFlow(input, aiInstance);
 }
 
 // Internal prompt definition
-const prompt = ai.definePrompt({
+const prompt = globalAI.definePrompt({ // Use globalAI here for definition
   name: 'generateTakeHomeAssignmentPrompt',
-  tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], // Added RAG tool
+  tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], 
   input: {
-    schema: GenerateTakeHomeAssignmentInputSchema,
+    schema: GenerateTakeHomeAssignmentInputSchema, // Use the specific input schema for this flow
   },
   output: {
     schema: GenerateTakeHomeAssignmentOutputSchema,
@@ -171,12 +145,14 @@ Targeted Skills:
     *   **### (Optional) Tips for Success**:
         *   Provide 1-2 brief, general tips (e.g., "Focus on clear communication," "Be explicit about assumptions and trade-offs").
 
-If the 'targetCompany' is "Amazon" (perform a case-insensitive check in your reasoning):
+{{#if targetCompany}}
+If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
 **Amazon-Specific Considerations:**
 Subtly weave in opportunities to demonstrate Amazon's Leadership Principles, especially if the assignment type allows (e.g., behavioral reflection, or product strategy).
 Amazon's Leadership Principles for your reference:
 {{{AMAZON_LPS_LIST}}}
 End of Amazon-specific considerations.
+{{/if}}
 
 **Final Output Format:**
 Output a JSON object with two keys:
@@ -202,16 +178,18 @@ Output a JSON object with two keys:
 const generateTakeHomeAssignmentFlow = ai.defineFlow(
   {
     name: 'generateTakeHomeAssignmentFlow',
-    inputSchema: GenerateTakeHomeAssignmentInputSchema,
+    inputSchema: GenerateTakeHomeAssignmentInputSchema, // Use the specific input schema
     outputSchema: GenerateTakeHomeAssignmentOutputSchema,
   },
-  async (input: GenerateTakeHomeAssignmentInput): Promise<GenerateTakeHomeAssignmentOutput> => {
+  async (input: GenerateTakeHomeAssignmentInput, aiInstance: any): Promise<GenerateTakeHomeAssignmentOutput> => {
     try {
       const saneInput: GenerateTakeHomeAssignmentInput = {
         ...input,
         interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
       };
-      const {output} = await prompt(saneInput);
+      // Use the passed AI instance for the prompt call
+      const {output} = await aiInstance.run(prompt, saneInput);
+
       if (!output || !output.assignmentText || !output.idealSubmissionCharacteristics || output.idealSubmissionCharacteristics.length === 0) {
         const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
         const fallbackJobContext = input.jobTitle ? `for the role of ${input.jobTitle}` : `for the specified role`;
@@ -280,5 +258,3 @@ Please try configuring your interview again. If the problem persists, the AI mod
     }
   }
 );
-
-    

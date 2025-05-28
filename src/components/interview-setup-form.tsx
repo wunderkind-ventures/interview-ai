@@ -38,7 +38,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 
 import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, type InterviewType, type FaangLevel, INTERVIEW_STYLES, type InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, type Skill, THEMED_INTERVIEW_PACKS, type ThemedInterviewPack, type ThemedInterviewPackConfig, INTERVIEWER_PERSONAS, type InterviewerPersona } from "@/lib/constants";
-import type { InterviewSetupData, SavedResume, SavedJobDescription, SavedInterviewSetup, AppSecrets } from "@/lib/types";
+import type { InterviewSetupData, SavedResume, SavedJobDescription, SavedInterviewSetup } from "@/lib/types";
 import { summarizeResume } from "@/ai/flows/summarize-resume";
 import type { SummarizeResumeOutput } from "@/ai/flows/summarize-resume";
 import { useToast } from "@/hooks/use-toast";
@@ -61,7 +61,8 @@ const formSchema = z.object({
   interviewFocus: z.string().optional(),
   selectedThemeId: z.string().optional(),
   interviewerPersona: z.custom<InterviewerPersona | string>().optional(),
-  userApiKey: z.string().optional(), // For BYOK
+  // userApiKey is no longer part of the form data submitted directly from here
+  // It will be handled by the backend based on the authenticated user.
 });
 
 export default function InterviewSetupForm() {
@@ -115,7 +116,6 @@ export default function InterviewSetupForm() {
       interviewFocus: "",
       selectedThemeId: "custom",
       interviewerPersona: INTERVIEWER_PERSONAS[0].value,
-      userApiKey: "",
     },
   });
 
@@ -185,14 +185,16 @@ export default function InterviewSetupForm() {
     if (storedSetup) {
       try {
         const parsedSetup = JSON.parse(storedSetup) as InterviewSetupData;
+        // Do not load userApiKey from local storage for setup
+        const { userApiKey, ...setupToLoad } = parsedSetup as any; 
+
         form.reset({
-          ...parsedSetup,
-          selectedThemeId: parsedSetup.selectedThemeId || "custom",
-          interviewerPersona: parsedSetup.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-          userApiKey: "", // Do not load API key from local storage for security
+          ...setupToLoad,
+          selectedThemeId: setupToLoad.selectedThemeId || "custom",
+          interviewerPersona: setupToLoad.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         });
-        if (parsedSetup.resume && parsedSetup.resume.trim() !== "") {
-           setSummarizedForResumeText(parsedSetup.resume);
+        if (setupToLoad.resume && setupToLoad.resume.trim() !== "") {
+           setSummarizedForResumeText(setupToLoad.resume);
         }
       } catch (e) {
         console.error("Failed to parse stored interview setup:", e);
@@ -229,7 +231,6 @@ export default function InterviewSetupForm() {
         resume: currentResume,
         selectedThemeId: themeId,
         interviewerPersona: config.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-        userApiKey: form.getValues("userApiKey"), // Preserve user API key if already set
       };
       form.reset(newFormValues);
 
@@ -300,34 +301,16 @@ export default function InterviewSetupForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-    let userApiKeyToUse = values.userApiKey;
-
-    if (user && !userApiKeyToUse) {
-      // If user is logged in and hasn't provided a key in the form, try to fetch from settings
-      try {
-        const db = getFirestore();
-        const settingsDocRef = doc(db, "users", user.uid, "userSettings", "appSecrets");
-        const docSnap = await getDoc(settingsDocRef);
-        if (docSnap.exists()) {
-          const settings = docSnap.data() as AppSecrets;
-          if (settings.geminiApiKey) {
-            userApiKeyToUse = settings.geminiApiKey;
-            console.log("[BYOK] Using API key from user settings for interview.");
-          }
-        }
-      } catch (error) {
-        console.warn("[BYOK] Could not fetch API key from user settings:", error);
-        // Proceed without user API key
-      }
-    }
-
-
-    const setupData: InterviewSetupData & { userApiKey?: string } = {
+    
+    // API Key is no longer directly handled by the client when starting an interview.
+    // The backend (or the Genkit flow's PROTOTYPE HACK) will handle retrieving it
+    // based on the authenticated user.
+    const setupData: InterviewSetupData = {
         ...values,
         targetedSkills: values.targetedSkills || [],
         interviewerPersona: values.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-        userApiKey: userApiKeyToUse || undefined, // Ensure it's undefined if empty
     };
+
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
     localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); // Clear any old session
     router.push("/interview");
@@ -571,15 +554,11 @@ export default function InterviewSetupForm() {
     }
 
     const currentConfigValues = form.getValues();
-    // Omit userApiKey from the config saved to Firestore for security reasons.
-    // It should be fetched from userSettings/appSecrets at runtime.
-    const { userApiKey, ...configToSave } = currentConfigValues;
-
     const setupToSave: InterviewSetupData = {
-        ...configToSave,
-        targetedSkills: configToSave.targetedSkills || [],
-        selectedThemeId: configToSave.selectedThemeId || "custom",
-        interviewerPersona: configToSave.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+        ...currentConfigValues,
+        targetedSkills: currentConfigValues.targetedSkills || [],
+        selectedThemeId: currentConfigValues.selectedThemeId || "custom",
+        interviewerPersona: currentConfigValues.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
     };
 
     setIsSavingSetup(true);
@@ -588,7 +567,7 @@ export default function InterviewSetupForm() {
       const setupData: Omit<SavedInterviewSetup, 'id'> = {
         userId: user.uid,
         title: newSetupTitle,
-        config: setupToSave, // Save the config without the API key
+        config: setupToSave,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -607,15 +586,12 @@ export default function InterviewSetupForm() {
   };
 
   const handleLoadSetup = (setup: SavedInterviewSetup) => {
-    // Do not load userApiKey from saved setup config for security.
-    // It will be fetched from userSettings/appSecrets if needed.
-    const { userApiKey, ...configToLoad } = setup.config;
+    const { userApiKey, ...configToLoad } = setup.config as any; // Exclude userApiKey if present
 
     form.reset({
       ...configToLoad,
       selectedThemeId: configToLoad.selectedThemeId || "custom",
       interviewerPersona: configToLoad.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-      userApiKey: form.getValues("userApiKey"), // Preserve any API key already in the form or from settings
     });
     toast({ title: "Setup Loaded", description: `"${setup.title}" interview setup has been loaded.` });
     setIsLoadSetupDialogOpen(false);
@@ -1275,49 +1251,7 @@ export default function InterviewSetupForm() {
                 </CardContent>
             </Card>
             
-            {/* BYOK API Key Input - Hidden if not logged in */}
-            {user && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl flex items-center">
-                    <KeyRound className="mr-2 h-5 w-5 text-primary" />
-                    Advanced: Use Your Own API Key (Optional)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Alert variant="default" className="bg-sky-50 border-sky-300 text-sky-700 mb-4">
-                    <AlertTriangle className="h-5 w-5 text-sky-600" />
-                    <AlertTitle className="font-semibold">Experimental Feature</AlertTitle>
-                    <AlertDescription className="text-xs">
-                      You can optionally provide your own Google AI Gemini API key. If provided, it will be used for this session.
-                      This allows you to use your personal quota. Your key will be fetched from your settings if not entered here.
-                      If no key is entered here or found in settings, the app's default AI configuration will be used.
-                      See Settings to save your key for future sessions.
-                    </AlertDescription>
-                  </Alert>
-                  <FormField
-                    control={form.control}
-                    name="userApiKey"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Your Gemini API Key (Overrides Saved Key for this Session)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="password"
-                            placeholder="AIza... (leave blank to use saved or default)"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          If you have a key saved in Settings, it will be used automatically unless you enter one here.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CardContent>
-              </Card>
-            )}
+             {/* BYOK API Key Input - Removed as per new architecture for production. Users manage keys in Settings. */}
 
 
             <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting || isSummarizingResume || authLoading}>

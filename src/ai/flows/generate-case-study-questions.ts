@@ -6,19 +6,17 @@
  * and internal notes to guide subsequent dynamic follow-up questions.
  *
  * - generateInitialCaseSetup - Function to generate the case study's starting point.
- * - GenerateInitialCaseSetupInput - Input type (likely same as CustomizeInterviewQuestionsInput).
+ * - GenerateInitialCaseSetupInput - Input type.
  * - GenerateInitialCaseSetupOutput - Output type for the initial case setup.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai as globalAI} from '@/ai/genkit'; // Use globalAI for defining prompt
 import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
-import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; // Import RAG tool
-// Using CustomizeInterviewQuestionsInputSchema as the input for this specialized flow too,
-// as it contains all necessary context (job title, desc, level, focus, etc.)
-import { CustomizeInterviewQuestionsInputSchema } from '../schemas';
-export type GenerateInitialCaseSetupInput = z.infer<typeof CustomizeInterviewQuestionsInputSchema>;
+import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; 
+import { CustomizeInterviewQuestionsInputSchema as BaseFlowInputSchema } from '../schemas'; // Use the base schema for input
+export type GenerateInitialCaseSetupInput = z.infer<typeof BaseFlowInputSchema>;
 
 const GenerateInitialCaseSetupOutputSchema = z.object({
   caseTitle: z.string().describe("A concise, engaging title for the case study (e.g., 'The Profile Gate Challenge', 'Revitalizing a Legacy System')."),
@@ -43,16 +41,17 @@ export type GenerateInitialCaseSetupOutput = z.infer<
 
 // Exported function to be called by the orchestrator
 export async function generateInitialCaseSetup(
-  input: GenerateInitialCaseSetupInput
+  input: GenerateInitialCaseSetupInput,
+  aiInstance: any // Expect an AI instance to be passed
 ): Promise<GenerateInitialCaseSetupOutput> {
-  return generateInitialCaseSetupFlow(input);
+  return generateInitialCaseSetupFlow(input, aiInstance);
 }
 
-const initialCaseSetupPrompt = ai.definePrompt({
+const initialCaseSetupPrompt = globalAI.definePrompt({ // Use globalAI here for definition
   name: 'generateInitialCaseSetupPrompt',
-  tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], // Added RAG tool
+  tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], 
   input: {
-    schema: CustomizeInterviewQuestionsInputSchema,
+    schema: BaseFlowInputSchema, // Use the base schema
   },
   output: {
     schema: GenerateInitialCaseSetupOutputSchema,
@@ -117,12 +116,14 @@ If the 'interviewType' is "behavioral": A complex hypothetical workplace situati
 If the 'interviewType' is "machine learning": An ML System Design problem or a strategic ML initiative. The scenario should be detailed enough to allow for discussion of data, models, evaluation, and deployment.
 If the 'interviewType' is "data structures & algorithms": A complex algorithmic problem that requires significant decomposition and discussion of approaches before diving into a solution. The 'firstQuestionToAsk' might be about understanding requirements, clarifying constraints, or outlining initial high-level strategies.
 
-If the 'targetCompany' is "Amazon" (case-insensitive check in your reasoning):
+{{#if targetCompany}}
+If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
 **Amazon-Specific Considerations:**
 Ensure the scenario and potential follow-ups (guided by your internal notes) provide opportunities to demonstrate Amazon's Leadership Principles.
 The Amazon Leadership Principles are:
 {{{AMAZON_LPS_LIST}}}
 End of Amazon-specific considerations.
+{{/if}}
 
 **Final Output Format:**
 Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema. Ensure 'caseTitle', 'fullScenarioDescription', 'firstQuestionToAsk', 'idealAnswerCharacteristicsForFirstQuestion', and 'internalNotesForFollowUpGenerator' are all populated with relevant, detailed content.
@@ -145,16 +146,18 @@ Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema.
 const generateInitialCaseSetupFlow = ai.defineFlow(
   {
     name: 'generateInitialCaseSetupFlow',
-    inputSchema: CustomizeInterviewQuestionsInputSchema,
+    inputSchema: BaseFlowInputSchema, // Use the base schema
     outputSchema: GenerateInitialCaseSetupOutputSchema,
   },
-  async (input: GenerateInitialCaseSetupInput): Promise<GenerateInitialCaseSetupOutput> => {
+  async (input: GenerateInitialCaseSetupInput, aiInstance: any): Promise<GenerateInitialCaseSetupOutput> => {
     try {
         const saneInput: GenerateInitialCaseSetupInput = {
           ...input,
           interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         };
-        const {output} = await initialCaseSetupPrompt(saneInput);
+        // Use the passed AI instance for the prompt call
+        const {output} = await aiInstance.run(initialCaseSetupPrompt, saneInput);
+        
         if (!output || !output.fullScenarioDescription || !output.firstQuestionToAsk || !output.caseTitle || !output.internalNotesForFollowUpGenerator) {
             console.warn(`AI Initial Case Setup Fallback Triggered. Input: ${JSON.stringify(saneInput)}`);
             const scenarioType = saneInput.interviewType === "technical system design" ? "system design challenge" :
@@ -194,5 +197,3 @@ const generateInitialCaseSetupFlow = ai.defineFlow(
     }
   }
 );
-
-    

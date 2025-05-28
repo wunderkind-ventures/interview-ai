@@ -8,8 +8,10 @@
  * - ExplainConceptOutput - The return type for the explainConcept function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit'; // Renamed global import
+import { z } from 'genkit'; // Use z from genkit
 
 const ExplainConceptInputSchema = z.object({
   term: z.string().describe('The term or concept to be explained.'),
@@ -22,11 +24,8 @@ const ExplainConceptOutputSchema = z.object({
 });
 export type ExplainConceptOutput = z.infer<typeof ExplainConceptOutputSchema>;
 
-export async function explainConcept(input: ExplainConceptInput): Promise<ExplainConceptOutput> {
-  return explainConceptFlow(input);
-}
-
-const explainConceptPrompt = ai.definePrompt({
+// Define the prompt with the global AI instance so it's registered
+const explainConceptPromptObj = globalAi.definePrompt({
   name: 'explainConceptPrompt',
   input: {schema: ExplainConceptInputSchema},
   output: {schema: ExplainConceptOutputSchema},
@@ -44,18 +43,29 @@ Aim for an explanation that is 2-5 sentences long.
 `,
 });
 
-const explainConceptFlow = ai.defineFlow(
-  {
-    name: 'explainConceptFlow',
-    inputSchema: ExplainConceptInputSchema,
-    outputSchema: ExplainConceptOutputSchema,
-  },
-  async (input) => {
-    const {output} = await explainConceptPrompt(input);
-    if (!output || !output.explanation) {
-        return { explanation: `Sorry, I couldn't generate an explanation for "${input.term}" at this moment.` };
+export async function explainConcept(
+  input: ExplainConceptInput,
+  options?: { apiKey?: string }
+): Promise<ExplainConceptOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name, // Use model name from global config
+      });
+      console.log("[BYOK] explainConcept: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] explainConcept: Failed to initialize Genkit with user-provided API key: ${(e as Error).message}. Falling back to default.`);
+      // activeAI remains globalAi
     }
-    return output;
+  } else {
+    console.log("[BYOK] explainConcept: No user API key provided; using default global AI instance.");
   }
-);
 
+  const {output} = await activeAI.run(explainConceptPromptObj, input);
+  if (!output || !output.explanation) {
+      return { explanation: `Sorry, I couldn't generate an explanation for "${input.term}" at this moment.` };
+  }
+  return output;
+}

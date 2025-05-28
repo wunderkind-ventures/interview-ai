@@ -3,7 +3,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
+// Firestore direct access removed for API key management.
+// import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore"; 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,41 +12,46 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, Save, AlertTriangle, KeyRound, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-// Removed AppSecrets import as we won't directly handle the key on client after save
+
+const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || 'http://localhost:8080'; // Configure this in .env.local if different
 
 export default function UserSettingsForm() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, authInitializationFailed } = useAuth();
   const { toast } = useToast();
-  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState(""); // For the input field
+  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState(""); 
   const [apiKeyStatus, setApiKeyStatus] = useState<"loading" | "set" | "not_set" | "error">("loading");
-  const [isSaving, setIsSaving] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // Combined state for saving/fetching status
 
-  // Simulates fetching the status of an API key from a secure backend
   const fetchApiKeyStatus = async () => {
-    if (user) {
-      setApiKeyStatus("loading");
-      try {
-        // PRODUCTION: This would call your backend to check if a key is associated with the user.
-        // For prototype, we'll check Firestore directly (read-only for status indication).
-        const db = getFirestore();
-        const settingsDocRef = doc(db, "users", user.uid, "userSettings", "appSecrets");
-        const docSnap = await getDoc(settingsDocRef);
-        if (docSnap.exists() && docSnap.data()?.geminiApiKey) {
-          setApiKeyStatus("set");
-        } else {
-          setApiKeyStatus("not_set");
-        }
-      } catch (error) {
-        console.error("Error fetching API key status:", error);
-        setApiKeyStatus("error");
-        toast({
-          title: "Error Loading API Key Status",
-          description: "Could not determine if an API key is set. Please try again.",
-          variant: "destructive",
-        });
+    if (!user || authInitializationFailed) {
+      setApiKeyStatus("not_set"); // Or error, but not_set is fine if auth failed
+      return;
+    }
+    setApiKeyStatus("loading");
+    setIsProcessing(true);
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch(`${GO_BACKEND_URL}/api/user/api-key-status`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        throw new Error(`Failed to fetch API key status: ${response.status} ${errorData.detail || errorData.error || ''}`);
       }
-    } else {
-      setApiKeyStatus("not_set");
+      const data = await response.json();
+      setApiKeyStatus(data.hasKey ? "set" : "not_set");
+    } catch (error) {
+      console.error("Error fetching API key status from backend:", error);
+      setApiKeyStatus("error");
+      toast({
+        title: "Error Loading API Key Status",
+        description: error instanceof Error ? error.message : "Could not determine if an API key is set.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -54,86 +60,81 @@ export default function UserSettingsForm() {
       fetchApiKeyStatus();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, authLoading]);
+  }, [user, authLoading, authInitializationFailed]);
 
-  // Simulates saving the API key to a secure backend
   const handleSaveSettings = async () => {
     if (!user) {
-      toast({
-        title: "Not Authenticated",
-        description: "You must be logged in to save settings.",
-        variant: "destructive",
-      });
+      toast({ title: "Not Authenticated", description: "You must be logged in.", variant: "destructive" });
       return;
     }
     if (!geminiApiKeyInput.trim()) {
-      toast({
-        title: "API Key Required",
-        description: "Please enter your Gemini API Key to save.",
-        variant: "destructive",
-      });
+      toast({ title: "API Key Required", description: "Please enter your Gemini API Key.", variant: "destructive" });
       return;
     }
 
-    setIsSaving(true);
+    setIsProcessing(true);
     try {
-      // PRODUCTION: This would be an API call to your secure backend endpoint.
-      // Your backend would then encrypt and store the key in Google Secret Manager or similar.
-      // Example: await fetch('/api/user/save-api-key', { method: 'POST', body: JSON.stringify({ apiKey: geminiApiKeyInput }) });
+      const idToken = await user.getIdToken();
+      const response = await fetch(`${GO_BACKEND_URL}/api/user/set-api-key`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey: geminiApiKeyInput.trim() }),
+      });
 
-      // For PROTOTYPE ONLY (Direct Firestore Write - NOT FOR PRODUCTION KEYS):
-      // This allows testing the BYOK flow within the current Firebase Studio limitations.
-      // In a real production app, NEVER let the client write API keys directly to a database like this.
-      const db = getFirestore();
-      const settingsDocRef = doc(db, "users", user.uid, "userSettings", "appSecrets");
-      await setDoc(settingsDocRef, { geminiApiKey: geminiApiKeyInput.trim() }, { merge: true });
-      // END OF PROTOTYPE ONLY BLOCK
-
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        throw new Error(`Failed to save API key: ${response.status} ${errorData.detail || errorData.error || ''}`);
+      }
+      
       toast({
         title: "API Key Submitted",
-        description: "Your API key has been submitted to be saved securely. It will be used for future AI interactions.",
+        description: "Your API key has been securely submitted.",
       });
-      setGeminiApiKeyInput(""); // Clear input field
-      setApiKeyStatus("set"); // Update status optimistically
+      setGeminiApiKeyInput(""); 
+      setApiKeyStatus("set"); 
     } catch (error) {
-      console.error("Error saving API key (simulated backend call):", error);
+      console.error("Error saving API key to backend:", error);
       toast({
         title: "Error Saving API Key",
-        description: "Could not save your API key. Please try again. Check console for details.",
+        description: error instanceof Error ? error.message : "Could not save your API key. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsSaving(false);
+      setIsProcessing(false);
     }
   };
 
   const handleRemoveApiKey = async () => {
     if (!user) return;
-    setIsSaving(true); // Use isSaving to disable button during operation
+    setIsProcessing(true);
     try {
-        // PRODUCTION: This would call your backend to remove/invalidate the key.
-        // For PROTOTYPE ONLY (Direct Firestore delete):
-        const db = getFirestore();
-        const settingsDocRef = doc(db, "users", user.uid, "userSettings", "appSecrets");
-        await setDoc(settingsDocRef, { geminiApiKey: null }, { merge: true }); // Or deleteDoc if appropriate
-        // END OF PROTOTYPE ONLY BLOCK
-        toast({
-            title: "API Key Removed",
-            description: "Your API key has been removed.",
-        });
-        setApiKeyStatus("not_set");
+      const idToken = await user.getIdToken();
+      const response = await fetch(`${GO_BACKEND_URL}/api/user/remove-api-key`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        throw new Error(`Failed to remove API key: ${response.status} ${errorData.detail || errorData.error || ''}`);
+      }
+      toast({ title: "API Key Removed", description: "Your API key has been removed." });
+      setApiKeyStatus("not_set");
     } catch (error) {
-        console.error("Error removing API key:", error);
-        toast({
-            title: "Error Removing API Key",
-            description: "Could not remove your API key. Please try again.",
-            variant: "destructive",
-        });
+      console.error("Error removing API key from backend:", error);
+      toast({
+        title: "Error Removing API Key",
+        description: error instanceof Error ? error.message : "Could not remove your API key.",
+        variant: "destructive",
+      });
     } finally {
-        setIsSaving(false);
+      setIsProcessing(false);
     }
 };
-
 
   if (authLoading) {
     return (
@@ -160,7 +161,7 @@ export default function UserSettingsForm() {
     <Card className="w-full max-w-lg mx-auto shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center text-xl text-primary">
-          <KeyRound className="mr-2 h-6 w-6" /> API Key Management
+          <KeyRound className="mr-2 h-6 w-6" /> API Key Management (BYOK)
         </CardTitle>
         <CardDescription>
           Optionally, provide your own Google AI Gemini API key. This key will be used by the application's backend to make AI calls on your behalf, using your personal quota.
@@ -171,10 +172,9 @@ export default function UserSettingsForm() {
           <AlertTriangle className="h-5 w-5 text-amber-600" />
           <AlertTitle className="font-semibold">Security & Usage Notice</AlertTitle>
           <AlertDescription className="text-xs">
-            This feature allows you to use your personal Google AI Gemini API key.
-            For this prototype, the key is stored in Firestore associated with your user ID. In a production system, your key would be sent to a secure backend, encrypted, and stored in a dedicated secret manager (like Google Secret Manager). It would never be directly exposed to the client after submission.
+            Your API key will be sent to our secure backend, encrypted, and stored in Google Secret Manager. It is not stored in your browser or directly in the application database.
             Managing the security and quota of your API key is your responsibility.
-            If no key is provided here, the application will use its default AI configuration.
+            If no key is provided, the application will use its default AI configuration.
           </AlertDescription>
         </Alert>
 
@@ -214,18 +214,19 @@ export default function UserSettingsForm() {
           <Input
             id="geminiApiKey"
             type="password"
-            placeholder={apiKeyStatus === "set" ? "Enter new key to update, or leave blank" : "Enter your Gemini API Key (e.g., AIza...)"}
+            placeholder={apiKeyStatus === "set" ? "Enter new key to update, or leave blank to keep current" : "Enter your Gemini API Key (e.g., AIza...)"}
             value={geminiApiKeyInput}
             onChange={(e) => setGeminiApiKeyInput(e.target.value)}
+            disabled={isProcessing || authInitializationFailed}
           />
           <p className="text-xs text-muted-foreground">
-            Your key will be submitted to our secure backend for storage and use. It will not be stored in your browser.
+            Your key will be submitted to our secure backend.
           </p>
         </div>
       </CardContent>
       <CardFooter className="flex justify-between">
-        <Button onClick={handleSaveSettings} disabled={isSaving || !geminiApiKeyInput.trim()}>
-          {isSaving ? (
+        <Button onClick={handleSaveSettings} disabled={isProcessing || authInitializationFailed || !geminiApiKeyInput.trim()}>
+          {isProcessing && apiKeyStatus !== "set" ? ( // Show spinner only if not already set and processing
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Save className="mr-2 h-4 w-4" />
@@ -233,8 +234,8 @@ export default function UserSettingsForm() {
           {apiKeyStatus === "set" ? "Update API Key" : "Save API Key"}
         </Button>
         {apiKeyStatus === "set" && (
-            <Button onClick={handleRemoveApiKey} variant="destructive" disabled={isSaving}>
-                <XCircle className="mr-2 h-4 w-4" />
+            <Button onClick={handleRemoveApiKey} variant="destructive" disabled={isProcessing || authInitializationFailed}>
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
                 Remove API Key
             </Button>
         )}

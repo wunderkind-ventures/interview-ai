@@ -8,17 +8,19 @@
  * - ClarifyFeedbackOutput - The return type for the clarifyFeedback function.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
 
-const InterviewContextSchema = z.object({
+const InterviewContextSchema = z.object({ // Not exported
   interviewType: z.string(),
   faangLevel: z.string(),
   jobTitle: z.string().optional(),
   interviewFocus: z.string().optional(),
 });
 
-const ClarifyFeedbackInputSchema = z.object({
+const ClarifyFeedbackInputSchema = z.object({ // Not exported
   originalQuestionText: z.string().describe("The original interview question text."),
   userAnswerText: z.string().describe("The user's answer to the original question."),
   feedbackItemText: z.string().describe("The specific piece of feedback (e.g., an area for improvement or a suggestion) that the user wants clarification on."),
@@ -27,16 +29,12 @@ const ClarifyFeedbackInputSchema = z.object({
 });
 export type ClarifyFeedbackInput = z.infer<typeof ClarifyFeedbackInputSchema>;
 
-const ClarifyFeedbackOutputSchema = z.object({
+const ClarifyFeedbackOutputSchema = z.object({ // Not exported
   clarificationText: z.string().describe('A concise and helpful clarification in response to the user\'s request about the specific feedback item.'),
 });
 export type ClarifyFeedbackOutput = z.infer<typeof ClarifyFeedbackOutputSchema>;
 
-export async function clarifyFeedback(input: ClarifyFeedbackInput): Promise<ClarifyFeedbackOutput> {
-  return clarifyFeedbackFlow(input);
-}
-
-const clarifyFeedbackPrompt = ai.definePrompt({
+const clarifyFeedbackPromptObj = globalAi.definePrompt({
   name: 'clarifyFeedbackPrompt',
   input: {schema: ClarifyFeedbackInputSchema},
   output: {schema: ClarifyFeedbackOutputSchema},
@@ -69,17 +67,28 @@ Begin your clarification directly.
 `,
 });
 
-const clarifyFeedbackFlow = ai.defineFlow(
-  {
-    name: 'clarifyFeedbackFlow',
-    inputSchema: ClarifyFeedbackInputSchema,
-    outputSchema: ClarifyFeedbackOutputSchema,
-  },
-  async (input) => {
-    const {output} = await clarifyFeedbackPrompt(input);
-    if (!output || !output.clarificationText) {
-        return { clarificationText: "Sorry, I couldn't generate a clarification for that at the moment. Please try rephrasing your request or ensure all context is clear." };
+export async function clarifyFeedback(
+  input: ClarifyFeedbackInput,
+  options?: { apiKey?: string }
+): Promise<ClarifyFeedbackOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log("[BYOK] clarifyFeedback: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] clarifyFeedback: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
-    return output;
+  } else {
+    console.log("[BYOK] clarifyFeedback: No user API key provided; using default global AI instance.");
   }
-);
+
+  const {output} = await activeAI.run(clarifyFeedbackPromptObj, input);
+  if (!output || !output.clarificationText) {
+      return { clarificationText: "Sorry, I couldn't generate a clarification for that at the moment. Please try rephrasing your request or ensure all context is clear." };
+  }
+  return output;
+}

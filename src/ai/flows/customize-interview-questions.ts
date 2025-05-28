@@ -11,30 +11,21 @@
  * - CustomizeInterviewQuestionsOutput - The return type for the orchestrator.
  */
 
-import { genkit, ZodError, z } from 'genkit';
+import { genkit, z } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
-import { ai as globalAI } from '@/ai/genkit'; // Use a different name to avoid conflict
-import { getFirestore, doc, getDoc } from "firebase/firestore";
-import { useAuth } from '@/contexts/auth-context'; // Cannot be used in server-side flows directly
+import { ai as globalAI } from '@/ai/genkit'; 
 
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool';
 
-import { generateTakeHomeAssignment } from './generate-take-home-assignment';
-import type { GenerateTakeHomeAssignmentInput } from './generate-take-home-assignment';
+import { generateTakeHomeAssignment, type GenerateTakeHomeAssignmentInput } from './generate-take-home-assignment';
+import { generateInitialCaseSetup, type GenerateInitialCaseSetupInput, type GenerateInitialCaseSetupOutput } from './generate-case-study-questions';
 
-import { generateInitialCaseSetup } from './generate-case-study-questions';
-import type { GenerateInitialCaseSetupInput, GenerateInitialCaseSetupOutput } from './generate-case-study-questions';
-
-import { CustomizeInterviewQuestionsInputSchema as BaseCustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput as BaseCustomizeInterviewQuestionsInput } from '../schemas';
+import { CustomizeInterviewQuestionsInputSchema as BaseCustomizeInterviewQuestionsInputSchema } from '../schemas';
 
 // This schema is for the client-side call to this orchestrator.
-// It no longer includes userApiKey as client won't send it directly.
-const OrchestratorInputSchema = BaseCustomizeInterviewQuestionsInputSchema.extend({
-    userId: z.string().optional().describe("ID of the authenticated user, if available. Used by backend to fetch user's API key."),
-});
-export type CustomizeInterviewQuestionsInput = z.infer<typeof OrchestratorInputSchema>;
+export type CustomizeInterviewQuestionsInput = z.infer<typeof BaseCustomizeInterviewQuestionsInputSchema>;
 
 
 // Output schema for individual questions from ANY generation path
@@ -48,7 +39,7 @@ const OrchestratorQuestionOutputSchema = z.object({
 });
 
 // This schema is for the final output of the orchestrator
-const CustomizeInterviewQuestionsOutputSchema = z.object({
+const CustomizeInterviewQuestionsOutputSchema = z.object({ // Not exported as per 'use server'
   customizedQuestions: z
     .array(OrchestratorQuestionOutputSchema)
     .describe('An array of customized interview questions/assignments. For case studies, this will contain only the first question along with context for dynamic follow-ups.'),
@@ -58,11 +49,11 @@ export type CustomizeInterviewQuestionsOutput = z.infer<typeof CustomizeIntervie
 
 // Main exported orchestrator function
 export async function customizeInterviewQuestions(
-  input: CustomizeInterviewQuestionsInput // This is OrchestratorInputSchema
+  input: CustomizeInterviewQuestionsInput,
+  options?: { apiKey?: string } // Added options for API key
 ): Promise<CustomizeInterviewQuestionsOutput> {
 
-  // Ensure optional string fields are defaulted to empty strings, and arrays to empty arrays
-  const saneInput = {
+  const saneInput: CustomizeInterviewQuestionsInput = {
     ...input,
     jobTitle: input.jobTitle || "",
     jobDescription: input.jobDescription || "",
@@ -71,70 +62,30 @@ export async function customizeInterviewQuestions(
     targetCompany: input.targetCompany || "",
     interviewFocus: input.interviewFocus || "",
     interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-    // caseStudyNotes will be handled by the specific flow if needed
   };
 
-  let userApiKey: string | undefined = undefined;
-
-  // PROTOTYPING HACK for BYOK:
-  // In a production system, this flow would be called by YOUR trusted backend,
-  // which would have securely retrieved the user's API key from a vault (e.g., Google Secret Manager)
-  // and then either:
-  // 1. Passed the key to this flow.
-  // 2. Or, your backend would instantiate Genkit with the user's key and then call a version of this flow
-  //    that doesn't even know about API keys but just uses the Genkit instance it was given.
-  //
-  // For this Firebase Studio prototype, if a userId is passed, we attempt to fetch the key from Firestore.
-  // This is NOT secure for production API keys as Firestore is directly accessible by client rules
-  // for this specific path if not locked down further, and storing keys directly in user-accessible
-  // database records is bad practice. This is only to make the BYOK prototype testable.
-  if (saneInput.userId) {
-    try {
-      console.log(`[BYOK Prototype] Orchestrator received userId: ${saneInput.userId}. Attempting to fetch API key from Firestore for prototype.`);
-      const db = getFirestore(); // Assuming Firebase app is initialized globally
-      const settingsDocRef = doc(db, "users", saneInput.userId, "userSettings", "appSecrets");
-      const docSnap = await getDoc(settingsDocRef);
-      if (docSnap.exists()) {
-        const secrets = docSnap.data();
-        if (secrets?.geminiApiKey) {
-          userApiKey = secrets.geminiApiKey;
-          console.log("[BYOK Prototype] User-specific API key fetched from Firestore and will be used.");
-        } else {
-          console.log("[BYOK Prototype] No API key found in user settings in Firestore.");
-        }
-      } else {
-        console.log("[BYOK Prototype] No user settings document found in Firestore for API key.");
-      }
-    } catch (e) {
-      console.warn(`[BYOK Prototype] Error fetching user API key from Firestore: ${(e as Error).message}. Falling back to default key.`);
-    }
-  }
-  // END OF PROTOTYPING HACK
-
   let currentAI = globalAI; // Default to global AI instance
-  if (userApiKey) {
+
+  if (options?.apiKey) {
     try {
-      console.log("[BYOK Prototype] Using user-provided API key for customizeInterviewQuestions.");
+      console.log("[BYOK] Orchestrator: Using user-provided API key for AI operations.");
       currentAI = genkit({
-        plugins: [googleAI({ apiKey: userApiKey })],
-        model: globalAI.getModel().name, 
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAI.getModel().name, // Use the same model as the global config
       });
     } catch (e) {
-      console.warn(`[BYOK Prototype] Failed to initialize Genkit with user-provided API key: ${(e as Error).message}. Falling back to default key.`);
+      console.warn(`[BYOK] Orchestrator: Failed to initialize Genkit with user-provided API key: ${(e as Error).message}. Falling back to default key.`);
+      // currentAI remains globalAI
     }
   } else {
-    console.log("[BYOK Prototype] No user API key provided or fetched; using default global AI instance.");
+    console.log("[BYOK] Orchestrator: No user API key provided; using default global AI instance for customizeInterviewQuestions.");
   }
 
-
   if (saneInput.interviewStyle === 'take-home') {
-    // Pass the base input (without userId) and the potentially user-specific AI instance
-    const takeHomeInput: GenerateTakeHomeAssignmentInput = {
-      ...saneInput, // Spreading saneInput which includes everything except userId directly for the sub-flow
-      // userApiKey is not directly passed; the currentAI instance handles it
-    };
+    const takeHomeInput: GenerateTakeHomeAssignmentInput = saneInput;
     try {
-      const takeHomeOutput = await generateTakeHomeAssignment(takeHomeInput, currentAI); // Pass currentAI
+      // Pass the potentially user-specific AI instance and API key to the specialized flow
+      const takeHomeOutput = await generateTakeHomeAssignment(takeHomeInput, { aiInstance: currentAI, apiKey: options?.apiKey });
       return {
         customizedQuestions: [{
           questionText: takeHomeOutput.assignmentText,
@@ -148,7 +99,8 @@ export async function customizeInterviewQuestions(
     }
   } else if (saneInput.interviewStyle === 'case-study') {
     try {
-        const initialCaseOutput: GenerateInitialCaseSetupOutput = await generateInitialCaseSetup(saneInput, currentAI); // Pass currentAI
+        // Pass the potentially user-specific AI instance and API key
+        const initialCaseOutput: GenerateInitialCaseSetupOutput = await generateInitialCaseSetup(saneInput, { aiInstance: currentAI, apiKey: options?.apiKey });
         return {
           customizedQuestions: [{
             questionText: initialCaseOutput.firstQuestionToAsk,
@@ -188,7 +140,6 @@ const SimpleQAPromptInputSchema = BaseCustomizeInterviewQuestionsInputSchema.ext
     isDSA: z.boolean(),
     isAmazonTarget: z.boolean(),
     isGeneralInterviewType: z.boolean(),
-    // No userApiKey here, as the 'currentAI' instance is passed directly
 });
 type SimpleQAPromptInput = z.infer<typeof SimpleQAPromptInputSchema>;
 
@@ -196,7 +147,7 @@ type SimpleQAPromptInput = z.infer<typeof SimpleQAPromptInputSchema>;
 // Schema for the output of the Simple Q&A specialist flow
 const SimpleQAQuestionsOutputSchema = z.object({
   customizedQuestions: z.array(
-    OrchestratorQuestionOutputSchema // Use the same single question output schema
+    OrchestratorQuestionOutputSchema 
   ).describe('An array of 5-10 customized Q&A questions (or 2-3 for Amazon behavioral), each with text and ideal answer characteristics.'),
 });
 
@@ -231,7 +182,7 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
 - You are creating questions for a mock interview, designed to help candidates prepare effectively.
 - Ensure every question directly reflects the provided inputs.
 - For L4+ roles, AVOID asking questions that can be answered with a simple 'yes' or 'no'. FOCUS on questions that elicit problem-solving approaches and trade-off discussions.
-- Before finalizing the question(s), briefly consider the key characteristics or elements a strong answer would demonstrate (e.g., clear problem definition for Product Sense; robustness, scalability for System Design). This internal reflection will help ensure the question is well-posed. You must output these characteristics.
+- **Output Requirement - Ideal Answer Characteristics:** For each question, you MUST provide a brief list (2-4 bullet points) of 'idealAnswerCharacteristics'. These are key elements a strong answer to THAT SPECIFIC question would exhibit.
 
 **Input Utilization & Context:**
 - **Job Title & Description:** Use 'jobTitle' and 'jobDescription' (if provided) to deeply tailor the questions. The technical depth required should be directly influenced by these.
@@ -251,7 +202,6 @@ DO NOT attempt to generate 'take-home' assignments or 'case-study' questions; th
 4.  **Skill Assessment:** Design questions to effectively evaluate 'targetedSkills' or core competencies. 'interviewFocus' should be a primary theme.
 5.  **Open-Ended (Crucial for L4+):** Questions should encourage detailed, reasoned responses.
 6.  **Technology Context (Tool Usage):** If technologies are crucial, you may use the \`getTechnologyBriefTool\`. Integrate insights to make questions more specific.
-7.  **Output Requirement - Ideal Answer Characteristics:** For each question, you MUST provide a brief list (2-4 bullet points) of 'idealAnswerCharacteristics'. These are key elements a strong answer to THAT SPECIFIC question would exhibit.
 
 **Input Context to Consider:**
 {{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
@@ -331,7 +281,7 @@ Output a JSON object with a 'customizedQuestions' key. This key holds an array o
   customize: (promptDef, callInput: SimpleQAPromptInput) => {
     let promptText = promptDef.prompt!;
     if (callInput.isBehavioral && callInput.isAmazonTarget) {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
+      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\\n');
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
     } else {
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company or interview type.');
@@ -345,20 +295,21 @@ Output a JSON object with a 'customizedQuestions' key. This key holds an array o
 
 // This flow is now specialized for Simple Q&A
 async function customizeSimpleQAInterviewQuestionsFlow(
-  baseInput: BaseCustomizeInterviewQuestionsInput, // Accepts the base input type
+  baseInput: BaseCustomizeInterviewQuestionsInput, 
   aiInstance: any 
 ): Promise<z.infer<typeof SimpleQAQuestionsOutputSchema>> {
      if (baseInput.interviewStyle !== 'simple-qa') {
-        return { customizedQuestions: [{ questionText: `This flow is for 'simple-qa' only. Style '${baseInput.interviewStyle}' should be handled by a specialist.`, idealAnswerCharacteristics: [] }] };
+        // This flow should only be called by the orchestrator for 'simple-qa'
+        console.warn(`[BYOK] customizeSimpleQAInterviewQuestionsFlow called with incorrect style: ${baseInput.interviewStyle}. This indicates an orchestrator logic issue.`);
+        return { customizedQuestions: [{ questionText: `Error: This flow is for 'simple-qa' only. Received '${baseInput.interviewStyle}'.`, idealAnswerCharacteristics: [] }] };
     }
 
     const promptInput: SimpleQAPromptInput = {
-        ...baseInput, // Spread the base input
+        ...baseInput, 
         interviewType: baseInput.interviewType, 
         interviewStyle: baseInput.interviewStyle, 
         faangLevel: baseInput.faangLevel, 
         interviewerPersona: baseInput.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-        // Compute boolean flags
         isBehavioral: baseInput.interviewType === 'behavioral',
         isProductSense: baseInput.interviewType === 'product sense',
         isTechnicalSystemDesign: baseInput.interviewType === 'technical system design',
@@ -396,6 +347,5 @@ async function customizeSimpleQAInterviewQuestionsFlow(
     return { customizedQuestions: compliantOutput };
   }
 
-
-// Export the main orchestrator type
+// Export the main orchestrator type for potential external use if needed, though it's primarily for internal routing now.
 export type { CustomizeInterviewQuestionsInput as CustomizeInterviewQuestionsOrchestratorInput, CustomizeInterviewQuestionsOutput as CustomizeInterviewQuestionsOrchestratorOutput };

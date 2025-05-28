@@ -8,7 +8,9 @@
  * - AnalyzeResumeStandaloneOutput - Output type for the flow.
  */
 
-import { ai } from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const AnalyzeResumeStandaloneInputSchema = z.object({
@@ -26,13 +28,7 @@ const AnalyzeResumeStandaloneOutputSchema = z.object({
 });
 export type AnalyzeResumeStandaloneOutput = z.infer<typeof AnalyzeResumeStandaloneOutputSchema>;
 
-export async function analyzeResumeStandalone(
-  input: AnalyzeResumeStandaloneInput
-): Promise<AnalyzeResumeStandaloneOutput> {
-  return analyzeResumeStandaloneFlow(input);
-}
-
-const prompt = ai.definePrompt({
+const analyzeResumeStandalonePromptObj = globalAi.definePrompt({
   name: 'analyzeResumeStandalonePrompt',
   input: { schema: AnalyzeResumeStandaloneInputSchema },
   output: { schema: AnalyzeResumeStandaloneOutputSchema },
@@ -55,30 +51,40 @@ Focus on content, structure, and impact. Avoid commenting on minor typos unless 
 `,
 });
 
-const analyzeResumeStandaloneFlow = ai.defineFlow(
-  {
-    name: 'analyzeResumeStandaloneFlow',
-    inputSchema: AnalyzeResumeStandaloneInputSchema,
-    outputSchema: AnalyzeResumeStandaloneOutputSchema,
-  },
-  async (input: AnalyzeResumeStandaloneInput) => {
+export async function analyzeResumeStandalone(
+  input: AnalyzeResumeStandaloneInput,
+  options?: { apiKey?: string }
+): Promise<AnalyzeResumeStandaloneOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
     try {
-      const { output } = await prompt(input);
-      if (!output) {
-        throw new Error('AI did not return resume analysis.');
-      }
-      return output;
-    } catch (error) {
-      console.error("Error in analyzeResumeStandaloneFlow:", error);
-      // Provide a structured fallback error response
-      return {
-        strengths: ["Error: Could not analyze strengths."],
-        areasForImprovement: ["Error: Could not analyze areas for improvement."],
-        clarityScore: 1,
-        impactScore: 1,
-        overallFeedback: "An error occurred while analyzing the resume. Please try again. If the problem persists, the resume text might be too complex or the AI model is temporarily unavailable.",
-        actionableSuggestions: ["Error: Could not generate suggestions."],
-      };
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log("[BYOK] analyzeResumeStandalone: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] analyzeResumeStandalone: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
+  } else {
+    console.log("[BYOK] analyzeResumeStandalone: No user API key provided; using default global AI instance.");
   }
-);
+
+  try {
+    const { output } = await activeAI.run(analyzeResumeStandalonePromptObj, input);
+    if (!output) {
+      throw new Error('AI did not return resume analysis.');
+    }
+    return output;
+  } catch (error) {
+    console.error("Error in analyzeResumeStandaloneFlow:", error);
+    return {
+      strengths: ["Error: Could not analyze strengths."],
+      areasForImprovement: ["Error: Could not analyze areas for improvement."],
+      clarityScore: 1,
+      impactScore: 1,
+      overallFeedback: "An error occurred while analyzing the resume. Please try again. If the problem persists, the resume text might be too complex or the AI model is temporarily unavailable.",
+      actionableSuggestions: ["Error: Could not generate suggestions."],
+    };
+  }
+}

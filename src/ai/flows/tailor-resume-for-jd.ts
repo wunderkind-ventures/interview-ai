@@ -8,7 +8,9 @@
  * - TailorResumeForJDOutput - Output type for the flow.
  */
 
-import { ai } from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const TailorResumeForJDInputSchema = z.object({
@@ -26,13 +28,7 @@ const TailorResumeForJDOutputSchema = z.object({
 });
 export type TailorResumeForJDOutput = z.infer<typeof TailorResumeForJDOutputSchema>;
 
-export async function tailorResumeForJD(
-  input: TailorResumeForJDInput
-): Promise<TailorResumeForJDOutput> {
-  return tailorResumeForJDFlow(input);
-}
-
-const prompt = ai.definePrompt({
+const tailorResumeForJDPromptObj = globalAi.definePrompt({
   name: 'tailorResumeForJDPrompt',
   input: { schema: TailorResumeForJDInputSchema },
   output: { schema: TailorResumeForJDOutputSchema },
@@ -59,28 +55,39 @@ Focus on providing practical, targeted advice. Avoid generic suggestions.
 `,
 });
 
-const tailorResumeForJDFlow = ai.defineFlow(
-  {
-    name: 'tailorResumeForJDFlow',
-    inputSchema: TailorResumeForJDInputSchema,
-    outputSchema: TailorResumeForJDOutputSchema,
-  },
-  async (input: TailorResumeForJDInput) => {
+export async function tailorResumeForJD(
+  input: TailorResumeForJDInput,
+  options?: { apiKey?: string }
+): Promise<TailorResumeForJDOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
     try {
-      const { output } = await prompt(input);
-      if (!output) {
-        throw new Error('AI did not return resume tailoring suggestions.');
-      }
-      return output;
-    } catch (error) {
-      console.error("Error in tailorResumeForJDFlow:", error);
-      return {
-        keywordsFromJD: ["Error: Could not extract keywords."],
-        missingKeywordsInResume: ["Error: Could not analyze missing keywords."],
-        relevantExperiencesToHighlight: ["Error: Could not identify experiences."],
-        suggestionsForTailoring: ["Error: Could not generate tailoring suggestions."],
-        overallFitAssessment: "An error occurred while generating resume tailoring advice. Please try again. Ensure both resume and job description are sufficiently detailed.",
-      };
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log("[BYOK] tailorResumeForJD: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] tailorResumeForJD: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
+  } else {
+    console.log("[BYOK] tailorResumeForJD: No user API key provided; using default global AI instance.");
   }
-);
+  
+  try {
+    const { output } = await activeAI.run(tailorResumeForJDPromptObj, input);
+    if (!output) {
+      throw new Error('AI did not return resume tailoring suggestions.');
+    }
+    return output;
+  } catch (error) {
+    console.error("Error in tailorResumeForJDFlow:", error);
+    return {
+      keywordsFromJD: ["Error: Could not extract keywords."],
+      missingKeywordsInResume: ["Error: Could not analyze missing keywords."],
+      relevantExperiencesToHighlight: ["Error: Could not identify experiences."],
+      suggestionsForTailoring: ["Error: Could not generate tailoring suggestions."],
+      overallFitAssessment: "An error occurred while generating resume tailoring advice. Please try again. Ensure both resume and job description are sufficiently detailed.",
+    };
+  }
+}

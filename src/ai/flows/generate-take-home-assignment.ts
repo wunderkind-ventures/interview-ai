@@ -8,46 +8,36 @@
  * - GenerateTakeHomeAssignmentOutput - The return type containing the assignment text.
  */
 
-import {ai as globalAI} from '@/ai/genkit'; // Use globalAI for defining prompt
-import {z} from 'genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAI } from '@/ai/genkit';
+import { z } from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; 
-import type { CustomizeInterviewQuestionsInput as BaseFlowInputType } from '../schemas'; // Use the base schema type from orchestrator
+import type { CustomizeInterviewQuestionsInput as BaseFlowInputType } from '../schemas';
 
-// Input schema for the flow - this is what this specific flow expects.
-// It should be compatible with what the orchestrator passes.
-const GenerateTakeHomeAssignmentInputSchema = BaseFlowInputType; // For this flow, input is largely the same as orchestrator's base
+const GenerateTakeHomeAssignmentInputSchema = BaseFlowInputType;
 export type GenerateTakeHomeAssignmentInput = z.infer<
   typeof GenerateTakeHomeAssignmentInputSchema
 >;
 
-// Output schema for the flow
 const GenerateTakeHomeAssignmentOutputSchema = z.object({
   assignmentText: z
     .string()
     .describe('The full text of the generated take-home assignment, formatted with Markdown-like headings.'),
   idealSubmissionCharacteristics: z.array(z.string()).optional().describe("Key characteristics or elements a strong submission for this take-home assignment would demonstrate, considering the problem, deliverables, and FAANG level."),
 });
-
 export type GenerateTakeHomeAssignmentOutput = z.infer<
   typeof GenerateTakeHomeAssignmentOutputSchema
 >;
 
-// Main exported function that calls the flow
-export async function generateTakeHomeAssignment(
-  input: GenerateTakeHomeAssignmentInput,
-  aiInstance: any // Expect an AI instance to be passed
-): Promise<GenerateTakeHomeAssignmentOutput> {
-  return generateTakeHomeAssignmentFlow(input, aiInstance);
-}
-
 // Internal prompt definition
-const prompt = globalAI.definePrompt({ // Use globalAI here for definition
+const promptObj = globalAI.definePrompt({
   name: 'generateTakeHomeAssignmentPrompt',
   tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], 
   input: {
-    schema: GenerateTakeHomeAssignmentInputSchema, // Use the specific input schema for this flow
+    schema: GenerateTakeHomeAssignmentInputSchema,
   },
   output: {
     schema: GenerateTakeHomeAssignmentOutputSchema,
@@ -162,7 +152,7 @@ Output a JSON object with two keys:
   customize: (promptDef, callInput: GenerateTakeHomeAssignmentInput) => {
     let promptText = promptDef.prompt!;
     if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
+      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\\n');
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
     } else {
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
@@ -174,21 +164,37 @@ Output a JSON object with two keys:
   }
 });
 
-// Internal flow definition
-const generateTakeHomeAssignmentFlow = ai.defineFlow(
-  {
-    name: 'generateTakeHomeAssignmentFlow',
-    inputSchema: GenerateTakeHomeAssignmentInputSchema, // Use the specific input schema
-    outputSchema: GenerateTakeHomeAssignmentOutputSchema,
-  },
-  async (input: GenerateTakeHomeAssignmentInput, aiInstance: any): Promise<GenerateTakeHomeAssignmentOutput> => {
+// Main exported function that calls the flow
+export async function generateTakeHomeAssignment(
+  input: GenerateTakeHomeAssignmentInput,
+  options?: { aiInstance?: any, apiKey?: string } // Accept aiInstance or apiKey
+): Promise<GenerateTakeHomeAssignmentOutput> {
+  let activeAI = globalAI;
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+     console.log("[BYOK] generateTakeHomeAssignment: Using provided aiInstance.");
+  } else if (options?.apiKey) {
     try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAI.getModel().name,
+      });
+      console.log("[BYOK] generateTakeHomeAssignment: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] generateTakeHomeAssignment: Failed to initialize with user API key: ${(e as Error).message}. Falling back.`);
+      // activeAI remains globalAI
+    }
+  } else {
+     console.log("[BYOK] generateTakeHomeAssignment: No specific API key or AI instance provided; using default global AI instance.");
+  }
+
+  try {
       const saneInput: GenerateTakeHomeAssignmentInput = {
         ...input,
         interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
       };
-      // Use the passed AI instance for the prompt call
-      const {output} = await aiInstance.run(prompt, saneInput);
+      
+      const {output} = await activeAI.run(promptObj, saneInput);
 
       if (!output || !output.assignmentText || !output.idealSubmissionCharacteristics || output.idealSubmissionCharacteristics.length === 0) {
         const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
@@ -256,5 +262,4 @@ Please try configuring your interview again. If the problem persists, the AI mod
             idealSubmissionCharacteristics: errorCharacteristics
         };
     }
-  }
-);
+}

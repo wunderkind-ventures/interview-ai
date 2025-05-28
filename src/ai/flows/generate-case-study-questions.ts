@@ -9,14 +9,15 @@
  * - GenerateInitialCaseSetupInput - Input type.
  * - GenerateInitialCaseSetupOutput - Output type for the initial case setup.
  */
-
-import {ai as globalAI} from '@/ai/genkit'; // Use globalAI for defining prompt
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAI } from '@/ai/genkit';
 import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; 
-import { CustomizeInterviewQuestionsInputSchema as BaseFlowInputSchema } from '../schemas'; // Use the base schema for input
-export type GenerateInitialCaseSetupInput = z.infer<typeof BaseFlowInputSchema>;
+import { CustomizeInterviewQuestionsInputSchema } from '../schemas'; 
+export type GenerateInitialCaseSetupInput = z.infer<typeof CustomizeInterviewQuestionsInputSchema>;
 
 const GenerateInitialCaseSetupOutputSchema = z.object({
   caseTitle: z.string().describe("A concise, engaging title for the case study (e.g., 'The Profile Gate Challenge', 'Revitalizing a Legacy System')."),
@@ -34,24 +35,15 @@ const GenerateInitialCaseSetupOutputSchema = z.object({
     .string()
     .describe('Concise internal notes, keywords, or key aspects of the case scenario. This will be passed to a subsequent AI flow that generates dynamic follow-up questions, helping it stay on topic and probe relevant areas.'),
 });
-
 export type GenerateInitialCaseSetupOutput = z.infer<
   typeof GenerateInitialCaseSetupOutputSchema
 >;
 
-// Exported function to be called by the orchestrator
-export async function generateInitialCaseSetup(
-  input: GenerateInitialCaseSetupInput,
-  aiInstance: any // Expect an AI instance to be passed
-): Promise<GenerateInitialCaseSetupOutput> {
-  return generateInitialCaseSetupFlow(input, aiInstance);
-}
-
-const initialCaseSetupPrompt = globalAI.definePrompt({ // Use globalAI here for definition
+const initialCaseSetupPromptObj = globalAI.definePrompt({ 
   name: 'generateInitialCaseSetupPrompt',
   tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], 
   input: {
-    schema: BaseFlowInputSchema, // Use the base schema
+    schema: CustomizeInterviewQuestionsInputSchema, 
   },
   output: {
     schema: GenerateInitialCaseSetupOutputSchema,
@@ -131,7 +123,7 @@ Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema.
   customize: (promptDef, callInput: GenerateInitialCaseSetupInput) => {
     let promptText = promptDef.prompt!;
     if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
+      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\\n');
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
     } else {
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
@@ -143,57 +135,72 @@ Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema.
   }
 });
 
-const generateInitialCaseSetupFlow = ai.defineFlow(
-  {
-    name: 'generateInitialCaseSetupFlow',
-    inputSchema: BaseFlowInputSchema, // Use the base schema
-    outputSchema: GenerateInitialCaseSetupOutputSchema,
-  },
-  async (input: GenerateInitialCaseSetupInput, aiInstance: any): Promise<GenerateInitialCaseSetupOutput> => {
+export async function generateInitialCaseSetup(
+  input: GenerateInitialCaseSetupInput,
+  options?: { aiInstance?: any, apiKey?: string } 
+): Promise<GenerateInitialCaseSetupOutput> {
+  let activeAI = globalAI;
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+    console.log("[BYOK] generateInitialCaseSetup: Using provided aiInstance.");
+  } else if (options?.apiKey) {
     try {
-        const saneInput: GenerateInitialCaseSetupInput = {
-          ...input,
-          interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-        };
-        // Use the passed AI instance for the prompt call
-        const {output} = await aiInstance.run(initialCaseSetupPrompt, saneInput);
-        
-        if (!output || !output.fullScenarioDescription || !output.firstQuestionToAsk || !output.caseTitle || !output.internalNotesForFollowUpGenerator) {
-            console.warn(`AI Initial Case Setup Fallback Triggered. Input: ${JSON.stringify(saneInput)}`);
-            const scenarioType = saneInput.interviewType === "technical system design" ? "system design challenge" :
-                                 saneInput.interviewType === "machine learning" ? "ML problem" :
-                                 saneInput.interviewType === "data structures & algorithms" ? "algorithmic design task" :
-                                 "product strategy scenario";
-            const fallbackTitle = `${saneInput.interviewFocus || scenarioType} Setup (${saneInput.faangLevel})`;
-            const fallbackDescription = `You are tasked with addressing a significant ${scenarioType} for a ${saneInput.jobTitle || 'relevant role'} at ${saneInput.targetCompany || 'a leading tech firm'}, focusing on "${saneInput.interviewFocus || saneInput.interviewType}". The complexity is aligned with a ${saneInput.faangLevel || 'senior'} level. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${saneInput.faangLevel} expectations for this domain].`;
-            const fallbackFirstQuestion = "Given this situation, what are your initial thoughts, and what clarifying questions would you ask to better understand the problem space and constraints?";
-            const fallbackIdealChars = ["Problem framing and clarification", "Identification of key ambiguities", "Structured approach to information gathering"];
-            const fallbackInternalNotes = `Fallback Case. Focus: ${saneInput.interviewFocus || scenarioType}. Level: ${saneInput.faangLevel}. Key areas: problem definition, initial strategy, constraints. Persona: ${saneInput.interviewerPersona}`;
-
-            return {
-                caseTitle: fallbackTitle,
-                fullScenarioDescription: fallbackDescription,
-                firstQuestionToAsk: fallbackFirstQuestion,
-                idealAnswerCharacteristicsForFirstQuestion: fallbackIdealChars,
-                internalNotesForFollowUpGenerator: fallbackInternalNotes,
-            };
-        }
-        return output;
-    } catch (error) {
-        const errMessage = error instanceof Error ? error.message : 'Unknown error during initial case setup generation.';
-        console.error(`Error in generateInitialCaseSetupFlow (input: ${JSON.stringify(input)}):`, error);
-        const fallbackTitle = `Error: ${input.interviewFocus || input.interviewType} Setup (${input.faangLevel})`;
-        const fallbackDescription = `Error generating initial case setup for ${input.jobTitle || 'role'} on ${input.interviewFocus || input.interviewType}. The AI model might be temporarily unavailable or the prompt requires adjustment. Error: ${errMessage}`;
-        const fallbackFirstQuestion = "An error occurred generating the first question. Please try again later or reconfigure your interview.";
-        const fallbackIdealChars = ["Report error."];
-        const fallbackInternalNotes = `Error in generation. Input: ${JSON.stringify(input)}. Error: ${errMessage}`;
-        return {
-            caseTitle: fallbackTitle,
-            fullScenarioDescription: fallbackDescription,
-            firstQuestionToAsk: fallbackFirstQuestion,
-            idealAnswerCharacteristicsForFirstQuestion: fallbackIdealChars,
-            internalNotesForFollowUpGenerator: fallbackInternalNotes,
-        };
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAI.getModel().name,
+      });
+      console.log("[BYOK] generateInitialCaseSetup: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] generateInitialCaseSetup: Failed to initialize with user API key: ${(e as Error).message}. Falling back.`);
+      // activeAI remains globalAI
     }
+  } else {
+    console.log("[BYOK] generateInitialCaseSetup: No specific API key or AI instance provided; using default global AI instance.");
   }
-);
+  
+  try {
+      const saneInput: GenerateInitialCaseSetupInput = {
+        ...input,
+        interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+      };
+      
+      const {output} = await activeAI.run(initialCaseSetupPromptObj, saneInput);
+      
+      if (!output || !output.fullScenarioDescription || !output.firstQuestionToAsk || !output.caseTitle || !output.internalNotesForFollowUpGenerator) {
+          console.warn(`AI Initial Case Setup Fallback Triggered. Input: ${JSON.stringify(saneInput)}`);
+          const scenarioType = saneInput.interviewType === "technical system design" ? "system design challenge" :
+                               saneInput.interviewType === "machine learning" ? "ML problem" :
+                               saneInput.interviewType === "data structures & algorithms" ? "algorithmic design task" :
+                               "product strategy scenario";
+          const fallbackTitle = `${saneInput.interviewFocus || scenarioType} Setup (${saneInput.faangLevel})`;
+          const fallbackDescription = `You are tasked with addressing a significant ${scenarioType} for a ${saneInput.jobTitle || 'relevant role'} at ${saneInput.targetCompany || 'a leading tech firm'}, focusing on "${saneInput.interviewFocus || saneInput.interviewType}". The complexity is aligned with a ${saneInput.faangLevel || 'senior'} level. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${saneInput.faangLevel} expectations for this domain].`;
+          const fallbackFirstQuestion = "Given this situation, what are your initial thoughts, and what clarifying questions would you ask to better understand the problem space and constraints?";
+          const fallbackIdealChars = ["Problem framing and clarification", "Identification of key ambiguities", "Structured approach to information gathering"];
+          const fallbackInternalNotes = `Fallback Case. Focus: ${saneInput.interviewFocus || scenarioType}. Level: ${saneInput.faangLevel}. Key areas: problem definition, initial strategy, constraints. Persona: ${saneInput.interviewerPersona}`;
+
+          return {
+              caseTitle: fallbackTitle,
+              fullScenarioDescription: fallbackDescription,
+              firstQuestionToAsk: fallbackFirstQuestion,
+              idealAnswerCharacteristicsForFirstQuestion: fallbackIdealChars,
+              internalNotesForFollowUpGenerator: fallbackInternalNotes,
+          };
+      }
+      return output;
+  } catch (error) {
+      const errMessage = error instanceof Error ? error.message : 'Unknown error during initial case setup generation.';
+      console.error(`Error in generateInitialCaseSetupFlow (input: ${JSON.stringify(input)}):`, error);
+      const fallbackTitle = `Error: ${input.interviewFocus || input.interviewType} Setup (${input.faangLevel})`;
+      const fallbackDescription = `Error generating initial case setup for ${input.jobTitle || 'role'} on ${input.interviewFocus || input.interviewType}. The AI model might be temporarily unavailable or the prompt requires adjustment. Error: ${errMessage}`;
+      const fallbackFirstQuestion = "An error occurred generating the first question. Please try again later or reconfigure your interview.";
+      const fallbackIdealChars = ["Report error."];
+      const fallbackInternalNotes = `Error in generation. Input: ${JSON.stringify(input)}. Error: ${errMessage}`;
+      return {
+          caseTitle: fallbackTitle,
+          fullScenarioDescription: fallbackDescription,
+          firstQuestionToAsk: fallbackFirstQuestion,
+          idealAnswerCharacteristicsForFirstQuestion: fallbackIdealChars,
+          internalNotesForFollowUpGenerator: fallbackInternalNotes,
+      };
+  }
+}

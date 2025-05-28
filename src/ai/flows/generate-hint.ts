@@ -8,7 +8,9 @@
  * - GenerateHintOutput - The return type for the generateHint function.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateHintInputSchema = z.object({
@@ -26,11 +28,7 @@ const GenerateHintOutputSchema = z.object({
 });
 export type GenerateHintOutput = z.infer<typeof GenerateHintOutputSchema>;
 
-export async function generateHint(input: GenerateHintInput): Promise<GenerateHintOutput> {
-  return generateHintFlow(input);
-}
-
-const generateHintPrompt = ai.definePrompt({
+const generateHintPromptObj = globalAi.definePrompt({
   name: 'generateHintPrompt',
   input: {schema: GenerateHintInputSchema},
   output: {schema: GenerateHintOutputSchema},
@@ -64,24 +62,34 @@ Do not provide a direct answer or a solution. The goal is to nudge their thinkin
 `,
 });
 
-const generateHintFlow = ai.defineFlow(
-  {
-    name: 'generateHintFlow',
-    inputSchema: GenerateHintInputSchema,
-    outputSchema: GenerateHintOutputSchema,
-  },
-  async (input) => {
-    const {output} = await generateHintPrompt(input);
-    if (!output || !output.hintText) {
-        // Fallback hint
-        let fallback = "Consider breaking the problem down into smaller pieces. What's the core challenge?";
-        if (input.interviewType === "behavioral") {
-            fallback = "Think about a specific past experience that illustrates this. How can you structure your story clearly?";
-        } else if (input.interviewType === "data structures & algorithms") {
-            fallback = "What are the inputs and expected outputs? Are there any constraints or edge cases to consider first?";
-        }
-        return { hintText: fallback };
+export async function generateHint(
+  input: GenerateHintInput,
+  options?: { apiKey?: string }
+): Promise<GenerateHintOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log("[BYOK] generateHint: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] generateHint: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
-    return output;
+  } else {
+    console.log("[BYOK] generateHint: No user API key provided; using default global AI instance.");
   }
-);
+
+  const {output} = await activeAI.run(generateHintPromptObj, input);
+  if (!output || !output.hintText) {
+      let fallback = "Consider breaking the problem down into smaller pieces. What's the core challenge?";
+      if (input.interviewType === "behavioral") {
+          fallback = "Think about a specific past experience that illustrates this. How can you structure your story clearly?";
+      } else if (input.interviewType === "data structures & algorithms") {
+          fallback = "What are the inputs and expected outputs? Are there any constraints or edge cases to consider first?";
+      }
+      return { hintText: fallback };
+  }
+  return output;
+}

@@ -10,14 +10,17 @@
  * - GenerateInterviewFeedbackOutput - The return type containing feedback items and an overall summary.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { refineInterviewFeedback } from './refine-interview-feedback';
 import type { RefineInterviewFeedbackInput } from './refine-interview-feedback';
-import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema, type GenerateInterviewFeedbackOutput } from '../schemas'; // Import from shared schemas
-import { analyzeTakeHomeSubmission } from './analyze-take-home-submission'; // New import
-import type { AnalyzeTakeHomeSubmissionInput, AnalyzeTakeHomeSubmissionOutput, AnalyzeTakeHomeSubmissionContext } from '@/lib/types'; // Import from lib/types
+import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema } from '../schemas'; 
+import type { GenerateInterviewFeedbackOutput } from '../schemas';
+import { analyzeTakeHomeSubmission } from './analyze-take-home-submission'; 
+import type { AnalyzeTakeHomeSubmissionInput, AnalyzeTakeHomeSubmissionOutput, AnalyzeTakeHomeSubmissionContext } from '@/lib/types'; 
 
 // Input schema for the data needed by the initial prompt template
 const DraftPromptInputSchema = z.object({
@@ -38,16 +41,12 @@ const DraftPromptInputSchema = z.object({
       confidenceScore: z.number().min(1).max(5).optional().describe("User's self-rated confidence (1-5 stars) for their answer."),
     })
   ),
-  // Boolean flags for Handlebars
-  isTakeHomeStyle: z.boolean(), // Will be true if interviewStyle === 'take-home'
-  isSimpleQAOrCaseStudyStyle: z.boolean(), // Will be true if interviewStyle is 'simple-qa' or 'case-study'
-  // For take-home, structuredAnalysis will contain the output from analyzeTakeHomeSubmission
+  isTakeHomeStyle: z.boolean(), 
+  isSimpleQAOrCaseStudyStyle: z.boolean(), 
   structuredTakeHomeAnalysis: z.custom<AnalyzeTakeHomeSubmissionOutput>().optional().describe("Detailed analysis if it's a take-home assignment."),
 });
 
 // Schema for what the AI model is expected to return for each feedback item (draft stage)
-// This schema is now primarily for the "overallSummary" when isTakeHomeStyle is true,
-// as individual feedback items for take-home are derived from structuredTakeHomeAnalysis.
 const AIDraftFeedbackItemSchema = z.object({
   questionId: z
     .string()
@@ -80,7 +79,7 @@ const AIDraftFeedbackItemSchema = z.object({
 
 // Schema for the overall AI model output (draft stage)
 const AIDraftOutputSchema = z.object({
-  feedbackItems: z // For non-take-home, this is an array. For take-home, it's an array with one item derived from analysis.
+  feedbackItems: z 
     .array(AIDraftFeedbackItemSchema)
     .describe('An array of feedback objects, one for each question (or one for a take-home).'),
   overallSummary: z
@@ -91,7 +90,7 @@ const AIDraftOutputSchema = z.object({
 });
 
 // Input schema for the exported flow function
-const GenerateInterviewFeedbackInputSchema = z.object({
+const GenerateInterviewFeedbackInputSchema = z.object({ // Not exported
   questions: z.array(
     z.object({
       id: z.string(),
@@ -123,17 +122,11 @@ const GenerateInterviewFeedbackInputSchema = z.object({
   resume: z.string().optional().describe('The candidate resume, if provided.'),
   interviewFocus: z.string().optional().describe('The specific focus of the interview, if provided.'),
 });
-// Type is exported from ../schemas
-// export type GenerateInterviewFeedbackInput = z.infer<typeof GenerateInterviewFeedbackInputSchema>;
+export type GenerateInterviewFeedbackInput = z.infer<typeof GenerateInterviewFeedbackInputSchema>;
 
 
-export async function generateInterviewFeedback(
-  input: z.infer<typeof GenerateInterviewFeedbackInputSchema> // Use inferred type here for clarity
-): Promise<GenerateInterviewFeedbackOutput> {
-  return generateInterviewFeedbackOrchestrationFlow(input);
-}
-
-const draftPrompt = ai.definePrompt({
+// Define draftPrompt with globalAI
+const draftPromptObj = globalAi.definePrompt({
   name: 'generateDraftInterviewFeedbackPrompt',
   tools: [getTechnologyBriefTool],
   input: {schema: DraftPromptInputSchema},
@@ -243,172 +236,153 @@ Make sure each item in 'feedbackItems' includes the 'questionId' it refers to.
 `,
 });
 
-const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
-  {
-    name: 'generateInterviewFeedbackOrchestrationFlow',
-    inputSchema: GenerateInterviewFeedbackInputSchema,
-    outputSchema: GenerateInterviewFeedbackOutputSchema,
-  },
-  async (input: z.infer<typeof GenerateInterviewFeedbackInputSchema>): Promise<GenerateInterviewFeedbackOutput> => {
-    const isTakeHomeStyle = input.interviewStyle === 'take-home';
-    const isSimpleQAOrCaseStudyStyle = input.interviewStyle === 'simple-qa' || input.interviewStyle === 'case-study';
-
-    let structuredTakeHomeAnalysis: AnalyzeTakeHomeSubmissionOutput | undefined = undefined;
-    let feedbackItemsForDraftPrompt: AIDraftFeedbackItemSchema[] = [];
-
-    const questionsAndAnswersForPrompt = input.questions.map((q, index) => {
-      const answer = input.answers.find(a => a.questionId === q.id);
-      return {
-        questionId: q.id,
-        questionText: q.text,
-        answerText: answer ? answer.answerText : "No answer provided.",
-        timeTakenMs: answer ? answer.timeTakenMs : undefined,
-        indexPlusOne: index + 1,
-        idealAnswerCharacteristics: q.idealAnswerCharacteristics,
-        confidenceScore: answer ? answer.confidenceScore : undefined,
-      };
-    });
-
-    if (isTakeHomeStyle && input.questions.length > 0 && input.answers.length > 0) {
-      const assignment = input.questions[0];
-      const submission = input.answers[0];
-
-      const analysisInput: AnalyzeTakeHomeSubmissionInput = {
-        assignmentText: assignment.text,
-        idealSubmissionCharacteristics: assignment.idealAnswerCharacteristics || [],
-        userSubmissionText: submission.answerText,
-        interviewContext: {
-          interviewType: input.interviewType,
-          faangLevel: input.faangLevel,
-          jobTitle: input.jobTitle,
-          interviewFocus: input.interviewFocus,
-        },
-      };
-      try {
-        structuredTakeHomeAnalysis = await analyzeTakeHomeSubmission(analysisInput);
-        // feedbackItemsForDraftPrompt is not directly built here for take-home;
-        // The draftPrompt itself will be instructed to use structuredTakeHomeAnalysis
-        // to populate the single feedbackItem's fields in its output.
-        // However, we need to provide a shell so AIDraftOutputSchema is met.
-         feedbackItemsForDraftPrompt = [{ // Placeholder structure for the prompt, actual values come from structuredTakeHomeAnalysis in prompt
-            questionId: assignment.id,
-            critique: structuredTakeHomeAnalysis.overallAssessment,
-            strengths: structuredTakeHomeAnalysis.strengthsOfSubmission,
-            areasForImprovement: structuredTakeHomeAnalysis.areasForImprovementInSubmission,
-            specificSuggestions: structuredTakeHomeAnalysis.actionableSuggestionsForRevision,
-            idealAnswerPointers: assignment.idealAnswerCharacteristics, // These are from original assignment design
-            reflectionPrompts: [], // Reflection prompts will be generated by the main draft prompt
-        }];
-
-      } catch (analysisError) {
-        console.error("Error during take-home submission analysis:", analysisError);
-        // Populate with error messages or a generic error structure
-        structuredTakeHomeAnalysis = {
-          overallAssessment: "Error: Could not analyze take-home submission.",
-          strengthsOfSubmission: [],
-          areasForImprovementInSubmission: [],
-          actionableSuggestionsForRevision: [],
-        };
-         feedbackItemsForDraftPrompt = [{
-            questionId: assignment.id,
-            critique: "Error analyzing submission.",
-            strengths: [], areasForImprovement: [], specificSuggestions: [],
-            idealAnswerPointers: assignment.idealAnswerCharacteristics,
-            reflectionPrompts: ["Could not analyze submission fully. Reflect on how your submission aligns with the brief."]
-        }];
-      }
+export async function generateInterviewFeedback(
+  input: z.infer<typeof GenerateInterviewFeedbackInputSchema>,
+  options?: { apiKey?: string }
+): Promise<GenerateInterviewFeedbackOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log("[BYOK] generateInterviewFeedback: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] generateInterviewFeedback: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
+  } else {
+    console.log("[BYOK] generateInterviewFeedback: No user API key provided; using default global AI instance.");
+  }
 
+  const isTakeHomeStyle = input.interviewStyle === 'take-home';
+  const isSimpleQAOrCaseStudyStyle = input.interviewStyle === 'simple-qa' || input.interviewStyle === 'case-study';
 
-    const draftPromptInput: z.infer<typeof DraftPromptInputSchema> = {
-      interviewType: input.interviewType,
-      faangLevel: input.faangLevel,
-      jobTitle: input.jobTitle,
-      jobDescription: input.jobDescription,
-      resume: input.resume,
-      interviewFocus: input.interviewFocus,
-      questionsAndAnswers: questionsAndAnswersForPrompt,
-      isTakeHomeStyle,
-      isSimpleQAOrCaseStudyStyle,
-      structuredTakeHomeAnalysis: isTakeHomeStyle ? structuredTakeHomeAnalysis : undefined,
+  let structuredTakeHomeAnalysis: AnalyzeTakeHomeSubmissionOutput | undefined = undefined;
+  
+  const questionsAndAnswersForPrompt = input.questions.map((q, index) => {
+    const answer = input.answers.find(a => a.questionId === q.id);
+    return {
+      questionId: q.id,
+      questionText: q.text,
+      answerText: answer ? answer.answerText : "No answer provided.",
+      timeTakenMs: answer ? answer.timeTakenMs : undefined,
+      indexPlusOne: index + 1,
+      idealAnswerCharacteristics: q.idealAnswerCharacteristics,
+      confidenceScore: answer ? answer.confidenceScore : undefined,
     };
+  });
 
-    const {output: draftAiOutput} = await draftPrompt(draftPromptInput);
+  if (isTakeHomeStyle && input.questions.length > 0 && input.answers.length > 0) {
+    const assignment = input.questions[0];
+    const submission = input.answers[0];
 
-    if (!draftAiOutput) {
-      throw new Error('AI did not return draft feedback.');
-    }
-
-    // If it was take-home, the draftAiOutput.feedbackItems should ideally have one item
-    // where fields were populated by the draftPrompt based on structuredTakeHomeAnalysis.
-    // We ensure the reflectionPrompts are generated by the draftPrompt itself.
-    let finalDraftFeedbackItems;
-    if (isTakeHomeStyle && structuredTakeHomeAnalysis) {
-        // The draftPrompt is now responsible for creating the reflectionPrompts.
-        // We just need to ensure the draftAiOutput reflects what the prompt was asked to do.
-        // The draftPrompt's output for feedbackItems should already be structured correctly
-        // based on its instructions to copy from structuredTakeHomeAnalysis and add reflection prompts.
-        finalDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
-            const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
-            const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
-            return {
-                questionId: aiItem.questionId,
-                questionText: originalQuestion ? originalQuestion.text : "Assignment Text Not Found.",
-                answerText: originalAnswer ? originalAnswer.answerText : "Submission Not Found.",
-                critique: aiItem.critique || structuredTakeHomeAnalysis!.overallAssessment,
-                strengths: aiItem.strengths && aiItem.strengths.length > 0 ? aiItem.strengths : structuredTakeHomeAnalysis!.strengthsOfSubmission,
-                areasForImprovement: aiItem.areasForImprovement && aiItem.areasForImprovement.length > 0 ? aiItem.areasForImprovement : structuredTakeHomeAnalysis!.areasForImprovementInSubmission,
-                specificSuggestions: aiItem.specificSuggestions && aiItem.specificSuggestions.length > 0 ? aiItem.specificSuggestions : structuredTakeHomeAnalysis!.actionableSuggestionsForRevision,
-                idealAnswerPointers: originalQuestion?.idealAnswerCharacteristics || [],
-                timeTakenMs: originalAnswer?.timeTakenMs,
-                confidenceScore: originalAnswer?.confidenceScore,
-                reflectionPrompts: aiItem.reflectionPrompts || [],
-            };
-        });
-    } else {
-         finalDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
-            const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
-            const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
-            return {
-                questionId: aiItem.questionId,
-                questionText: originalQuestion ? originalQuestion.text : "Question text not found.",
-                answerText: originalAnswer ? originalAnswer.answerText : "Answer text not found.",
-                strengths: aiItem.strengths || [],
-                areasForImprovement: aiItem.areasForImprovement || [],
-                specificSuggestions: aiItem.specificSuggestions || [],
-                critique: aiItem.critique || "",
-                idealAnswerPointers: aiItem.idealAnswerPointers || [],
-                timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
-                confidenceScore: originalAnswer ? originalAnswer.confidenceScore : undefined,
-                reflectionPrompts: aiItem.reflectionPrompts || [],
-            };
-        });
-    }
-
-
-    const draftFeedbackForRefiner: GenerateInterviewFeedbackOutput = {
-        feedbackItems: finalDraftFeedbackItems,
-        overallSummary: draftAiOutput.overallSummary
-    };
-
-    const refineInput: RefineInterviewFeedbackInput = {
-      draftFeedback: draftFeedbackForRefiner,
+    const analysisInput: AnalyzeTakeHomeSubmissionInput = {
+      assignmentText: assignment.text,
+      idealSubmissionCharacteristics: assignment.idealAnswerCharacteristics || [],
+      userSubmissionText: submission.answerText,
       interviewContext: {
         interviewType: input.interviewType,
-        interviewStyle: input.interviewStyle,
         faangLevel: input.faangLevel,
         jobTitle: input.jobTitle,
         interviewFocus: input.interviewFocus,
-        timeWasTracked: input.answers.some(a => a.timeTakenMs !== undefined)
       },
     };
-
-    const refinedOutput = await refineInterviewFeedback(refineInput);
-
-    if (!refinedOutput) {
-        throw new Error('Feedback refinement process failed.');
+    try {
+      // Call analyzeTakeHomeSubmission with the correct AI instance
+      structuredTakeHomeAnalysis = await analyzeTakeHomeSubmission(analysisInput, { aiInstance: activeAI });
+    } catch (analysisError) {
+      console.error("Error during take-home submission analysis:", analysisError);
+      structuredTakeHomeAnalysis = {
+        overallAssessment: "Error: Could not analyze take-home submission.",
+        strengthsOfSubmission: [],
+        areasForImprovementInSubmission: [],
+        actionableSuggestionsForRevision: [],
+      };
     }
-
-    return refinedOutput;
   }
-);
+
+  const draftPromptInput: z.infer<typeof DraftPromptInputSchema> = {
+    interviewType: input.interviewType,
+    faangLevel: input.faangLevel,
+    jobTitle: input.jobTitle,
+    jobDescription: input.jobDescription,
+    resume: input.resume,
+    interviewFocus: input.interviewFocus,
+    questionsAndAnswers: questionsAndAnswersForPrompt,
+    isTakeHomeStyle,
+    isSimpleQAOrCaseStudyStyle,
+    structuredTakeHomeAnalysis: isTakeHomeStyle ? structuredTakeHomeAnalysis : undefined,
+  };
+
+  const {output: draftAiOutput} = await activeAI.run(draftPromptObj, draftPromptInput);
+
+  if (!draftAiOutput) {
+    throw new Error('AI did not return draft feedback.');
+  }
+
+  let finalDraftFeedbackItems;
+  if (isTakeHomeStyle && structuredTakeHomeAnalysis) {
+      finalDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
+          const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
+          const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
+          return {
+              questionId: aiItem.questionId,
+              questionText: originalQuestion ? originalQuestion.text : "Assignment Text Not Found.",
+              answerText: originalAnswer ? originalAnswer.answerText : "Submission Not Found.",
+              critique: aiItem.critique || structuredTakeHomeAnalysis!.overallAssessment,
+              strengths: aiItem.strengths && aiItem.strengths.length > 0 ? aiItem.strengths : structuredTakeHomeAnalysis!.strengthsOfSubmission,
+              areasForImprovement: aiItem.areasForImprovement && aiItem.areasForImprovement.length > 0 ? aiItem.areasForImprovement : structuredTakeHomeAnalysis!.areasForImprovementInSubmission,
+              specificSuggestions: aiItem.specificSuggestions && aiItem.specificSuggestions.length > 0 ? aiItem.specificSuggestions : structuredTakeHomeAnalysis!.actionableSuggestionsForRevision,
+              idealAnswerPointers: originalQuestion?.idealAnswerCharacteristics || [],
+              timeTakenMs: originalAnswer?.timeTakenMs,
+              confidenceScore: originalAnswer?.confidenceScore,
+              reflectionPrompts: aiItem.reflectionPrompts || [],
+          };
+      });
+  } else {
+       finalDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
+          const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
+          const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
+          return {
+              questionId: aiItem.questionId,
+              questionText: originalQuestion ? originalQuestion.text : "Question text not found.",
+              answerText: originalAnswer ? originalAnswer.answerText : "Answer text not found.",
+              strengths: aiItem.strengths || [],
+              areasForImprovement: aiItem.areasForImprovement || [],
+              specificSuggestions: aiItem.specificSuggestions || [],
+              critique: aiItem.critique || "",
+              idealAnswerPointers: aiItem.idealAnswerPointers || [],
+              timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
+              confidenceScore: originalAnswer ? originalAnswer.confidenceScore : undefined,
+              reflectionPrompts: aiItem.reflectionPrompts || [],
+          };
+      });
+  }
+
+  const draftFeedbackForRefiner: GenerateInterviewFeedbackOutput = {
+      feedbackItems: finalDraftFeedbackItems,
+      overallSummary: draftAiOutput.overallSummary
+  };
+
+  const refineInput: RefineInterviewFeedbackInput = {
+    draftFeedback: draftFeedbackForRefiner,
+    interviewContext: {
+      interviewType: input.interviewType,
+      interviewStyle: input.interviewStyle,
+      faangLevel: input.faangLevel,
+      jobTitle: input.jobTitle,
+      interviewFocus: input.interviewFocus,
+      timeWasTracked: input.answers.some(a => a.timeTakenMs !== undefined)
+    },
+  };
+
+  // Call refineInterviewFeedback with the correct AI instance
+  const refinedOutput = await refineInterviewFeedback(refineInput, { aiInstance: activeAI });
+
+  if (!refinedOutput) {
+      throw new Error('Feedback refinement process failed.');
+  }
+
+  return refinedOutput;
+}

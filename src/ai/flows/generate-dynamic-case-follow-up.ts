@@ -10,9 +10,11 @@
  * - GenerateDynamicCaseFollowUpOutput - Output type for this flow.
  */
 
-import {ai as globalAI} from '@/ai/genkit'; // Use globalAI for defining prompt
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAI } from '@/ai/genkit';
 import {z} from 'genkit';
-import type { InterviewSetupData } from '@/lib/types'; // For interviewContext
+import type { InterviewSetupData } from '@/lib/types'; 
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 
 const GenerateDynamicCaseFollowUpInputSchema = z.object({
@@ -34,7 +36,6 @@ const GenerateDynamicCaseFollowUpInputSchema = z.object({
     .number()
     .min(1)
     .describe("The current turn number for follow-up questions (e.g., 1 for the first follow-up, 2 for the second, etc.). Helps in pacing the case."),
-  // No userApiKey here; it's handled by the passed aiInstance
 });
 export type GenerateDynamicCaseFollowUpInput = z.infer<typeof GenerateDynamicCaseFollowUpInputSchema>;
 
@@ -52,16 +53,9 @@ const GenerateDynamicCaseFollowUpOutputSchema = z.object({
 });
 export type GenerateDynamicCaseFollowUpOutput = z.infer<typeof GenerateDynamicCaseFollowUpOutputSchema>;
 
-export async function generateDynamicCaseFollowUp(
-  input: GenerateDynamicCaseFollowUpInput,
-  aiInstance: any // Expect an AI instance
-): Promise<GenerateDynamicCaseFollowUpOutput> {
-  return generateDynamicCaseFollowUpFlow(input, aiInstance);
-}
+const MAX_CASE_FOLLOW_UPS = 4; 
 
-const MAX_CASE_FOLLOW_UPS = 4; // Generate up to 4 follow-ups after the initial question.
-
-const dynamicCaseFollowUpPrompt = globalAI.definePrompt({ // Use globalAI here for definition
+const dynamicCaseFollowUpPromptObj = globalAI.definePrompt({ 
   name: 'generateDynamicCaseFollowUpPrompt',
   input: { schema: GenerateDynamicCaseFollowUpInputSchema },
   output: { schema: GenerateDynamicCaseFollowUpOutputSchema },
@@ -131,7 +125,7 @@ Output a JSON object matching the GenerateDynamicCaseFollowUpOutputSchema.
   customize: (promptDef, callInput: GenerateDynamicCaseFollowUpInput) => {
     let promptText = promptDef.prompt!;
     if (callInput.interviewContext?.targetCompany && callInput.interviewContext.targetCompany.toLowerCase() === 'amazon') {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
+      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\\n');
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
     } else {
       promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
@@ -143,48 +137,63 @@ Output a JSON object matching the GenerateDynamicCaseFollowUpOutputSchema.
   }
 });
 
-const generateDynamicCaseFollowUpFlow = ai.defineFlow(
-  {
-    name: 'generateDynamicCaseFollowUpFlow',
-    inputSchema: GenerateDynamicCaseFollowUpInputSchema,
-    outputSchema: GenerateDynamicCaseFollowUpOutputSchema,
-  },
-  async (input: GenerateDynamicCaseFollowUpInput, aiInstance: any): Promise<GenerateDynamicCaseFollowUpOutput> => {
-    if (input.currentTurnNumber > MAX_CASE_FOLLOW_UPS + 2) { 
-        return {
-            followUpQuestionText: "Thank you, that concludes this case study.",
-            idealAnswerCharacteristicsForFollowUp: [],
-            isLikelyFinalFollowUp: true,
-        };
+export async function generateDynamicCaseFollowUp(
+  input: GenerateDynamicCaseFollowUpInput,
+  options?: { aiInstance?: any, apiKey?: string } 
+): Promise<GenerateDynamicCaseFollowUpOutput> {
+  let activeAI = globalAI;
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+    console.log("[BYOK] generateDynamicCaseFollowUp: Using provided aiInstance.");
+  } else if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAI.getModel().name,
+      });
+      console.log("[BYOK] generateDynamicCaseFollowUp: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] generateDynamicCaseFollowUp: Failed to initialize with user API key: ${(e as Error).message}. Falling back.`);
+      // activeAI remains globalAI
     }
-
-    const saneInput = {
-      ...input,
-      interviewContext: {
-        ...input.interviewContext,
-        interviewerPersona: input.interviewContext.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-      }
-    };
-    // Use the passed AI instance for the prompt call
-    const {output} = await aiInstance.run(dynamicCaseFollowUpPrompt, saneInput);
-
-    if (!output || !output.followUpQuestionText) {
-        let fallbackText = "Could you elaborate on the potential risks of your proposed approach?";
-        if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS) {
-            fallbackText = "Thanks for walking me through your thoughts. What would be your key success metrics for this initiative?";
-        }
-         return {
-            followUpQuestionText: fallbackText,
-            idealAnswerCharacteristicsForFollowUp: ["Identification of 2-3 key risks", "Plausible mitigation strategies for each"],
-            isLikelyFinalFollowUp: input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS,
-        };
-    }
-    
-    let finalOutput = { ...output };
-    if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS && !output.isLikelyFinalFollowUp) {
-        finalOutput.isLikelyFinalFollowUp = true;
-    }
-
-    return finalOutput;
+  } else {
+     console.log("[BYOK] generateDynamicCaseFollowUp: No specific API key or AI instance provided; using default global AI instance.");
   }
-);
+
+  if (input.currentTurnNumber > MAX_CASE_FOLLOW_UPS + 2) { 
+      return {
+          followUpQuestionText: "Thank you, that concludes this case study.",
+          idealAnswerCharacteristicsForFollowUp: [],
+          isLikelyFinalFollowUp: true,
+      };
+  }
+
+  const saneInput = {
+    ...input,
+    interviewContext: {
+      ...input.interviewContext,
+      interviewerPersona: input.interviewContext.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+    }
+  };
+  
+  const {output} = await activeAI.run(dynamicCaseFollowUpPromptObj, saneInput);
+
+  if (!output || !output.followUpQuestionText) {
+      let fallbackText = "Could you elaborate on the potential risks of your proposed approach?";
+      if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS) {
+          fallbackText = "Thanks for walking me through your thoughts. What would be your key success metrics for this initiative?";
+      }
+       return {
+          followUpQuestionText: fallbackText,
+          idealAnswerCharacteristicsForFollowUp: ["Identification of 2-3 key risks", "Plausible mitigation strategies for each"],
+          isLikelyFinalFollowUp: input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS,
+      };
+  }
+  
+  let finalOutput = { ...output };
+  if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS && !output.isLikelyFinalFollowUp) {
+      finalOutput.isLikelyFinalFollowUp = true;
+  }
+
+  return finalOutput;
+}

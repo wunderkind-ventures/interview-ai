@@ -8,7 +8,9 @@
  * - GetAchievementComponentGuidanceOutput - Output type for the flow.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GetAchievementComponentGuidanceInputSchema = z.object({
@@ -42,13 +44,7 @@ const GetAchievementComponentGuidanceOutputSchema = z.object({
 });
 export type GetAchievementComponentGuidanceOutput = z.infer<typeof GetAchievementComponentGuidanceOutputSchema>;
 
-export async function getAchievementComponentGuidance(
-  input: GetAchievementComponentGuidanceInput
-): Promise<GetAchievementComponentGuidanceOutput> {
-  return getAchievementComponentGuidanceFlow(input);
-}
-
-const prompt = ai.definePrompt({
+const getAchievementComponentGuidancePromptObj = globalAi.definePrompt({
   name: 'getAchievementComponentGuidancePrompt',
   input: { schema: GetAchievementComponentGuidanceInputSchema },
   output: { schema: GetAchievementComponentGuidanceOutputSchema },
@@ -85,21 +81,32 @@ Output a JSON object.
 `,
 });
 
-const getAchievementComponentGuidanceFlow = ai.defineFlow(
-  {
-    name: 'getAchievementComponentGuidanceFlow',
-    inputSchema: GetAchievementComponentGuidanceInputSchema,
-    outputSchema: GetAchievementComponentGuidanceOutputSchema,
-  },
-  async (input: GetAchievementComponentGuidanceInput) => {
-    const {output} = await prompt(input);
-    if (!output) {
-      return {
-        guidingQuestions: ["Could you describe the context for this part of your achievement in more detail?", "What were the key things you did or observed regarding this component?"],
-        examplePhrases: ["Start by outlining...", "Consider mentioning..."],
-        suggestedPointsToConsider: ["Think about the 'who, what, when, where, why' for this section.", "Try to be specific and provide concrete examples if possible."],
-      };
+export async function getAchievementComponentGuidance(
+  input: GetAchievementComponentGuidanceInput,
+  options?: { apiKey?: string }
+): Promise<GetAchievementComponentGuidanceOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log("[BYOK] getAchievementComponentGuidance: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] getAchievementComponentGuidance: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
-    return output;
+  } else {
+    console.log("[BYOK] getAchievementComponentGuidance: No user API key provided; using default global AI instance.");
   }
-);
+
+  const {output} = await activeAI.run(getAchievementComponentGuidancePromptObj, input);
+  if (!output) {
+    return {
+      guidingQuestions: ["Could you describe the context for this part of your achievement in more detail?", "What were the key things you did or observed regarding this component?"],
+      examplePhrases: ["Start by outlining...", "Consider mentioning..."],
+      suggestedPointsToConsider: ["Think about the 'who, what, when, where, why' for this section.", "Try to be specific and provide concrete examples if possible."],
+    };
+  }
+  return output;
+}

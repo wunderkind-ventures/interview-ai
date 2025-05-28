@@ -8,9 +8,11 @@
  * - AnalyzeTakeHomeSubmissionOutput - The return type containing structured feedback.
  */
 
-import { ai } from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import { z } from 'genkit';
-import type { AnalyzeTakeHomeSubmissionInput, AnalyzeTakeHomeSubmissionOutput, AnalyzeTakeHomeSubmissionContext } from '@/lib/types'; // Import from lib/types
+import type { AnalyzeTakeHomeSubmissionInput as AnalyzeTakeHomeSubmissionInputType, AnalyzeTakeHomeSubmissionOutput as AnalyzeTakeHomeSubmissionOutputType, AnalyzeTakeHomeSubmissionContext } from '@/lib/types'; // Import from lib/types
 
 const AnalyzeTakeHomeSubmissionContextSchema = z.object({
     interviewType: z.string(),
@@ -25,6 +27,9 @@ const AnalyzeTakeHomeSubmissionInputSchema = z.object({
   userSubmissionText: z.string().min(50, { message: "Submission text must be at least 50 characters."}).describe("The user's full submitted text for the assignment."),
   interviewContext: AnalyzeTakeHomeSubmissionContextSchema,
 });
+// Using AnalyzeTakeHomeSubmissionInputType for the exported function type
+export type AnalyzeTakeHomeSubmissionInput = AnalyzeTakeHomeSubmissionInputType;
+
 
 const AnalyzeTakeHomeSubmissionOutputSchema = z.object({
   overallAssessment: z.string().describe("A holistic review of the submission, covering adherence to the brief, clarity, structure, and quality of the solution/analysis. (2-4 sentences)"),
@@ -32,14 +37,11 @@ const AnalyzeTakeHomeSubmissionOutputSchema = z.object({
   areasForImprovementInSubmission: z.array(z.string()).describe("2-3 specific areas where the submission could be improved."),
   actionableSuggestionsForRevision: z.array(z.string()).describe("2-3 concrete, actionable suggestions for how the user could revise or improve their submission."),
 });
+// Using AnalyzeTakeHomeSubmissionOutputType for the exported function type
+export type AnalyzeTakeHomeSubmissionOutput = AnalyzeTakeHomeSubmissionOutputType;
 
-export async function analyzeTakeHomeSubmission(
-  input: AnalyzeTakeHomeSubmissionInput
-): Promise<AnalyzeTakeHomeSubmissionOutput> {
-  return analyzeTakeHomeSubmissionFlow(input);
-}
 
-const prompt = ai.definePrompt({
+const analyzeTakeHomeSubmissionPromptObj = globalAi.definePrompt({
   name: 'analyzeTakeHomeSubmissionPrompt',
   input: { schema: AnalyzeTakeHomeSubmissionInputSchema },
   output: { schema: AnalyzeTakeHomeSubmissionOutputSchema },
@@ -92,29 +94,46 @@ Ensure your feedback is constructive, professional, and directly relevant to the
 `,
 });
 
-const analyzeTakeHomeSubmissionFlow = ai.defineFlow(
-  {
-    name: 'analyzeTakeHomeSubmissionFlow',
-    inputSchema: AnalyzeTakeHomeSubmissionInputSchema,
-    outputSchema: AnalyzeTakeHomeSubmissionOutputSchema,
-  },
-  async (input: AnalyzeTakeHomeSubmissionInput): Promise<AnalyzeTakeHomeSubmissionOutput> => {
+export async function analyzeTakeHomeSubmission(
+  input: AnalyzeTakeHomeSubmissionInput,
+  options?: { aiInstance?: any; apiKey?: string } // Changed to accept aiInstance or apiKey
+): Promise<AnalyzeTakeHomeSubmissionOutput> {
+  let activeAI = globalAi; // Default to global instance
+
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+    console.log("[BYOK] analyzeTakeHomeSubmission: Using provided aiInstance.");
+  } else if (options?.apiKey) {
     try {
-      const { output } = await prompt(input);
-      if (!output) {
-        throw new Error('AI did not return a submission analysis.');
-      }
-      return output;
-    } catch (error) {
-      console.error("Error in analyzeTakeHomeSubmissionFlow:", error);
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred during submission analysis.";
-      // Provide a structured fallback error response
-      return {
-        overallAssessment: `Error: Could not complete submission analysis. ${errorMessage}`,
-        strengthsOfSubmission: ["Error: Could not identify strengths."],
-        areasForImprovementInSubmission: ["Error: Could not identify areas for improvement."],
-        actionableSuggestionsForRevision: ["Error: Could not generate revision suggestions. Please ensure the submission is sufficiently detailed and try again."],
-      };
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name, // Use model name from global config
+      });
+      console.log("[BYOK] analyzeTakeHomeSubmission: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] analyzeTakeHomeSubmission: Failed to initialize Genkit with user-provided API key: ${(e as Error).message}. Falling back to default.`);
+      // activeAI remains globalAi
     }
+  } else {
+    console.log("[BYOK] analyzeTakeHomeSubmission: No specific API key or AI instance provided; using default global AI instance.");
   }
-);
+
+  try {
+    // Ensure the input matches the Zod schema for the prompt
+    const validatedInput = AnalyzeTakeHomeSubmissionInputSchema.parse(input);
+    const { output } = await activeAI.run(analyzeTakeHomeSubmissionPromptObj, validatedInput);
+    if (!output) {
+      throw new Error('AI did not return a submission analysis.');
+    }
+    return output;
+  } catch (error) {
+    console.error("Error in analyzeTakeHomeSubmissionFlow:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred during submission analysis.";
+    return {
+      overallAssessment: `Error: Could not complete submission analysis. ${errorMessage}`,
+      strengthsOfSubmission: ["Error: Could not identify strengths."],
+      areasForImprovementInSubmission: ["Error: Could not identify areas for improvement."],
+      actionableSuggestionsForRevision: ["Error: Could not generate revision suggestions. Please ensure the submission is sufficiently detailed and try again."],
+    };
+  }
+}

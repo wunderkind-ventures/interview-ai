@@ -8,7 +8,9 @@
  * - GenerateSampleAnswerOutput - The return type for the generateSampleAnswer function.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateSampleAnswerInputSchema = z.object({
@@ -26,11 +28,7 @@ const GenerateSampleAnswerOutputSchema = z.object({
 });
 export type GenerateSampleAnswerOutput = z.infer<typeof GenerateSampleAnswerOutputSchema>;
 
-export async function generateSampleAnswer(input: GenerateSampleAnswerInput): Promise<GenerateSampleAnswerOutput> {
-  return generateSampleAnswerFlow(input);
-}
-
-const generateSampleAnswerPrompt = ai.definePrompt({
+const generateSampleAnswerPromptObj = globalAi.definePrompt({
   name: 'generateSampleAnswerPrompt',
   input: {schema: GenerateSampleAnswerInputSchema},
   output: {schema: GenerateSampleAnswerOutputSchema},
@@ -66,17 +64,28 @@ Begin the answer directly, without introductory phrases like "Here's a sample an
 `,
 });
 
-const generateSampleAnswerFlow = ai.defineFlow(
-  {
-    name: 'generateSampleAnswerFlow',
-    inputSchema: GenerateSampleAnswerInputSchema,
-    outputSchema: GenerateSampleAnswerOutputSchema,
-  },
-  async (input) => {
-    const {output} = await generateSampleAnswerPrompt(input);
-    if (!output || !output.sampleAnswerText) {
-        return { sampleAnswerText: `Sorry, I couldn't generate a sample answer for the question: "${input.questionText}" at this moment. Consider the key concepts and try to structure your response logically.` };
+export async function generateSampleAnswer(
+  input: GenerateSampleAnswerInput,
+  options?: { apiKey?: string }
+): Promise<GenerateSampleAnswerOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log("[BYOK] generateSampleAnswer: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] generateSampleAnswer: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
-    return output;
+  } else {
+    console.log("[BYOK] generateSampleAnswer: No user API key provided; using default global AI instance.");
   }
-);
+  
+  const {output} = await activeAI.run(generateSampleAnswerPromptObj, input);
+  if (!output || !output.sampleAnswerText) {
+      return { sampleAnswerText: `Sorry, I couldn't generate a sample answer for the question: "${input.questionText}" at this moment. Consider the key concepts and try to structure your response logically.` };
+  }
+  return output;
+}

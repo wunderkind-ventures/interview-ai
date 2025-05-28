@@ -8,7 +8,9 @@
  * - GenerateCoverLetterOutput - The return type for the function.
  */
 
-import { ai } from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const GenerateCoverLetterInputSchema = z.object({
@@ -27,13 +29,7 @@ const GenerateCoverLetterOutputSchema = z.object({
 });
 export type GenerateCoverLetterOutput = z.infer<typeof GenerateCoverLetterOutputSchema>;
 
-export async function generateCoverLetter(
-  input: GenerateCoverLetterInput
-): Promise<GenerateCoverLetterOutput> {
-  return generateCoverLetterFlow(input);
-}
-
-const prompt = ai.definePrompt({
+const generateCoverLetterPromptObj = globalAi.definePrompt({
   name: 'generateCoverLetterPrompt',
   input: { schema: GenerateCoverLetterInputSchema },
   output: { schema: GenerateCoverLetterOutputSchema },
@@ -97,27 +93,36 @@ Generate the 'coverLetterDraft'.
 `,
 });
 
-const generateCoverLetterFlow = ai.defineFlow(
-  {
-    name: 'generateCoverLetterFlow',
-    inputSchema: GenerateCoverLetterInputSchema,
-    outputSchema: GenerateCoverLetterOutputSchema,
-  },
-  async (input: GenerateCoverLetterInput) => {
+export async function generateCoverLetter(
+  input: GenerateCoverLetterInput,
+  options?: { apiKey?: string }
+): Promise<GenerateCoverLetterOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
     try {
-      const { output } = await prompt(input);
-      if (!output || !output.coverLetterDraft) {
-        throw new Error('AI did not return a cover letter draft.');
-      }
-      return output;
-    } catch (error) {
-      console.error("Error in generateCoverLetterFlow:", error);
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-      return {
-        coverLetterDraft: `Error: Could not generate cover letter. ${errorMessage}\nPlease ensure all required fields are sufficiently detailed and try again.`,
-      };
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log("[BYOK] generateCoverLetter: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] generateCoverLetter: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
+  } else {
+    console.log("[BYOK] generateCoverLetter: No user API key provided; using default global AI instance.");
   }
-);
 
-    
+  try {
+    const { output } = await activeAI.run(generateCoverLetterPromptObj, input);
+    if (!output || !output.coverLetterDraft) {
+      throw new Error('AI did not return a cover letter draft.');
+    }
+    return output;
+  } catch (error) {
+    console.error("Error in generateCoverLetterFlow:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+    return {
+      coverLetterDraft: `Error: Could not generate cover letter. ${errorMessage}\nPlease ensure all required fields are sufficiently detailed and try again.`,
+    };
+  }
+}

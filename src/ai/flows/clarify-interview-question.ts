@@ -8,9 +8,11 @@
  * - ClarifyInterviewQuestionOutput - The return type for the function.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
-import type { InterviewSetupData } from '@/lib/types'; // For interviewContext details
+import type { InterviewSetupData } from '@/lib/types'; 
 import { INTERVIEWER_PERSONAS } from '@/lib/constants';
 
 
@@ -26,11 +28,7 @@ const ClarifyInterviewQuestionOutputSchema = z.object({
 });
 export type ClarifyInterviewQuestionOutput = z.infer<typeof ClarifyInterviewQuestionOutputSchema>;
 
-export async function clarifyInterviewQuestion(input: ClarifyInterviewQuestionInput): Promise<ClarifyInterviewQuestionOutput> {
-  return clarifyInterviewQuestionFlow(input);
-}
-
-const clarifyInterviewQuestionPrompt = ai.definePrompt({
+const clarifyInterviewQuestionPromptObj = globalAi.definePrompt({
   name: 'clarifyInterviewQuestionPrompt',
   input: {schema: ClarifyInterviewQuestionInputSchema},
   output: {schema: ClarifyInterviewQuestionOutputSchema},
@@ -62,25 +60,35 @@ Begin your clarification directly.
 `,
 });
 
-const clarifyInterviewQuestionFlow = ai.defineFlow(
-  {
-    name: 'clarifyInterviewQuestionFlow',
-    inputSchema: ClarifyInterviewQuestionInputSchema,
-    outputSchema: ClarifyInterviewQuestionOutputSchema,
-  },
-  async (input) => {
-    const saneInput = {
-      ...input,
-      interviewContext: {
-        ...input.interviewContext,
-        interviewerPersona: input.interviewContext.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-      }
-    };
-    const {output} = await clarifyInterviewQuestionPrompt(saneInput);
-    if (!output || !output.clarificationText) {
-        return { clarificationText: "Sorry, I couldn't generate a clarification for that at the moment. Please try rephrasing your request or proceed with your best understanding of the question." };
+export async function clarifyInterviewQuestion(
+  input: ClarifyInterviewQuestionInput,
+  options?: { apiKey?: string }
+): Promise<ClarifyInterviewQuestionOutput> {
+  let activeAI = globalAi;
+  if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log("[BYOK] clarifyInterviewQuestion: Using user-provided API key.");
+    } catch (e) {
+      console.warn(`[BYOK] clarifyInterviewQuestion: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
-    return output;
+  } else {
+    console.log("[BYOK] clarifyInterviewQuestion: No user API key provided; using default global AI instance.");
   }
-);
 
+  const saneInput = {
+    ...input,
+    interviewContext: {
+      ...input.interviewContext,
+      interviewerPersona: input.interviewContext.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+    }
+  };
+  const {output} = await activeAI.run(clarifyInterviewQuestionPromptObj, saneInput);
+  if (!output || !output.clarificationText) {
+      return { clarificationText: "Sorry, I couldn't generate a clarification for that at the moment. Please try rephrasing your request or proceed with your best understanding of the question." };
+  }
+  return output;
+}

@@ -1,3 +1,4 @@
+
 // SummarizeResume flow
 'use server';
 /**
@@ -8,41 +9,65 @@
  * - SummarizeResumeOutput - The return type for the summarizeResume function, which is the resume summary.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
 
-const SummarizeResumeInputSchema = z.object({
+const SummarizeResumeInputSchemaInternal = z.object({
   resume: z.string().describe('The resume content to summarize.'),
 });
-export type SummarizeResumeInput = z.infer<typeof SummarizeResumeInputSchema>;
+export type SummarizeResumeInput = z.infer<typeof SummarizeResumeInputSchemaInternal>;
 
-const SummarizeResumeOutputSchema = z.object({
+const SummarizeResumeOutputSchemaInternal = z.object({
   summary: z.string().describe('A summary of the resume.'),
 });
-export type SummarizeResumeOutput = z.infer<typeof SummarizeResumeOutputSchema>;
+export type SummarizeResumeOutput = z.infer<typeof SummarizeResumeOutputSchemaInternal>;
 
-export async function summarizeResume(input: SummarizeResumeInput): Promise<SummarizeResumeOutput> {
-  return summarizeResumeFlow(input);
-}
-
-const summarizeResumePrompt = ai.definePrompt({
+const summarizeResumePromptObj = globalAi.definePrompt({
   name: 'summarizeResumePrompt',
-  input: {schema: SummarizeResumeInputSchema},
-  output: {schema: SummarizeResumeOutputSchema},
+  input: {schema: SummarizeResumeInputSchemaInternal},
+  output: {schema: SummarizeResumeOutputSchemaInternal},
   prompt: `Summarize the following resume. Focus on key accomplishments and skills.
 
 Resume:
 {{{resume}}}`,
 });
 
-const summarizeResumeFlow = ai.defineFlow(
-  {
-    name: 'summarizeResumeFlow',
-    inputSchema: SummarizeResumeInputSchema,
-    outputSchema: SummarizeResumeOutputSchema,
-  },
-  async input => {
-    const {output} = await summarizeResumePrompt(input);
-    return output!;
+export async function summarizeResume(
+  input: SummarizeResumeInput,
+  options?: { aiInstance?: any; apiKey?: string }
+): Promise<SummarizeResumeOutput> {
+  let activeAI = globalAi;
+  const flowNameForLogging = 'summarizeResume';
+
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+    console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance.`);
+  } else if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
+    } catch (e) {
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
+    }
+  } else {
+    console.log(`[BYOK] ${flowNameForLogging}: No specific API key or AI instance provided; using default global AI instance.`);
   }
-);
+
+  try {
+    const {output} = await activeAI.run(summarizeResumePromptObj, input);
+    if (!output) {
+      throw new Error('AI did not return resume summary.');
+    }
+    return output;
+  } catch (error) {
+    console.error(`Error in ${flowNameForLogging}:`, error);
+    throw error;
+  }
+}
+
+    

@@ -8,12 +8,14 @@
  * - GenerateDeepDiveFeedbackOutput - The return type containing detailed feedback components.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
 import type { FeedbackItem } from '@/lib/types';
 
-// Input schema for the data needed by the prompt template
-const DeepDivePromptInputSchema = z.object({
+// Input schema for the data needed by the prompt template (internal)
+const DeepDivePromptInputSchemaInternal = z.object({
   questionText: z.string().describe('The original interview question.'),
   userAnswerText: z.string().describe("The user's answer to the question."),
   interviewType: z.string().describe('The overall type of the interview (e.g., "product sense", "machine learning", "data structures & algorithms").'),
@@ -29,7 +31,7 @@ const DeepDivePromptInputSchema = z.object({
 });
 
 // Schema for what the AI model is expected to return
-const DeepDiveOutputSchema = z.object({
+const DeepDiveOutputSchemaInternal = z.object({
   detailedIdealAnswerBreakdown: z
     .array(z.string())
     .describe('A step-by-step breakdown or key structural components of an ideal answer to this specific question, tailored to the faangLevel. This should be informed by any provided idealAnswerCharacteristics.'),
@@ -43,11 +45,11 @@ const DeepDiveOutputSchema = z.object({
     .array(z.string())
     .describe('Key concepts, technologies, or areas of knowledge relevant to the question that the candidate might benefit from studying further to meet faangLevel expectations.'),
 });
-export type GenerateDeepDiveFeedbackOutput = z.infer<typeof DeepDiveOutputSchema>;
+export type GenerateDeepDiveFeedbackOutput = z.infer<typeof DeepDiveOutputSchemaInternal>;
 
 
-// Input schema for the exported flow function - INTERNALIZED
-const GenerateDeepDiveFeedbackInputSchema = z.object({
+// Input schema for the exported flow function
+const GenerateDeepDiveFeedbackInputSchemaInternal = z.object({
   questionText: z.string(),
   userAnswerText: z.string(),
   interviewType: z.string(),
@@ -57,21 +59,14 @@ const GenerateDeepDiveFeedbackInputSchema = z.object({
   targetedSkills: z.array(z.string()).optional(),
   interviewFocus: z.string().optional(),
   originalFeedback: z.custom<FeedbackItem>().optional().describe('The original feedback item for this question, if available.'),
-  idealAnswerCharacteristics: z.array(z.string()).optional(), // Added
+  idealAnswerCharacteristics: z.array(z.string()).optional(),
 });
-export type GenerateDeepDiveFeedbackInput = z.infer<typeof GenerateDeepDiveFeedbackInputSchema>;
+export type GenerateDeepDiveFeedbackInput = z.infer<typeof GenerateDeepDiveFeedbackInputSchemaInternal>;
 
-
-export async function generateDeepDiveFeedback(
-  input: GenerateDeepDiveFeedbackInput
-): Promise<GenerateDeepDiveFeedbackOutput> {
-  return generateDeepDiveFeedbackFlow(input);
-}
-
-const prompt = ai.definePrompt({
+const deepDiveFeedbackPrompt = globalAi.definePrompt({
   name: 'generateDeepDiveFeedbackPrompt',
-  input: {schema: DeepDivePromptInputSchema},
-  output: {schema: DeepDiveOutputSchema},
+  input: {schema: DeepDivePromptInputSchemaInternal},
+  output: {schema: DeepDiveOutputSchemaInternal},
   prompt: `You are an expert Interview Coach AI, providing a "Deep Dive" analysis for a specific interview question and the user's answer.
 The goal is to help the user understand the nuances of the question, explore various ways to approach it, and identify areas for further learning, all calibrated to the specified 'faangLevel'.
 
@@ -119,14 +114,14 @@ Crucially, your analysis, especially the 'detailedIdealAnswerBreakdown', should 
 1.  **detailedIdealAnswerBreakdown**: (Array of strings)
     *   Provide a step-by-step breakdown of how an ideal answer might be structured or key components it should include, particularly considering the 'interviewFocus', '{{{faangLevel}}}', and the benchmark 'idealAnswerCharacteristics'.
     *   This should go beyond generic advice and relate directly to the question asked.
-        {{#if (eq interviewType "machine learning")}}
-        If ML conceptual: definition, characteristics, pros/cons, use cases, pitfalls.
-        If ML system design: problem understanding, data, features, model, training, evaluation, deployment, monitoring.
-        {{else if (eq interviewType "technical system design")}}
-        Aspects like requirements, high-level design, components, scalability, reliability, etc.
-        {{else if (eq interviewType "data structures & algorithms")}}
-        Breakdown: understanding problem, high-level approach, detailed algorithm, data structures justification, complexity analysis, edge cases.
-        {{/if}}
+        If the interviewType is "machine learning":
+          If ML conceptual: definition, characteristics, pros/cons, use cases, pitfalls.
+          If ML system design: problem understanding, data, features, model, training, evaluation, deployment, monitoring.
+        Else if the interviewType is "technical system design":
+          Aspects like requirements, high-level design, components, scalability, reliability, etc.
+        Else if the interviewType is "data structures & algorithms":
+          Breakdown: understanding problem, high-level approach, detailed algorithm, data structures justification, complexity analysis, edge cases.
+        End of interviewType specific guidance.
     *   Ensure this breakdown reflects the insights from the 'idealAnswerCharacteristics'.
 
 2.  **alternativeApproaches**: (Array of strings)
@@ -143,34 +138,57 @@ Focus on providing actionable, insightful, and educational content, calibrated t
 `,
 });
 
-const generateDeepDiveFeedbackFlow = ai.defineFlow(
-  {
-    name: 'generateDeepDiveFeedbackFlow',
-    inputSchema: GenerateDeepDiveFeedbackInputSchema, // Uses the internalized schema
-    outputSchema: DeepDiveOutputSchema,
-  },
-  async (input: GenerateDeepDiveFeedbackInput) => { // Accepts the exported type
-    const promptInput: z.infer<typeof DeepDivePromptInputSchema> = {
-      questionText: input.questionText,
-      userAnswerText: input.userAnswerText,
-      interviewType: input.interviewType,
-      faangLevel: input.faangLevel,
-      jobTitle: input.jobTitle,
-      jobDescription: input.jobDescription,
-      targetedSkills: input.targetedSkills,
-      interviewFocus: input.interviewFocus,
-      originalCritique: input.originalFeedback?.critique,
-      originalStrengths: input.originalFeedback?.strengths,
-      originalAreasForImprovement: input.originalFeedback?.areasForImprovement,
-      idealAnswerCharacteristics: input.idealAnswerCharacteristics, // Pass characteristics
-    };
+export async function generateDeepDiveFeedback(
+  input: GenerateDeepDiveFeedbackInput,
+  options?: { aiInstance?: any; apiKey?: string }
+): Promise<GenerateDeepDiveFeedbackOutput> {
+  let activeAI = globalAi;
+  const flowNameForLogging = 'generateDeepDiveFeedback';
 
-    const {output} = await prompt(promptInput);
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+    console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance.`);
+  } else if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+        model: globalAi.getModel().name,
+      });
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
+    } catch (e) {
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with user-provided API key: ${(e as Error).message}. Falling back to default.`);
+    }
+  } else {
+    console.log(`[BYOK] ${flowNameForLogging}: No specific API key or AI instance provided; using default global AI instance.`);
+  }
 
+  const promptInput: z.infer<typeof DeepDivePromptInputSchemaInternal> = {
+    questionText: input.questionText,
+    userAnswerText: input.userAnswerText,
+    interviewType: input.interviewType,
+    faangLevel: input.faangLevel,
+    jobTitle: input.jobTitle,
+    jobDescription: input.jobDescription,
+    targetedSkills: input.targetedSkills,
+    interviewFocus: input.interviewFocus,
+    originalCritique: input.originalFeedback?.critique,
+    originalStrengths: input.originalFeedback?.strengths,
+    originalAreasForImprovement: input.originalFeedback?.areasForImprovement,
+    idealAnswerCharacteristics: input.idealAnswerCharacteristics,
+  };
+
+  try {
+    const { output } = await activeAI.run(deepDiveFeedbackPrompt, promptInput);
     if (!output) {
       throw new Error('AI did not return deep dive feedback.');
     }
     return output;
+  } catch (error) {
+    console.error(`Error in ${flowNameForLogging}:`, error);
+    // Consider returning a structured error that matches GenerateDeepDiveFeedbackOutput
+    // For now, rethrowing to be handled by the caller or a generic error handler.
+    throw error;
   }
-);
+}
 
+    

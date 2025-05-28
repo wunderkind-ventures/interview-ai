@@ -13,7 +13,7 @@ import { googleAI } from '@genkit-ai/googleai';
 import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
 
-const GenerateHintInputSchema = z.object({
+const GenerateHintInputSchemaInternal = z.object({
   questionText: z.string().describe('The text of the current interview question for which a hint is requested.'),
   interviewType: z.string().describe('The type of the interview (e.g., "product sense", "technical system design").'),
   faangLevel: z.string().describe('The target FAANG level for the interview, to calibrate the hint difficulty.'),
@@ -21,17 +21,17 @@ const GenerateHintInputSchema = z.object({
   interviewFocus: z.string().optional().describe('The specific focus of the interview, if any.'),
   targetedSkills: z.array(z.string()).optional().describe('Specific skills being targeted, if any.'),
 });
-export type GenerateHintInput = z.infer<typeof GenerateHintInputSchema>;
+export type GenerateHintInput = z.infer<typeof GenerateHintInputSchemaInternal>;
 
-const GenerateHintOutputSchema = z.object({
+const GenerateHintOutputSchemaInternal = z.object({
   hintText: z.string().describe('A subtle hint or guiding question to help the user proceed with their answer.'),
 });
-export type GenerateHintOutput = z.infer<typeof GenerateHintOutputSchema>;
+export type GenerateHintOutput = z.infer<typeof GenerateHintOutputSchemaInternal>;
 
 const generateHintPromptObj = globalAi.definePrompt({
   name: 'generateHintPrompt',
-  input: {schema: GenerateHintInputSchema},
-  output: {schema: GenerateHintOutputSchema},
+  input: {schema: GenerateHintInputSchemaInternal},
+  output: {schema: GenerateHintOutputSchemaInternal},
   prompt: `You are an expert Interview Coach AI. A user is stuck on the following interview question and needs a hint.
 Provide a subtle hint, a guiding question, or suggest an area to focus on.
 The hint should help them think in the right direction without giving away the answer or being too obvious.
@@ -64,32 +64,44 @@ Do not provide a direct answer or a solution. The goal is to nudge their thinkin
 
 export async function generateHint(
   input: GenerateHintInput,
-  options?: { apiKey?: string }
+  options?: { aiInstance?: any; apiKey?: string }
 ): Promise<GenerateHintOutput> {
   let activeAI = globalAi;
-  if (options?.apiKey) {
+  const flowNameForLogging = 'generateHint';
+
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+    console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance.`);
+  } else if (options?.apiKey) {
     try {
       activeAI = genkit({
         plugins: [googleAI({ apiKey: options.apiKey })],
         model: globalAi.getModel().name,
       });
-      console.log("[BYOK] generateHint: Using user-provided API key.");
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
     } catch (e) {
-      console.warn(`[BYOK] generateHint: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
     }
   } else {
-    console.log("[BYOK] generateHint: No user API key provided; using default global AI instance.");
+    console.log(`[BYOK] ${flowNameForLogging}: No specific API key or AI instance provided; using default global AI instance.`);
   }
 
-  const {output} = await activeAI.run(generateHintPromptObj, input);
-  if (!output || !output.hintText) {
-      let fallback = "Consider breaking the problem down into smaller pieces. What's the core challenge?";
-      if (input.interviewType === "behavioral") {
-          fallback = "Think about a specific past experience that illustrates this. How can you structure your story clearly?";
-      } else if (input.interviewType === "data structures & algorithms") {
-          fallback = "What are the inputs and expected outputs? Are there any constraints or edge cases to consider first?";
-      }
-      return { hintText: fallback };
+  try {
+    const {output} = await activeAI.run(generateHintPromptObj, input);
+    if (!output || !output.hintText) {
+        let fallback = "Consider breaking the problem down into smaller pieces. What's the core challenge?";
+        if (input.interviewType === "behavioral") {
+            fallback = "Think about a specific past experience that illustrates this. How can you structure your story clearly?";
+        } else if (input.interviewType === "data structures & algorithms") {
+            fallback = "What are the inputs and expected outputs? Are there any constraints or edge cases to consider first?";
+        }
+        return { hintText: fallback };
+    }
+    return output;
+  } catch (error) {
+    console.error(`Error in ${flowNameForLogging}:`, error);
+    throw error;
   }
-  return output;
 }
+
+    

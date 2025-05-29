@@ -9,10 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, KeyRound, Copy, Info, RefreshCw, ShieldAlert, Send, Trash2 } from "lucide-react";
+import { Loader2, KeyRound, Copy, Info, RefreshCw, ShieldAlert, Send, Trash2, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || 'http://localhost:8080';
+const EXPECTED_FIREBASE_ISSUER_PREFIX = "https://securetoken.google.com/";
+
 
 interface ApiResponse {
   status: number;
@@ -21,11 +23,22 @@ interface ApiResponse {
   headers?: Record<string, string>;
 }
 
+interface DecodedTokenInfo {
+  issuer?: string;
+  audience?: string;
+  userId?: string;
+  email?: string;
+  expiresAt?: string;
+  isFirebaseToken?: boolean;
+  expectedIssuer?: string;
+}
+
 export default function TestingUtilitiesPanel() {
-  const { user, loading: authLoading, authInitializationFailed } = useAuth();
+  const { user, loading: authLoading, authInitializationFailed, firebaseConfig } = useAuth();
   const { toast } = useToast();
 
   const [firebaseToken, setFirebaseToken] = useState<string | null>(null);
+  const [decodedTokenInfo, setDecodedTokenInfo] = useState<DecodedTokenInfo | null>(null);
   const [isTokenLoading, setIsTokenLoading] = useState(false);
 
   const [apiKeyStatusResponse, setApiKeyStatusResponse] = useState<ApiResponse | null>(null);
@@ -33,7 +46,7 @@ export default function TestingUtilitiesPanel() {
   const [setApiKeyResponse, setSetApiKeyResponse] = useState<ApiResponse | null>(null);
   const [removeApiKeyResponse, setRemoveApiKeyResponse] = useState<ApiResponse | null>(null);
 
-  const [flowNameInput, setFlowNameInput] = useState("customizeInterviewQuestions"); // Default to a common flow
+  const [flowNameInput, setFlowNameInput] = useState("customizeInterviewQuestions");
   const [flowPayloadInput, setFlowPayloadInput] = useState(
     JSON.stringify(
       {
@@ -41,7 +54,6 @@ export default function TestingUtilitiesPanel() {
         interviewStyle: "simple-qa",
         faangLevel: "L4",
         jobTitle: "Software Engineer",
-        // Add other necessary fields for the default flowNameInput
       },
       null,
       2
@@ -50,29 +62,55 @@ export default function TestingUtilitiesPanel() {
   const [genkitProxyResponse, setGenkitProxyResponse] = useState<ApiResponse | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const decodeToken = (token: string | null): DecodedTokenInfo | null => {
+    if (!token) return null;
+    try {
+      const payloadBase64 = token.split('.')[1];
+      if (!payloadBase64) return { issuer: "Invalid token format (no payload)" };
+      const payloadString = atob(payloadBase64);
+      const payload = JSON.parse(payloadString);
+      const expectedIssuer = firebaseConfig?.projectId ? `${EXPECTED_FIREBASE_ISSUER_PREFIX}${firebaseConfig.projectId}` : "N/A (Firebase project ID not found)";
+      return {
+        issuer: payload.iss,
+        audience: payload.aud,
+        userId: payload.user_id || payload.sub,
+        email: payload.email,
+        expiresAt: payload.exp ? new Date(payload.exp * 1000).toLocaleString() : "N/A",
+        isFirebaseToken: payload.iss === expectedIssuer,
+        expectedIssuer: expectedIssuer
+      };
+    } catch (e) {
+      console.error("Failed to decode token:", e);
+      return { issuer: "Invalid token format (decoding error)" };
+    }
+  };
+
   const getFirebaseToken = useCallback(async (forceRefresh = false) => {
     if (!user) {
       setFirebaseToken(null);
+      setDecodedTokenInfo(null);
       return;
     }
     setIsTokenLoading(true);
     try {
       const token = await user.getIdToken(forceRefresh);
       setFirebaseToken(token);
+      setDecodedTokenInfo(decodeToken(token));
     } catch (error) {
       console.error("Error getting Firebase token:", error);
       toast({ title: "Token Error", description: "Could not retrieve Firebase token.", variant: "destructive" });
       setFirebaseToken(null);
+      setDecodedTokenInfo(null);
     } finally {
       setIsTokenLoading(false);
     }
-  }, [user, toast]);
+  }, [user, toast, firebaseConfig?.projectId]);
 
   useEffect(() => {
-    if (user && !firebaseToken) {
+    if (user && !firebaseToken && !authLoading && !authInitializationFailed) {
       getFirebaseToken();
     }
-  }, [user, firebaseToken, getFirebaseToken]);
+  }, [user, firebaseToken, getFirebaseToken, authLoading, authInitializationFailed]);
 
   const handleCopyToClipboard = (text: string | null) => {
     if (text) {
@@ -104,7 +142,7 @@ export default function TestingUtilitiesPanel() {
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      const responseBody = await response.json().catch(() => response.text());
+      const responseBody = await response.json().catch(() => response.text()); // Keep this to handle non-JSON responses
       const responseHeaders: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         responseHeaders[key] = value;
@@ -119,7 +157,6 @@ export default function TestingUtilitiesPanel() {
     } catch (error: any) {
       console.error(`[API Call] Error during ${method} to ${targetUrl}:`, error);
       let errorMessage = `Failed to fetch from ${targetUrl}.`;
-      // Check if it's the generic "Failed to fetch" browser error
       if (error.message.toLowerCase().includes("failed to fetch")) {
         errorMessage += ` This often means a network issue, CORS problem, or the backend URL is incorrect.`;
         errorMessage += ` Please ensure NEXT_PUBLIC_GO_BACKEND_URL is set correctly in your .env.local (currently targeting: ${GO_BACKEND_URL}) and that the backend is reachable.`;
@@ -127,7 +164,7 @@ export default function TestingUtilitiesPanel() {
         errorMessage += ` Details: ${error.message}`;
       }
       return {
-        status: 0, // Indicate client-side error
+        status: 0,
         statusText: "FetchError",
         data: { error: "Client-side Fetch Error", details: errorMessage },
       };
@@ -159,7 +196,8 @@ export default function TestingUtilitiesPanel() {
         toast({ title: "API Key Set", description: "Successfully submitted API key."});
         testApiKeyStatus(); 
       } else {
-        toast({ title: "Error Setting API Key", description: res.data?.error || res.data?.details || res.statusText, variant: "destructive" });
+        const errorDetail = res.data?.error || res.data?.details || JSON.stringify(res.data) || res.statusText;
+        toast({ title: "Error Setting API Key", description: errorDetail, variant: "destructive" });
       }
     } catch (error: any) {
       setSetApiKeyResponse({ status: 0, statusText: "ClientError", data: { error: error.message } });
@@ -175,7 +213,8 @@ export default function TestingUtilitiesPanel() {
         toast({ title: "API Key Removed", description: "Successfully removed API key."});
         testApiKeyStatus(); 
       } else {
-        toast({ title: "Error Removing API Key", description: res.data?.error || res.data?.details || res.statusText, variant: "destructive" });
+        const errorDetail = res.data?.error || res.data?.details || JSON.stringify(res.data) || res.statusText;
+        toast({ title: "Error Removing API Key", description: errorDetail, variant: "destructive" });
       }
     } catch (error: any) {
       setRemoveApiKeyResponse({ status: 0, statusText: "ClientError", data: { error: error.message } });
@@ -199,7 +238,8 @@ export default function TestingUtilitiesPanel() {
       const res = await makeApiCall(`/api/ai/genkit/${flowNameInput.trim()}`, 'POST', payload);
       setGenkitProxyResponse(res);
       if (res.status !== 200) {
-        toast({ title: `Error Calling Flow (${res.status})`, description: res.data?.error || res.data?.details || res.statusText, variant: "destructive" });
+        const errorDetail = res.data?.error || res.data?.details || JSON.stringify(res.data) || res.statusText;
+        toast({ title: `Error Calling Flow (${res.status})`, description: errorDetail, variant: "destructive" });
       }
     } catch (error: any) {
       setGenkitProxyResponse({ status: 0, statusText: "ClientError", data: { error: error.message } });
@@ -252,7 +292,6 @@ export default function TestingUtilitiesPanel() {
     );
   };
 
-
   return (
     <div className="space-y-8">
       <Card>
@@ -262,7 +301,33 @@ export default function TestingUtilitiesPanel() {
         <CardContent className="space-y-3">
           {isTokenLoading && <div className="flex items-center text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading token...</div>}
           {firebaseToken && !isTokenLoading && (
-            <Textarea value={firebaseToken} readOnly rows={5} className="text-xs bg-muted" />
+            <>
+              <Textarea value={firebaseToken} readOnly rows={5} className="text-xs bg-muted" />
+              {decodedTokenInfo && (
+                <Alert variant={decodedTokenInfo.isFirebaseToken ? "default" : "destructive"} className="text-xs">
+                  <Info className="h-4 w-4" />
+                  <AlertTitle className={decodedTokenInfo.isFirebaseToken ? "text-green-700" : "text-red-700"}>
+                    Token Issuer Analysis: {decodedTokenInfo.isFirebaseToken ? "Valid Firebase Token" : "Potentially Invalid Token for Firebase Backend"}
+                  </AlertTitle>
+                  <AlertDescription>
+                    <p><strong>Issuer (iss):</strong> {decodedTokenInfo.issuer || "N/A"}</p>
+                    <p><strong>Expected Issuer:</strong> {decodedTokenInfo.expectedIssuer || "N/A"}</p>
+                    <p><strong>Audience (aud):</strong> {decodedTokenInfo.audience || "N/A"}</p>
+                    <p><strong>User ID (user_id/sub):</strong> {decodedTokenInfo.userId || "N/A"}</p>
+                    <p><strong>Email:</strong> {decodedTokenInfo.email || "N/A"}</p>
+                    <p><strong>Expires At:</strong> {decodedTokenInfo.expiresAt || "N/A"}</p>
+                    {!decodedTokenInfo.isFirebaseToken && decodedTokenInfo.issuer !== "Invalid token format (decoding error)" && (
+                       <div className="mt-2 font-semibold">
+                         This token was likely issued by "{decodedTokenInfo.issuer}" and NOT by Firebase for project "{firebaseConfig?.projectId}".
+                         Your backend expects an issuer starting with "{EXPECTED_FIREBASE_ISSUER_PREFIX}{firebaseConfig?.projectId}".
+                         Try signing out and signing back in using the app's "Login with Google" button.
+                         Refer to <code className="bg-destructive/20 p-1 rounded-sm text-xs">FIREBASE_AUTH_FIX.md</code> for more details.
+                       </div>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </>
           )}
           {!firebaseToken && !isTokenLoading && <Alert variant="default"><Info className="h-4 w-4"/>Token not available. Are you logged in?</Alert>}
         </CardContent>
@@ -273,8 +338,25 @@ export default function TestingUtilitiesPanel() {
           <Button onClick={() => handleCopyToClipboard(firebaseToken)} variant="outline" disabled={!firebaseToken || isProcessing}>
             <Copy className="mr-2 h-4 w-4"/> Copy Token
           </Button>
+           <a href="https://docs.google.com/document/d/1o0Q0ybt4W9C0K9H8iV8h3kL7R1H-2-8D9vY4X7oJ3E/edit#heading=h.x8j7k6z0q2wl" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center text-sm font-medium text-blue-600 hover:text-blue-800 underline">
+            <HelpCircle className="mr-1 h-4 w-4" /> Token Troubleshooting Guide
+          </a>
         </CardFooter>
       </Card>
+
+      <Alert variant="default" className="bg-blue-50 border-blue-300 text-blue-700">
+        <Info className="h-5 w-5" />
+        <AlertTitle>Important Testing Notes</AlertTitle>
+        <AlertDescription>
+          <ul className="list-disc pl-5 space-y-1 text-xs">
+            <li>Ensure <code>NEXT_PUBLIC_GO_BACKEND_URL</code> is set in your <code>.env.local</code> (e.g., <code>https://byot-gateway-1ntw604r.uc.gateway.dev</code>) and your Next.js dev server has been restarted.</li>
+            <li>If you see "Failed to fetch", check your browser's console for detailed network errors (CORS, etc.).</li>
+            <li>The Go backend functions require a valid Firebase ID token. If the token issuer is incorrect, calls will fail with a 401 error.</li>
+            <li>The "Proxy to Genkit" requires your Next.js app to be running and accessible if <code>NEXTJS_BASE_URL</code> in Pulumi points to localhost.</li>
+          </ul>
+        </AlertDescription>
+      </Alert>
+
 
       {/* API Key Status */}
       <Card>
@@ -312,7 +394,7 @@ export default function TestingUtilitiesPanel() {
              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null} Set Key
           </Button>
         </CardFooter>
-        {renderResponse("Set API Key", setApiKeyResponse)}
+        {renderResponse("Set API Key", setSetApiKeyResponse)}
       </Card>
       
       {/* Remove API Key */}
@@ -369,3 +451,4 @@ export default function TestingUtilitiesPanel() {
     </div>
   );
 }
+

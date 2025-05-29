@@ -1,0 +1,13 @@
+
+node_modules/
+.next/
+dist/
+internal/
+context_backup/
+firebase-debug.log
+*.node
+*.wasm
+*.log
+*.map
+.git/
+package-lock.json

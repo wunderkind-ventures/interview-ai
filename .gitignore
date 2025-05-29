@@ -49,3 +49,5 @@ firestore-debug.log
 
 # prototyping
 /context_backup
+
+/backends/byot-go-backend/vendor/

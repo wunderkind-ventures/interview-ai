@@ -39,11 +39,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, type InterviewType, type FaangLevel, INTERVIEW_STYLES, type InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, type Skill, THEMED_INTERVIEW_PACKS, type ThemedInterviewPack, type ThemedInterviewPackConfig, INTERVIEWER_PERSONAS, type InterviewerPersona } from "@/lib/constants";
 import type { InterviewSetupData, SavedResume, SavedJobDescription, SavedInterviewSetup } from "@/lib/types";
-import { summarizeResume } from "@/ai/flows/summarize-resume"; // Assuming this is still a client-callable server action
+import { summarizeResume } from "@/ai/flows/summarize-resume";
 import type { SummarizeResumeOutput } from "@/ai/flows/summarize-resume";
 import { useToast } from "@/hooks/use-toast";
 
-const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || 'http://localhost:8080'; // Configure if different
+const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || 'http://localhost:8080';
 
 const formSchema = z.object({
   interviewType: z.custom<InterviewType>((val) => INTERVIEW_TYPES.some(it => it.value === val), {
@@ -63,12 +63,14 @@ const formSchema = z.object({
   interviewFocus: z.string().optional(),
   selectedThemeId: z.string().optional(),
   interviewerPersona: z.custom<InterviewerPersona | string>().optional(),
+  // No longer taking userApiKey directly in the form.
+  // It will be fetched from Go backend if set by user, or default will be used by Go backend.
 });
 
 export default function InterviewSetupForm() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: authLoading, authInitializationFailed } = useAuth(); // Added authInitializationFailed
+  const { user, loading: authLoading, authInitializationFailed } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [resumeSummary, setResumeSummary] = useState<string | null>(null);
@@ -164,7 +166,6 @@ export default function InterviewSetupForm() {
     setResumeSummaryError(null);
 
     try {
-      // Assuming summarizeResume is still a client-callable server action for this UI feature
       const result: SummarizeResumeOutput = await summarizeResume({ resume: currentResumeText });
       setResumeSummary(result.summary);
       setSummarizedForResumeText(currentResumeText);
@@ -192,7 +193,7 @@ export default function InterviewSetupForm() {
           interviewerPersona: parsedSetup.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         });
         if (parsedSetup.resume && parsedSetup.resume.trim() !== "") {
-           setSummarizedForResumeText(parsedSetup.resume); // Trigger analysis if resume exists
+           setSummarizedForResumeText(parsedSetup.resume); 
         }
       } catch (e) {
         console.error("Failed to parse stored interview setup:", e);
@@ -201,12 +202,12 @@ export default function InterviewSetupForm() {
     }
   }, [form]);
 
-  useEffect(() => { // Effect to trigger resume analysis if resume text is pre-filled
+  useEffect(() => { 
     if (summarizedForResumeText && form.getValues('resume') === summarizedForResumeText) {
         handleResumeAnalysis();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summarizedForResumeText]); // Only re-run if the text that was summarized changes (e.g., loaded from setup)
+  }, [summarizedForResumeText]); 
 
   const handleThemeChange = (themeId: string) => {
     form.setValue("selectedThemeId", themeId);
@@ -251,7 +252,7 @@ export default function InterviewSetupForm() {
       setResumeSummary(null);
       setResumeSummaryError(null);
       if (currentResume) {
-        setSummarizedForResumeText(currentResume); // To trigger re-analysis if needed
+        setSummarizedForResumeText(currentResume); 
       } else {
         setSummarizedForResumeText(null);
       }
@@ -317,44 +318,59 @@ export default function InterviewSetupForm() {
         interviewerPersona: values.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
     };
 
-    // Store setup locally for the interview session page to pick up
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
-    localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); // Clear any old session
+    localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
 
-    // Call the Go backend's AI proxy endpoint
-    // This is a conceptual call; the actual fetch implementation depends on your API design
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to start an interview.", variant: "default" });
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      if (!user) {
-        toast({ title: "Login Required", description: "Please log in to start an interview.", variant: "default" });
-        setIsSubmitting(false);
-        return;
-      }
       const idToken = await user.getIdToken();
+      
+      // Placeholder for calling the Go backend proxy
+      // The Go backend will handle API key logic and then call the Next.js /api/execute-flow endpoint.
+      console.log("Submitting interview setup to Go backend proxy (conceptual)...");
+      console.log("Flow Name: customizeInterviewQuestions");
+      console.log("Request Body to Go Backend:", setupData);
+      console.log("Authorization Header would contain: Bearer " + idToken.substring(0, 20) + "...");
 
-      // The `customizeInterviewQuestions` flow is now called via backend
-      // We don't call it directly from frontend anymore.
-      // The backend will handle API key logic.
-      // The purpose of this form submit is to save the setup and navigate.
-      // The actual AI call to get questions will happen on the /interview page.
+      // Example conceptual fetch call to Go backend
+      // const response = await fetch(`${GO_BACKEND_URL}/api/ai/genkit/customizeInterviewQuestions`, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Authorization': `Bearer ${idToken}`,
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify(setupData), // This is the input for the Genkit flow
+      // });
 
-      // For now, we navigate, and the /interview page will pick up the setup
-      // and then it would be responsible for initiating the AI call through the Go backend.
-      // This step is simplified to just navigating after saving setup locally.
-      // A more complete implementation would involve the /interview page calling the backend.
+      // if (!response.ok) {
+      //   const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+      //   throw new Error(`Error from AI service: ${response.status} ${errorData.detail || errorData.error || ''}`);
+      // }
+      // const aiResponse = await response.json(); // This would be CustomizeInterviewQuestionsOutput
+      // For now, we assume the Go backend interaction is successful and proceed to /interview
+      // The /interview page will pick up the setup from localStorage and initiate the AI call.
 
-      console.log("Interview setup saved to localStorage. Navigating to /interview.");
+      toast({
+        title: "Setup Ready",
+        description: "Your interview configuration is set. Navigating to the interview session...",
+      });
       router.push("/interview");
 
     } catch (error) {
-      console.error("Error during interview setup submission or navigation:", error);
+      console.error("Error starting interview via backend:", error);
       toast({
         title: "Error Starting Interview",
-        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
       setIsSubmitting(false);
     }
-    // setIsSubmitting(false) is handled by navigation or error
+    // No setIsSubmitting(false) here, as navigation should occur.
   }
 
   const getIconForType = (type: InterviewType) => {
@@ -377,7 +393,6 @@ export default function InterviewSetupForm() {
     }
   };
 
-  // Resume Save/Load Logic
   const fetchSavedResumes = async () => {
     if (!user) return;
     setIsLoadingResumes(true);

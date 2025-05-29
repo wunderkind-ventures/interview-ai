@@ -3,8 +3,6 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
-// Firestore direct access removed for API key management.
-// import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore"; 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,18 +11,19 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, Save, AlertTriangle, KeyRound, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || 'http://localhost:8080'; // Configure this in .env.local if different
+const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || 'http://localhost:8080';
 
 export default function UserSettingsForm() {
   const { user, loading: authLoading, authInitializationFailed } = useAuth();
   const { toast } = useToast();
-  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState(""); 
+  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState("");
   const [apiKeyStatus, setApiKeyStatus] = useState<"loading" | "set" | "not_set" | "error">("loading");
-  const [isProcessing, setIsProcessing] = useState(false); // Combined state for saving/fetching status
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchApiKeyStatus = async () => {
     if (!user || authInitializationFailed) {
-      setApiKeyStatus("not_set"); // Or error, but not_set is fine if auth failed
+      setApiKeyStatus(authInitializationFailed ? "error" : "not_set");
+      setIsProcessing(false);
       return;
     }
     setApiKeyStatus("loading");
@@ -93,8 +92,8 @@ export default function UserSettingsForm() {
         title: "API Key Submitted",
         description: "Your API key has been securely submitted.",
       });
-      setGeminiApiKeyInput(""); 
-      setApiKeyStatus("set"); 
+      setGeminiApiKeyInput("");
+      setApiKeyStatus("set");
     } catch (error) {
       console.error("Error saving API key to backend:", error);
       toast({
@@ -145,7 +144,7 @@ export default function UserSettingsForm() {
     );
   }
 
-  if (!user) {
+  if (!user && !authInitializationFailed) { // Show login prompt only if auth is initialized and no user
     return (
       <div className="text-center py-12">
         <AlertTriangle className="mx-auto h-12 w-12 text-orange-400 mb-4" />
@@ -156,6 +155,19 @@ export default function UserSettingsForm() {
       </div>
     );
   }
+  
+  if (authInitializationFailed) {
+     return (
+        <div className="text-center py-12">
+         <Alert variant="destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertTitle>Authentication Error</AlertTitle>
+            <AlertDescription>Could not initialize Firebase Authentication. API Key settings are unavailable. Please check your Firebase project setup and environment variables.</AlertDescription>
+         </Alert>
+        </div>
+     )
+  }
+
 
   return (
     <Card className="w-full max-w-lg mx-auto shadow-lg">
@@ -164,7 +176,7 @@ export default function UserSettingsForm() {
           <KeyRound className="mr-2 h-6 w-6" /> API Key Management (BYOK)
         </CardTitle>
         <CardDescription>
-          Optionally, provide your own Google AI Gemini API key. This key will be used by the application's backend to make AI calls on your behalf, using your personal quota.
+          Optionally, provide your own Google AI Gemini API key. This key will be sent to our secure backend and used to make AI calls on your behalf, using your personal quota.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -172,7 +184,7 @@ export default function UserSettingsForm() {
           <AlertTriangle className="h-5 w-5 text-amber-600" />
           <AlertTitle className="font-semibold">Security & Usage Notice</AlertTitle>
           <AlertDescription className="text-xs">
-            Your API key will be sent to our secure backend, encrypted, and stored in Google Secret Manager. It is not stored in your browser or directly in the application database.
+            Your API key will be sent to our secure backend, and stored in Google Secret Manager.
             Managing the security and quota of your API key is your responsibility.
             If no key is provided, the application will use its default AI configuration.
           </AlertDescription>
@@ -187,7 +199,7 @@ export default function UserSettingsForm() {
           <Alert variant="destructive">
             <XCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
-            <AlertDescription>Could not retrieve API key status. Please refresh.</AlertDescription>
+            <AlertDescription>Could not retrieve API key status. Please try refreshing the page. If the problem persists, ensure the backend service is running and accessible.</AlertDescription>
           </Alert>
         )}
         {apiKeyStatus === "set" && (
@@ -217,7 +229,7 @@ export default function UserSettingsForm() {
             placeholder={apiKeyStatus === "set" ? "Enter new key to update, or leave blank to keep current" : "Enter your Gemini API Key (e.g., AIza...)"}
             value={geminiApiKeyInput}
             onChange={(e) => setGeminiApiKeyInput(e.target.value)}
-            disabled={isProcessing || authInitializationFailed}
+            disabled={isProcessing || authInitializationFailed || !user}
           />
           <p className="text-xs text-muted-foreground">
             Your key will be submitted to our secure backend.
@@ -225,8 +237,8 @@ export default function UserSettingsForm() {
         </div>
       </CardContent>
       <CardFooter className="flex justify-between">
-        <Button onClick={handleSaveSettings} disabled={isProcessing || authInitializationFailed || !geminiApiKeyInput.trim()}>
-          {isProcessing && apiKeyStatus !== "set" ? ( // Show spinner only if not already set and processing
+        <Button onClick={handleSaveSettings} disabled={isProcessing || authInitializationFailed || !geminiApiKeyInput.trim() || !user}>
+          {isProcessing && apiKeyStatus !== "set" ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Save className="mr-2 h-4 w-4" />
@@ -234,8 +246,8 @@ export default function UserSettingsForm() {
           {apiKeyStatus === "set" ? "Update API Key" : "Save API Key"}
         </Button>
         {apiKeyStatus === "set" && (
-            <Button onClick={handleRemoveApiKey} variant="destructive" disabled={isProcessing || authInitializationFailed}>
-                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+            <Button onClick={handleRemoveApiKey} variant="destructive" disabled={isProcessing || authInitializationFailed || !user}>
+                {isProcessing && apiKeyStatus === "set" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
                 Remove API Key
             </Button>
         )}

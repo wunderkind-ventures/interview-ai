@@ -1,0 +1,156 @@
+swagger: '2.0'
+info:
+  title: InterviewAI BYOT Backend API
+  description: API for managing user-provided API keys and proxying AI requests for InterviewAI.
+  version: '1.0.0'
+# The host will be automatically generated when you deploy your API Gateway.
+# Example: byot-gateway-xxxxxx-uc.a.run.app
+# You can update this field later after deployment if needed.
+host: your-gateway-id.uc.gateway.dev 
+schemes:
+  - https
+produces:
+  - application/json
+consumes:
+  - application/json
+
+# Optional: Define security for the API Gateway itself.
+# This API key would be used by your Next.js frontend to call the Gateway.
+# It is separate from the user's Gemini API key and Firebase Auth.
+# securityDefinitions:
+#   api_key_header:
+#     type: apiKey
+#     name: x-api-key
+#     in: header
+
+# Apply security globally if defined and desired for all paths
+# security:
+#   - api_key_header: []
+
+paths:
+  /api/user/set-api-key:
+    post:
+      summary: Stores or updates a user's Gemini API key securely.
+      description: Requires Firebase JWT authentication. The API key is provided in the request body.
+      operationId: setUserApiKey
+      # security: # Uncomment and use if you have securityDefinitions for the gateway
+      #   - api_key_header: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - apiKey
+            properties:
+              apiKey:
+                type: string
+                description: The user's Gemini API key.
+      x-google-backend:
+        address: "%s" # Placeholder for SetAPIKeyGCF URL
+        jwt_audience: "%s" # Placeholder for SetAPIKeyGCF jwt_audience
+      responses:
+        '200':
+          description: API key stored successfully.
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: API key stored successfully
+        '400':
+          description: Bad Request (e.g., missing apiKey, invalid JSON).
+        '401':
+          description: Unauthorized (e.g., Firebase token invalid or missing).
+        '500':
+          description: Internal Server Error (e.g., failed to interact with Secret Manager).
+
+  /api/user/remove-api-key:
+    post:
+      summary: Removes a user's stored Gemini API key.
+      description: Requires Firebase JWT authentication.
+      operationId: removeUserApiKey
+      # security:
+      #   - api_key_header: []
+      x-google-backend:
+        address: "%s" # Placeholder for RemoveAPIKeyGCF URL
+        jwt_audience: "%s" # Placeholder for RemoveAPIKeyGCF jwt_audience
+      responses:
+        '200':
+          description: API key removed successfully or was not found.
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: API key removed successfully
+        '401':
+          description: Unauthorized.
+        '500':
+          description: Internal Server Error.
+
+  /api/user/api-key-status:
+    get:
+      summary: Checks if a user has an active Gemini API key stored.
+      description: Requires Firebase JWT authentication.
+      operationId: getUserApiKeyStatus
+      # security:
+      #   - api_key_header: []
+      x-google-backend:
+        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL
+        jwt_audience: "%s" # Placeholder for GetAPIKeyStatusGCF jwt_audience
+      responses:
+        '200':
+          description: Status of the user's API key.
+          schema:
+            type: object
+            properties:
+              hasKey:
+                type: boolean
+              status:
+                type: string
+        '401':
+          description: Unauthorized.
+        '500':
+          description: Internal Server Error.
+
+  /api/ai/genkit/{flowName}:
+    post:
+      summary: Proxies a request to a specified Genkit AI flow.
+      description: Requires Firebase JWT authentication. The specific AI flow is determined by the `flowName` path parameter. The request body is forwarded to the Genkit flow.
+      operationId: proxyToGenkitFlow
+      # security:
+      #   - api_key_header: []
+      parameters:
+        - name: flowName
+          in: path
+          required: true
+          type: string
+          description: The name of the Genkit flow to execute (e.g., customizeInterviewQuestions).
+        - name: body # Describes the general request body structure expected by your Next.js /api/execute-flow endpoint
+          in: body
+          required: true
+          schema:
+            type: object
+            # Add properties here if you want to document the expected structure of AI flow inputs.
+            # For a generic proxy, it might be an open object: additionalProperties: true
+            additionalProperties: true 
+            description: The JSON payload to be forwarded to the Genkit AI flow.
+      x-google-backend:
+        address: "%s" # Placeholder for ProxyToGenkitGCF URL
+        path_translation: APPEND_PATH_TO_ADDRESS
+        jwt_audience: "%s" # Placeholder for ProxyToGenkitGCF jwt_audience
+      responses:
+        # Responses are largely proxied, so define common ones or use a default.
+        '200':
+          description: Successful response from the Genkit AI flow.
+          # schema: You might want to define a generic success or specific ones if known
+        '400':
+          description: Bad Request (e.g., invalid input to the AI flow, flowName not found by proxy logic).
+        '401':
+          description: Unauthorized (Firebase token invalid).
+        '500':
+          description: Internal Server Error (e.g., proxy failure, error in AI flow execution).
+        '503':
+          description: Service Unavailable (e.g., failed to call the Next.js backend). 

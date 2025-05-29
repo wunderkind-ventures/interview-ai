@@ -1,0 +1,7 @@
+name: byot-gcp-infra
+description: BYOT Backend on GCP
+runtime: go
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: go

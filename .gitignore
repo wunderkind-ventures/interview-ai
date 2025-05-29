@@ -1,6 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 /backends/byot-go-backend/serviceAccountKey.json
+/backends/byot-go-backend/interviewai-byot.json
 
 # dependencies
 /node_modules

@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, KeyRound, Copy, Info, RefreshCw, ShieldAlert, Send, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || 'http://localhost:8080'; // Should match your setup
+const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || 'http://localhost:8080';
 
 interface ApiResponse {
   status: number;
@@ -91,8 +91,11 @@ export default function TestingUtilitiesPanel() {
       throw new Error("Firebase token not available. Please refresh or log in.");
     }
     setIsProcessing(true);
+    const targetUrl = `${GO_BACKEND_URL}${endpoint}`;
+    console.log(`[API Call] Attempting ${method} to ${targetUrl}`);
+    console.log(`[API Call] Using token: ${firebaseToken ? firebaseToken.substring(0, 20) + '...' : 'No token'}`);
     try {
-      const response = await fetch(`${GO_BACKEND_URL}${endpoint}`, {
+      const response = await fetch(targetUrl, {
         method,
         headers: {
           'Authorization': `Bearer ${firebaseToken}`,
@@ -101,7 +104,7 @@ export default function TestingUtilitiesPanel() {
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      const responseBody = await response.json().catch(() => response.text()); // Try to parse JSON, fallback to text
+      const responseBody = await response.json().catch(() => response.text());
       const responseHeaders: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         responseHeaders[key] = value;
@@ -114,11 +117,19 @@ export default function TestingUtilitiesPanel() {
         headers: responseHeaders,
       };
     } catch (error: any) {
-      console.error(`Error calling ${endpoint}:`, error);
+      console.error(`[API Call] Error during ${method} to ${targetUrl}:`, error);
+      let errorMessage = `Failed to fetch from ${targetUrl}.`;
+      // Check if it's the generic "Failed to fetch" browser error
+      if (error.message.toLowerCase().includes("failed to fetch")) {
+        errorMessage += ` This often means a network issue, CORS problem, or the backend URL is incorrect.`;
+        errorMessage += ` Please ensure NEXT_PUBLIC_GO_BACKEND_URL is set correctly in your .env.local (currently targeting: ${GO_BACKEND_URL}) and that the backend is reachable.`;
+      } else {
+        errorMessage += ` Details: ${error.message}`;
+      }
       return {
-        status: 0, // Or some other indicator of client-side fetch error
+        status: 0, // Indicate client-side error
         statusText: "FetchError",
-        data: { error: "Failed to fetch", details: error.message },
+        data: { error: "Client-side Fetch Error", details: errorMessage },
       };
     } finally {
       setIsProcessing(false);
@@ -146,9 +157,9 @@ export default function TestingUtilitiesPanel() {
       setSetApiKeyResponse(res);
       if (res.status === 200) {
         toast({ title: "API Key Set", description: "Successfully submitted API key."});
-        testApiKeyStatus(); // Refresh status
+        testApiKeyStatus(); 
       } else {
-        toast({ title: "Error Setting API Key", description: res.data?.error || res.statusText, variant: "destructive" });
+        toast({ title: "Error Setting API Key", description: res.data?.error || res.data?.details || res.statusText, variant: "destructive" });
       }
     } catch (error: any) {
       setSetApiKeyResponse({ status: 0, statusText: "ClientError", data: { error: error.message } });
@@ -162,9 +173,9 @@ export default function TestingUtilitiesPanel() {
       setRemoveApiKeyResponse(res);
        if (res.status === 200) {
         toast({ title: "API Key Removed", description: "Successfully removed API key."});
-        testApiKeyStatus(); // Refresh status
+        testApiKeyStatus(); 
       } else {
-        toast({ title: "Error Removing API Key", description: res.data?.error || res.statusText, variant: "destructive" });
+        toast({ title: "Error Removing API Key", description: res.data?.error || res.data?.details || res.statusText, variant: "destructive" });
       }
     } catch (error: any) {
       setRemoveApiKeyResponse({ status: 0, statusText: "ClientError", data: { error: error.message } });
@@ -187,6 +198,9 @@ export default function TestingUtilitiesPanel() {
      try {
       const res = await makeApiCall(`/api/ai/genkit/${flowNameInput.trim()}`, 'POST', payload);
       setGenkitProxyResponse(res);
+      if (res.status !== 200) {
+        toast({ title: `Error Calling Flow (${res.status})`, description: res.data?.error || res.data?.details || res.statusText, variant: "destructive" });
+      }
     } catch (error: any) {
       setGenkitProxyResponse({ status: 0, statusText: "ClientError", data: { error: error.message } });
     }

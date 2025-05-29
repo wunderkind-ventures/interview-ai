@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Token Getter</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .token-box { background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 4px; }
+        .error { color: red; }
+        .success { color: green; }
+        textarea { width: 100%; height: 100px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔑 Firebase Token Getter</h1>
+    <p>Use this page alongside your Next.js app to get Firebase ID tokens for testing.</p>
+    
+    <div class="token-box">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Open your Next.js app in another tab and sign in</li>
+            <li>Come back to this tab</li>
+            <li>Click "Get Token from Other Tab" below</li>
+            <li>Copy the token and use it for testing</li>
+        </ol>
+    </div>
+
+    <button onclick="getTokenFromStorage()">Get Token from LocalStorage</button>
+    <button onclick="getTokenFromOtherTab()">Get Token from Other Tab</button>
+    <button onclick="testWithConsoleCode()">Show Console Code</button>
+    
+    <div id="result"></div>
+    <div id="console-code" style="display: none;">
+        <h3>Console Code (copy and paste in your Next.js app's console):</h3>
+        <textarea readonly>
+// Method 1: Try accessing Firebase directly
+if (typeof firebase !== 'undefined' && firebase.auth) {
+    const user = firebase.auth().currentUser;
+    if (user) {
+        user.getIdToken().then(token => {
+            console.log('🔑 Token:', token);
+            navigator.clipboard.writeText(token);
+            alert('Token copied to clipboard!');
+        });
+    } else {
+        console.log('No user signed in');
+    }
+} else {
+    console.log('Firebase not found on window. Try method 2...');
+    
+    // Method 2: Search for auth instance
+    Object.keys(window).forEach(key => {
+        if (key.includes('auth') || key.includes('firebase')) {
+            console.log('Found potential Firebase:', key, window[key]);
+        }
+    });
+    
+    // Method 3: If using Firebase v9+ modular SDK
+    // You'll need to find where your app stores the auth instance
+    console.log('If using Firebase v9+, check your app code for how auth is exported');
+}
+        </textarea>
+    </div>
+
+    <script>
+        function getTokenFromStorage() {
+            const result = document.getElementById('result');
+            
+            // Check for common Firebase storage patterns
+            const storageKeys = Object.keys(localStorage).filter(key => 
+                key.includes('firebase') || key.includes('auth') || key.includes('token')
+            );
+            
+            if (storageKeys.length > 0) {
+                result.innerHTML = `
+                    <div class="token-box">
+                        <h3>Found Firebase data in localStorage:</h3>
+                        ${storageKeys.map(key => `
+                            <p><strong>${key}:</strong></p>
+                            <textarea readonly>${localStorage.getItem(key)}</textarea>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                result.innerHTML = '<div class="error">No Firebase data found in localStorage</div>';
+            }
+        }
+
+        function getTokenFromOtherTab() {
+            const result = document.getElementById('result');
+            result.innerHTML = `
+                <div class="token-box">
+                    <h3>Cross-Tab Token Retrieval</h3>
+                    <p>Go to your Next.js app tab and run this in the console:</p>
+                    <textarea readonly onclick="this.select()">
+// Copy and paste this in your Next.js app's console
+(function() {
+    // Try multiple ways to get Firebase auth
+    let user = null;
+    
+    // Method 1: Global firebase
+    if (window.firebase && firebase.auth) {
+        user = firebase.auth().currentUser;
+    }
+    
+    // Method 2: Search React fiber
+    if (!user) {
+        const root = document.querySelector('#__next') || document.querySelector('#root');
+        if (root && root._reactInternalFiber) {
+            // Try to find auth through React internals (advanced)
+            console.log('Searching React internals...');
+        }
+    }
+    
+    // Method 3: Check common global variables
+    if (!user) {
+        ['__firebase', '_firebase', 'firebaseAuth'].forEach(name => {
+            if (window[name] && window[name].currentUser) {
+                user = window[name].currentUser;
+            }
+        });
+    }
+    
+    if (user) {
+        user.getIdToken().then(token => {
+            console.log('🔑 Firebase ID Token:');
+            console.log(token);
+            navigator.clipboard.writeText(token);
+            alert('Token copied to clipboard!');
+            
+            // Store in localStorage for cross-tab access
+            localStorage.setItem('temp_firebase_token', token);
+            localStorage.setItem('temp_firebase_user', JSON.stringify({
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName
+            }));
+        });
+    } else {
+        alert('No Firebase user found. Make sure you are signed in.');
+        console.log('Available window properties:', Object.keys(window).filter(k => k.includes('fire') || k.includes('auth')));
+    }
+})();
+                    </textarea>
+                    <p>After running that code, click the button below to retrieve the token:</p>
+                    <button onclick="retrieveStoredToken()">Retrieve Stored Token</button>
+                </div>
+            `;
+        }
+
+        function retrieveStoredToken() {
+            const token = localStorage.getItem('temp_firebase_token');
+            const user = localStorage.getItem('temp_firebase_user');
+            const result = document.getElementById('result');
+            
+            if (token) {
+                result.innerHTML = `
+                    <div class="token-box success">
+                        <h3>✅ Token Retrieved!</h3>
+                        ${user ? `<p><strong>User:</strong> ${JSON.parse(user).email}</p>` : ''}
+                        <p><strong>Token:</strong></p>
+                        <textarea readonly onclick="this.select()">${token}</textarea>
+                        <br>
+                        <button onclick="navigator.clipboard.writeText('${token}')">Copy Token</button>
+                        <button onclick="testApiWithToken('${token}')">Test API</button>
+                        <button onclick="clearStoredToken()">Clear</button>
+                    </div>
+                `;
+            } else {
+                result.innerHTML = '<div class="error">No token found. Run the console code first.</div>';
+            }
+        }
+
+        function clearStoredToken() {
+            localStorage.removeItem('temp_firebase_token');
+            localStorage.removeItem('temp_firebase_user');
+            document.getElementById('result').innerHTML = '<div class="success">Token cleared.</div>';
+        }
+
+        function testWithConsoleCode() {
+            const codeDiv = document.getElementById('console-code');
+            codeDiv.style.display = codeDiv.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function testApiWithToken(token) {
+            const apiUrl = 'https://byot-gateway-1ntw604r.uc.gateway.dev/api/user/api-key-status';
+            
+            fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(`API Test Result (${response.status}):\n${JSON.stringify(data, null, 2)}`);
+            })
+            .catch(error => {
+                alert(`API Test Failed: ${error.message}`);
+            });
+        }
+    </script>
+</body>
+</html> 

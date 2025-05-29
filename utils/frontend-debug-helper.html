@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔧 BYOT API Debug Helper</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        .card { background: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; margin: 15px 0; border-radius: 8px; }
+        .error { color: #dc3545; background: #f8d7da; border: 1px solid #f5c6cb; }
+        .success { color: #155724; background: #d4edda; border: 1px solid #c3e6cb; }
+        .warning { color: #856404; background: #fff3cd; border: 1px solid #ffeaa7; }
+        .info { color: #0c5460; background: #d1ecf1; border: 1px solid #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        textarea { width: 100%; height: 100px; margin: 10px 0; font-family: monospace; }
+        .code { background: #f1f3f4; padding: 10px; border-radius: 4px; font-family: monospace; overflow-x: auto; }
+        .section { border-left: 4px solid #007bff; padding-left: 15px; margin: 20px 0; }
+        input[type="text"] { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <h1>🔧 BYOT API Debug Helper</h1>
+    <p>This tool helps diagnose "Failed to fetch" errors when calling the BYOT API from your frontend.</p>
+
+    <div class="section">
+        <h2>🌐 Step 1: Network Connectivity Test</h2>
+        <div class="card">
+            <p>First, let's test if your browser can reach the API Gateway:</p>
+            <button onclick="testConnectivity()">Test API Connectivity</button>
+            <div id="connectivity-result"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔑 Step 2: Firebase Token Test</h2>
+        <div class="card">
+            <p>Get a Firebase token and test it against the API:</p>
+            <textarea id="firebase-token" placeholder="Paste your Firebase ID token here..."></textarea>
+            <button onclick="testWithToken()">Test with Token</button>
+            <button onclick="showTokenInstructions()">How to get token?</button>
+            <div id="token-instructions" style="display: none;" class="info card">
+                <h3>🔑 How to get Firebase ID Token:</h3>
+                <ol>
+                    <li>Open your Next.js app in another tab</li>
+                    <li>Sign in with your account</li>
+                    <li>Open browser console (F12)</li>
+                    <li>Run this code:</li>
+                </ol>
+                <div class="code">
+// For Firebase v9+ (modular)
+import { getAuth } from 'firebase/auth';
+const auth = getAuth();
+if (auth.currentUser) {
+    const token = await auth.currentUser.getIdToken();
+    console.log('Token:', token);
+    navigator.clipboard.writeText(token);
+}
+
+// For Firebase v8 (legacy)
+if (firebase.auth().currentUser) {
+    const token = await firebase.auth().currentUser.getIdToken();
+    console.log('Token:', token);
+    navigator.clipboard.writeText(token);
+}
+                </div>
+                <p>Then paste the token above and click "Test with Token"</p>
+            </div>
+            <div id="token-result"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔍 Step 3: Frontend Code Analysis</h2>
+        <div class="card">
+            <p>Let's analyze your frontend API call. Paste your fetch code here:</p>
+            <textarea id="frontend-code" placeholder="Paste your fetchApiKeyStatus function or fetch call here..."></textarea>
+            <button onclick="analyzeFrontendCode()">Analyze Code</button>
+            <div id="code-analysis"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🛠️ Step 4: Environment Check</h2>
+        <div class="card">
+            <button onclick="checkEnvironment()">Check Browser Environment</button>
+            <div id="environment-result"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>💡 Common Solutions</h2>
+        <div class="grid">
+            <div class="card warning">
+                <h3>1. Cloud Workstation CORS</h3>
+                <p>If you're using Google Cloud Workstations, the dynamic URL might cause issues.</p>
+                <p><strong>Solution:</strong> Try accessing your app via localhost instead of the workstation URL.</p>
+            </div>
+            <div class="card warning">
+                <h3>2. Missing Authorization Header</h3>
+                <p>Ensure your fetch includes the Firebase token in headers.</p>
+                <div class="code">
+headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+}
+                </div>
+            </div>
+            <div class="card warning">
+                <h3>3. Network Policies</h3>
+                <p>Corporate firewalls or network policies might block external API calls.</p>
+                <p><strong>Test:</strong> Try the same call from your personal device/network.</p>
+            </div>
+            <div class="card warning">
+                <h3>4. HTTPS/Mixed Content</h3>
+                <p>Ensure your frontend is served over HTTPS when calling HTTPS APIs.</p>
+                <p><strong>Check:</strong> Browser console for mixed content warnings.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://byot-gateway-1ntw604r.uc.gateway.dev';
+
+        async function testConnectivity() {
+            const result = document.getElementById('connectivity-result');
+            result.innerHTML = '<p>🔄 Testing connectivity...</p>';
+
+            try {
+                // Test CORS preflight
+                const response = await fetch(`${API_BASE}/api/user/api-key-status`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'GET',
+                        'Access-Control-Request-Headers': 'Authorization, Content-Type'
+                    }
+                });
+
+                const html = `
+                    <div class="success card">
+                        <h3>✅ Connectivity Test Passed</h3>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>CORS Headers:</strong></p>
+                        <ul>
+                            <li><strong>Access-Control-Allow-Origin:</strong> ${response.headers.get('Access-Control-Allow-Origin') || 'Not set'}</li>
+                            <li><strong>Access-Control-Allow-Methods:</strong> ${response.headers.get('Access-Control-Allow-Methods') || 'Not set'}</li>
+                            <li><strong>Access-Control-Allow-Headers:</strong> ${response.headers.get('Access-Control-Allow-Headers') || 'Not set'}</li>
+                        </ul>
+                        <p>✅ Your browser can reach the API Gateway successfully!</p>
+                    </div>
+                `;
+                result.innerHTML = html;
+
+            } catch (error) {
+                result.innerHTML = `
+                    <div class="error card">
+                        <h3>❌ Connectivity Test Failed</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>This suggests a network connectivity issue. Possible causes:</p>
+                        <ul>
+                            <li>Corporate firewall blocking external requests</li>
+                            <li>DNS resolution issues</li>
+                            <li>Network proxy interfering with requests</li>
+                            <li>Google Cloud Workstation network restrictions</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        async function testWithToken() {
+            const token = document.getElementById('firebase-token').value.trim();
+            const result = document.getElementById('token-result');
+
+            if (!token) {
+                result.innerHTML = '<div class="warning card">Please enter a Firebase ID token first.</div>';
+                return;
+            }
+
+            result.innerHTML = '<p>🔄 Testing with Firebase token...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/user/api-key-status`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                const html = `
+                    <div class="${response.ok ? 'success' : 'error'} card">
+                        <h3>${response.ok ? '✅' : '❌'} API Test Result</h3>
+                        <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        <p><strong>Response:</strong></p>
+                        <div class="code">${JSON.stringify(data, null, 2)}</div>
+                        ${!response.ok ? `
+                            <p><strong>Common Fixes:</strong></p>
+                            <ul>
+                                <li>Token expired - get a fresh token</li>
+                                <li>Wrong Firebase project - check your config</li>
+                                <li>User not authenticated properly</li>
+                            </ul>
+                        ` : ''}
+                    </div>
+                `;
+                result.innerHTML = html;
+
+            } catch (error) {
+                result.innerHTML = `
+                    <div class="error card">
+                        <h3>❌ Request Failed</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>This is the same "Failed to fetch" error you're seeing in your app!</p>
+                        <p><strong>Most likely causes:</strong></p>
+                        <ul>
+                            <li>Network connectivity issue (test step 1 first)</li>
+                            <li>CORS problem with your specific domain</li>
+                            <li>Browser blocking mixed content (HTTP calling HTTPS)</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        function showTokenInstructions() {
+            const instructions = document.getElementById('token-instructions');
+            instructions.style.display = instructions.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function analyzeFrontendCode() {
+            const code = document.getElementById('frontend-code').value.trim();
+            const result = document.getElementById('code-analysis');
+
+            if (!code) {
+                result.innerHTML = '<div class="warning card">Please paste your frontend code first.</div>';
+                return;
+            }
+
+            const issues = [];
+            const suggestions = [];
+
+            // Check for common issues
+            if (!code.includes('Authorization') && !code.includes('bearer')) {
+                issues.push('Missing Authorization header with Firebase token');
+            }
+
+            if (!code.includes('https://byot-gateway-1ntw604r.uc.gateway.dev')) {
+                issues.push('API URL might be incorrect');
+            }
+
+            if (code.includes('http://') && !code.includes('https://')) {
+                issues.push('Using HTTP instead of HTTPS');
+            }
+
+            if (!code.includes('Content-Type')) {
+                suggestions.push('Add Content-Type: application/json header');
+            }
+
+            if (code.includes('.then(') && !code.includes('catch(')) {
+                suggestions.push('Add .catch() error handling');
+            }
+
+            // Check for async/await pattern
+            if (!code.includes('await') && !code.includes('.then(')) {
+                issues.push('No async handling detected');
+            }
+
+            let html = '<div class="info card"><h3>🔍 Code Analysis Results</h3>';
+
+            if (issues.length > 0) {
+                html += '<div class="error" style="margin: 10px 0; padding: 10px;"><h4>⚠️ Issues Found:</h4><ul>';
+                issues.forEach(issue => html += `<li>${issue}</li>`);
+                html += '</ul></div>';
+            }
+
+            if (suggestions.length > 0) {
+                html += '<div class="warning" style="margin: 10px 0; padding: 10px;"><h4>💡 Suggestions:</h4><ul>';
+                suggestions.forEach(suggestion => html += `<li>${suggestion}</li>`);
+                html += '</ul></div>';
+            }
+
+            if (issues.length === 0 && suggestions.length === 0) {
+                html += '<div class="success" style="margin: 10px 0; padding: 10px;">✅ Code looks good! The issue might be environmental.</div>';
+            }
+
+            html += '<h4>📝 Recommended Code Pattern:</h4>';
+            html += `<div class="code">
+const fetchApiKeyStatus = async () => {
+    try {
+        const token = await firebase.auth().currentUser.getIdToken();
+        const response = await fetch('${API_BASE}/api/user/api-key-status', {
+            method: 'GET',
+            headers: {
+                'Authorization': \`Bearer \${token}\`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);
+        }
+        
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('API call failed:', error);
+        throw error;
+    }
+};
+            </div>`;
+
+            html += '</div>';
+            result.innerHTML = html;
+        }
+
+        function checkEnvironment() {
+            const result = document.getElementById('environment-result');
+            
+            const env = {
+                userAgent: navigator.userAgent,
+                protocol: window.location.protocol,
+                hostname: window.location.hostname,
+                port: window.location.port || 'default',
+                origin: window.location.origin,
+                isSecure: window.location.protocol === 'https:',
+                hasServiceWorker: 'serviceWorker' in navigator,
+                cookiesEnabled: navigator.cookieEnabled,
+                onLine: navigator.onLine,
+                language: navigator.language
+            };
+
+            let html = '<div class="info card"><h3>🔍 Browser Environment</h3>';
+            
+            // Security checks
+            if (!env.isSecure && env.hostname !== 'localhost') {
+                html += '<div class="error" style="margin: 10px 0; padding: 10px;">⚠️ Not using HTTPS! This may cause issues calling HTTPS APIs.</div>';
+            }
+
+            html += '<table style="width: 100%; border-collapse: collapse;">';
+            Object.entries(env).forEach(([key, value]) => {
+                html += `<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 8px; font-weight: bold;">${key}:</td><td style="padding: 8px;">${value}</td></tr>`;
+            });
+            html += '</table>';
+
+            // Special checks for Cloud Workstations
+            if (env.hostname.includes('cloudworkstations.dev')) {
+                html += '<div class="warning" style="margin: 15px 0; padding: 10px;"><h4>🔧 Cloud Workstation Detected</h4><p>Try these solutions:</p><ul><li>Use localhost proxy: <code>kubectl port-forward</code></li><li>Check if your workstation allows outbound HTTPS</li><li>Test from a different network</li></ul></div>';
+            }
+
+            html += '</div>';
+            result.innerHTML = html;
+        }
+    </script>
+</body>
+</html> 

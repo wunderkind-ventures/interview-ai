@@ -100,7 +100,7 @@ func ProxyToGenkitGCF(w http.ResponseWriter, r *http.Request) {
 	// If https://.../ProxyToGenkitGCF/myFlow, then path is /myFlow
 	// We will assume for now that API Gateway or a similar setup passes the flowName as the last part of the path.
 
-	pathParts := PparsePath(r.URL.Path) // Needs a robust path parsing function
+	pathParts := ParsePath(r.URL.Path) // Fixed typo: was PparsePath
 	var flowName string
 	if len(pathParts) > 0 {
 		flowName = pathParts[len(pathParts)-1]
@@ -191,12 +191,12 @@ func ProxyToGenkitGCF(w http.ResponseWriter, r *http.Request) {
 	log.Printf("ProxyToGenkitGCF: Successfully proxied flow %s for user %s. Downstream status: %d", flowName, userID, resp.StatusCode)
 }
 
-// PparsePath is a placeholder for a robust path parsing logic if needed without a framework.
+// ParsePath is a simple path parser for extracting path segments
 // For GCF, how you get path parameters depends on the trigger (HTTP Trigger, API Gateway).
 // If using API Gateway with path parameters like /flows/{flowName}, it might come via a different mechanism.
 // If using a direct Function URL, r.URL.Path is relative to the function's trigger path.
 // Example: if trigger is /ProxyToGenkitGCF, and URL is /ProxyToGenkitGCF/myFlow, r.URL.Path is /myFlow
-func PparsePath(path string) []string {
+func ParsePath(path string) []string {
 	// Basic parsing, not robust for all cases.
 	// Consider using a proper router or relying on API Gateway for param extraction.
 	if path == "/" || path == "" {

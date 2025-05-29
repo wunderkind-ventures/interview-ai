@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Generates a detailed take-home assignment for various interview types.
@@ -15,12 +14,9 @@ import { z } from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; 
-import type { CustomizeInterviewQuestionsInput as BaseFlowInputType } from '../schemas';
+import { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsInputSchema } from '../schemas';
 
-const GenerateTakeHomeAssignmentInputSchema = BaseFlowInputType;
-export type GenerateTakeHomeAssignmentInput = z.infer<
-  typeof GenerateTakeHomeAssignmentInputSchema
->;
+export type GenerateTakeHomeAssignmentInput = CustomizeInterviewQuestionsInput;
 
 const GenerateTakeHomeAssignmentOutputSchema = z.object({
   assignmentText: z
@@ -37,7 +33,7 @@ const promptObj = globalAI.definePrompt({
   name: 'generateTakeHomeAssignmentPrompt',
   tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], 
   input: {
-    schema: GenerateTakeHomeAssignmentInputSchema,
+    schema: CustomizeInterviewQuestionsInputSchema,
   },
   output: {
     schema: GenerateTakeHomeAssignmentOutputSchema,

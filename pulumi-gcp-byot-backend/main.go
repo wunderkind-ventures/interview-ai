@@ -74,10 +74,10 @@ func main() {
 
 		// Helper function to create a Cloud Function resource
 		createCloudFunction := func(name, entryPoint, sourceDir string, specificEnvVars pulumi.StringMap) (*cloudfunctions.Function, error) {
-			// Package the source code from the given directory.
+			// Create archive from source directory
 			archive := pulumi.NewFileArchive(sourceDir)
 
-			// Upload archive to GCS bucket for Cloud Function source
+			// Upload archive to GCS bucket
 			sourceObject, err := storage.NewBucketObject(ctx, name+"-source", &storage.BucketObjectArgs{
 				Bucket: deploymentBucket.Name,
 				Name:   pulumi.String(name + "-source.zip"),
@@ -109,7 +109,13 @@ func main() {
 				EnvironmentVariables: allEnvVars,
 			}
 
-			function, err := cloudfunctions.NewFunction(ctx, name, functionArgs)
+			// Add resource options to handle conflicts by deleting before replacing
+			resourceOpts := []pulumi.ResourceOption{
+				pulumi.DeleteBeforeReplace(true),
+				pulumi.ReplaceOnChanges([]string{"name", "entryPoint", "runtime"}),
+			}
+
+			function, err := cloudfunctions.NewFunction(ctx, name, functionArgs, resourceOpts...)
 			if err != nil {
 				return nil, err
 			}
@@ -187,14 +193,30 @@ func main() {
 
 		// Construct OpenAPI spec content dynamically
 		openapiContent := pulumi.All(
-			setApiKeyFunction.HttpsTriggerUrl,       // 1st URL for Sprintf
-			setApiKeyFunction.HttpsTriggerUrl,       // 2nd URL for Sprintf (for jwt_audience)
-			removeApiKeyFunction.HttpsTriggerUrl,    // 3rd
-			removeApiKeyFunction.HttpsTriggerUrl,    // 4th
-			getApiKeyStatusFunction.HttpsTriggerUrl, // 5th
-			getApiKeyStatusFunction.HttpsTriggerUrl, // 6th
-			proxyToGenkitFunction.HttpsTriggerUrl,   // 7th
-			proxyToGenkitFunction.HttpsTriggerUrl,   // 8th
+			// OPTIONS /api/user/set-api-key
+			setApiKeyFunction.HttpsTriggerUrl, // 1st URL for OPTIONS
+			pulumi.String(gcpProject),         // 2nd for jwt_audience
+			// POST /api/user/set-api-key
+			setApiKeyFunction.HttpsTriggerUrl, // 3rd URL for POST
+			pulumi.String(gcpProject),         // 4th for jwt_audience
+			// OPTIONS /api/user/remove-api-key
+			removeApiKeyFunction.HttpsTriggerUrl, // 5th URL for OPTIONS
+			pulumi.String(gcpProject),            // 6th for jwt_audience
+			// POST /api/user/remove-api-key
+			removeApiKeyFunction.HttpsTriggerUrl, // 7th URL for POST
+			pulumi.String(gcpProject),            // 8th for jwt_audience
+			// OPTIONS /api/user/api-key-status
+			getApiKeyStatusFunction.HttpsTriggerUrl, // 9th URL for OPTIONS
+			pulumi.String(gcpProject),               // 10th for jwt_audience
+			// GET /api/user/api-key-status
+			getApiKeyStatusFunction.HttpsTriggerUrl, // 11th URL for GET
+			pulumi.String(gcpProject),               // 12th for jwt_audience
+			// OPTIONS /api/ai/genkit/{flowName}
+			proxyToGenkitFunction.HttpsTriggerUrl, // 13th URL for OPTIONS
+			pulumi.String(gcpProject),             // 14th for jwt_audience
+			// POST /api/ai/genkit/{flowName}
+			proxyToGenkitFunction.HttpsTriggerUrl, // 15th URL for POST
+			pulumi.String(gcpProject),             // 16th for jwt_audience
 		).ApplyT(func(args []interface{}) (string, error) {
 			urls := make([]interface{}, len(args))
 			for i, arg := range args {

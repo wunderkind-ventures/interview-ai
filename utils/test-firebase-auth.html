@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Auth Diagnostic Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .warning { background: #fff3cd; border-color: #ffeaa7; color: #856404; }
+        .info { background: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+        code { background: #e9ecef; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+        .token-display { word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Firebase Auth Diagnostic Tool</h1>
+    <p>This tool helps diagnose Firebase authentication issues with your BYOT backend.</p>
+
+    <div id="status" class="section info">
+        <h3>Current Status</h3>
+        <p>Checking Firebase authentication...</p>
+    </div>
+
+    <div id="user-info" class="section" style="display: none;">
+        <h3>User Information</h3>
+        <div id="user-details"></div>
+    </div>
+
+    <div id="token-info" class="section" style="display: none;">
+        <h3>Token Analysis</h3>
+        <div id="token-details"></div>
+    </div>
+
+    <div class="section">
+        <h3>Actions</h3>
+        <button onclick="checkAuth()">Check Auth Status</button>
+        <button onclick="refreshToken()">Force Token Refresh</button>
+        <button onclick="testBackendAuth()">Test Backend Auth</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        function updateStatus(message, className) {
+            const status = document.getElementById('status');
+            status.className = `section ${className}`;
+            status.innerHTML = `<h3>Current Status</h3><p>${message}</p>`;
+        }
+
+        function showUserInfo(user) {
+            const userInfo = document.getElementById('user-info');
+            const userDetails = document.getElementById('user-details');
+            
+            userInfo.style.display = 'block';
+            userDetails.innerHTML = `
+                <p><strong>Display Name:</strong> ${user.displayName || 'N/A'}</p>
+                <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
+                <p><strong>UID:</strong> <code>${user.uid}</code></p>
+                <p><strong>Provider:</strong> ${user.providerId || 'N/A'}</p>
+                <p><strong>Provider Data:</strong></p>
+                <pre>${JSON.stringify(user.providerData, null, 2)}</pre>
+            `;
+        }
+
+        function showTokenInfo(token) {
+            const tokenInfo = document.getElementById('token-info');
+            const tokenDetails = document.getElementById('token-details');
+            
+            tokenInfo.style.display = 'block';
+            
+            try {
+                // Decode JWT without verification
+                const parts = token.split('.');
+                const header = JSON.parse(atob(parts[0]));
+                const payload = JSON.parse(atob(parts[1]));
+                
+                const expectedIssuer = `https://securetoken.google.com/interviewai-mzf86`;
+                const actualIssuer = payload.iss;
+                const issuerMatch = actualIssuer === expectedIssuer;
+                
+                tokenDetails.innerHTML = `
+                    <p><strong>Token Length:</strong> ${token.length} characters</p>
+                    <p><strong>Token Preview:</strong> <code class="token-display">${token.substring(0, 50)}...</code></p>
+                    
+                    <h4>JWT Header:</h4>
+                    <pre>${JSON.stringify(header, null, 2)}</pre>
+                    
+                    <h4>JWT Payload:</h4>
+                    <pre>${JSON.stringify(payload, null, 2)}</pre>
+                    
+                    <h4>Issuer Check:</h4>
+                    <p class="${issuerMatch ? 'success' : 'error'}">
+                        <strong>Expected:</strong> <code>${expectedIssuer}</code><br>
+                        <strong>Actual:</strong> <code>${actualIssuer}</code><br>
+                        <strong>Status:</strong> ${issuerMatch ? '✅ MATCH' : '❌ MISMATCH'}
+                    </p>
+                    
+                    ${!issuerMatch ? `
+                        <div class="section error">
+                            <h4>🚨 Issue Detected!</h4>
+                            <p>The token issuer doesn't match the expected Firebase project.</p>
+                            <p>This usually means:</p>
+                            <ul>
+                                <li>You're logged in with Google OAuth instead of Firebase Auth</li>
+                                <li>The Firebase project ID is misconfigured</li>
+                                <li>You're using a token from a different Firebase project</li>
+                            </ul>
+                        </div>
+                    ` : ''}
+                `;
+            } catch (error) {
+                tokenDetails.innerHTML = `
+                    <div class="error">
+                        <p>Failed to decode token: ${error.message}</p>
+                        <p>Token might be malformed or not a valid JWT.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function addResult(title, content, className = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `section ${className}`;
+            div.innerHTML = `<h4>${title}</h4>${content}`;
+            results.appendChild(div);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('user-info').style.display = 'none';
+            document.getElementById('token-info').style.display = 'none';
+            updateStatus('Cleared. Click "Check Auth Status" to start.', 'info');
+        }
+
+        async function checkAuth() {
+            clearResults();
+            updateStatus('Checking authentication...', 'warning');
+            
+            try {
+                // Check if Firebase is available
+                if (typeof firebase === 'undefined') {
+                    updateStatus('Firebase not loaded. Looking for alternative methods...', 'warning');
+                    
+                    // Try to find Firebase auth instance in window
+                    const possiblePaths = [
+                        'window.firebase',
+                        'window._firebase',
+                        'window.firebaseApp',
+                        'window.auth'
+                    ];
+                    
+                    for (const path of possiblePaths) {
+                        try {
+                            const obj = eval(path);
+                            if (obj && obj.auth) {
+                                addResult('Found Firebase', `Firebase found at: ${path}`, 'success');
+                                break;
+                            }
+                        } catch (e) {
+                            // Continue checking
+                        }
+                    }
+                    
+                    addResult('Manual Check Required', `
+                        <p>Please check authentication manually in your app's console:</p>
+                        <pre>// In your app's console, run:
+const user = firebase.auth().currentUser;
+if (user) {
+    console.log('User:', user);
+    user.getIdToken(true).then(token => {
+        console.log('Token:', token);
+        // Decode the token
+        const parts = token.split('.');
+        const payload = JSON.parse(atob(parts[1]));
+        console.log('Token payload:', payload);
+        console.log('Issuer:', payload.iss);
+    });
+}</pre>
+                    `, 'warning');
+                    return;
+                }
+                
+                const auth = firebase.auth();
+                const user = auth.currentUser;
+                
+                if (!user) {
+                    updateStatus('No user is currently signed in.', 'warning');
+                    addResult('Sign In Required', '<p>Please sign in to your application first, then run this diagnostic.</p>', 'warning');
+                    return;
+                }
+                
+                updateStatus('User is signed in. Analyzing...', 'info');
+                showUserInfo(user);
+                
+                // Get token
+                const token = await user.getIdToken(true);
+                showTokenInfo(token);
+                
+                updateStatus('Analysis complete. Check the results below.', 'success');
+                
+            } catch (error) {
+                updateStatus('Error during authentication check.', 'error');
+                addResult('Error Details', `<pre>${error.message}\n${error.stack}</pre>`, 'error');
+            }
+        }
+
+        async function refreshToken() {
+            try {
+                if (typeof firebase === 'undefined') {
+                    addResult('Cannot Refresh', '<p>Firebase is not available in this context.</p>', 'error');
+                    return;
+                }
+                
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    addResult('No User', '<p>No user is signed in.</p>', 'warning');
+                    return;
+                }
+                
+                addResult('Refreshing Token...', '<p>Forcing token refresh...</p>', 'info');
+                const newToken = await user.getIdToken(true);
+                showTokenInfo(newToken);
+                addResult('Token Refreshed', '<p>✅ Token has been refreshed. Check the analysis above.</p>', 'success');
+                
+            } catch (error) {
+                addResult('Refresh Error', `<pre>${error.message}</pre>`, 'error');
+            }
+        }
+
+        async function testBackendAuth() {
+            try {
+                if (typeof firebase === 'undefined') {
+                    addResult('Cannot Test', '<p>Firebase is not available. Please run this test from your application.</p>', 'error');
+                    return;
+                }
+                
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    addResult('No User', '<p>No user is signed in.</p>', 'warning');
+                    return;
+                }
+                
+                const token = await user.getIdToken(true);
+                
+                addResult('Testing Backend...', '<p>Calling BYOT backend API...</p>', 'info');
+                
+                const response = await fetch('https://byot-gateway-1ntw604r.uc.gateway.dev/api/user/api-key-status', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const responseText = await response.text();
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    responseData = responseText;
+                }
+                
+                if (response.ok) {
+                    addResult('Backend Test Success', `
+                        <p>✅ Backend authentication successful!</p>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Response:</strong></p>
+                        <pre>${JSON.stringify(responseData, null, 2)}</pre>
+                    `, 'success');
+                } else {
+                    addResult('Backend Test Failed', `
+                        <p>❌ Backend authentication failed!</p>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Response:</strong></p>
+                        <pre>${JSON.stringify(responseData, null, 2)}</pre>
+                    `, 'error');
+                }
+                
+            } catch (error) {
+                addResult('Test Error', `<pre>${error.message}</pre>`, 'error');
+            }
+        }
+
+        // Auto-check on load
+        window.onload = () => {
+            setTimeout(checkAuth, 1000);
+        };
+    </script>
+</body>
+</html> 

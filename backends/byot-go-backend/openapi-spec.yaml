@@ -29,6 +29,22 @@ consumes:
 
 paths:
   /api/user/set-api-key:
+    options:
+      summary: Handle CORS preflight requests
+      operationId: corsSetApiKey
+      x-google-backend:
+        address: "%s" # Placeholder for SetAPIKeyGCF URL
+        jwt_audience: "%s" # Placeholder for SetAPIKeyGCF jwt_audience
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
     post:
       summary: Stores or updates a user's Gemini API key securely.
       description: Requires Firebase JWT authentication. The API key is provided in the request body.
@@ -67,6 +83,22 @@ paths:
           description: Internal Server Error (e.g., failed to interact with Secret Manager).
 
   /api/user/remove-api-key:
+    options:
+      summary: Handle CORS preflight requests
+      operationId: corsRemoveApiKey
+      x-google-backend:
+        address: "%s" # Placeholder for RemoveAPIKeyGCF URL
+        jwt_audience: "%s" # Placeholder for RemoveAPIKeyGCF jwt_audience
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
     post:
       summary: Removes a user's stored Gemini API key.
       description: Requires Firebase JWT authentication.
@@ -91,6 +123,22 @@ paths:
           description: Internal Server Error.
 
   /api/user/api-key-status:
+    options:
+      summary: Handle CORS preflight requests
+      operationId: corsApiKeyStatus
+      x-google-backend:
+        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL
+        jwt_audience: "%s" # Placeholder for GetAPIKeyStatusGCF jwt_audience
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
     get:
       summary: Checks if a user has an active Gemini API key stored.
       description: Requires Firebase JWT authentication.
@@ -116,6 +164,28 @@ paths:
           description: Internal Server Error.
 
   /api/ai/genkit/{flowName}:
+    options:
+      summary: Handle CORS preflight requests
+      operationId: corsGenkitFlow
+      parameters:
+        - name: flowName
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "%s" # Placeholder for ProxyToGenkitGCF URL
+        path_translation: APPEND_PATH_TO_ADDRESS
+        jwt_audience: "%s" # Placeholder for ProxyToGenkitGCF jwt_audience
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
     post:
       summary: Proxies a request to a specified Genkit AI flow.
       description: Requires Firebase JWT authentication. The specific AI flow is determined by the `flowName` path parameter. The request body is forwarded to the Genkit flow.

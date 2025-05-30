@@ -1,10 +1,12 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# secrets
 /backends/byot-go-backend/serviceAccountKey.json
 /backends/byot-go-backend/interviewai-byot.json
-/pulumi-gcp-byot-backend/Pulumi.dev.yaml
-/pulumi-gcp-byot-backend/Pulumi.stg.yaml
-/pulumi-gcp-byot-backend/Pulumi.prod.yaml
+/pulumi-gcp-byot-backend/Pulumi.*.yaml
+/pulumi-gcp-byot-backend/main
+.env*
+
 
 # dependencies
 /node_modules
@@ -44,7 +46,6 @@ yarn-error.log*
 next-env.d.ts
 
 .genkit/*
-.env*
 
 # firebase
 firebase-debug.log
@@ -56,6 +57,3 @@ firestore-debug.log
 /backends/byot-go-backend/vendor/
 
 /debugging/
-
-/pulumi-gcp-byot-backend/main
-/pulumi-gcp-byot-backend/Pulumi.*.yaml

@@ -26,7 +26,10 @@ const (
 	// For GCP hosted services, you might use workload identity instead.
 	firebaseServiceAccountKeyPath = ".local/serviceAccountKey.json"
 	// Base URL of your Next.js application
-	nextjsBaseURL = "http://localhost:3000"
+	nextjsBaseURL = os.Getenv("NEXTJS_BASE_URL")
+	if nextjsBaseURL == "" {
+		nextjsBaseURL = "http://localhost:3000" // TODO: replace with the actual URL of your Next.js application
+	}
 )
 
 func main() {

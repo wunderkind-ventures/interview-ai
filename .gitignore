@@ -2,6 +2,9 @@
 
 /backends/byot-go-backend/serviceAccountKey.json
 /backends/byot-go-backend/interviewai-byot.json
+/pulumi-gcp-byot-backend/Pulumi.dev.yaml
+/pulumi-gcp-byot-backend/Pulumi.stg.yaml
+/pulumi-gcp-byot-backend/Pulumi.prod.yaml
 
 # dependencies
 /node_modules

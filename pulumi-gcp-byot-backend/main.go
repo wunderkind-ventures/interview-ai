@@ -20,6 +20,9 @@ func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
 		// --- Configuration ---
 		cfg := config.New(ctx, "byot-gcp-infra")
+
+		encryptionKey := cfg.RequireSecret("ENCRYPTION_KEY") // For secrets
+
 		gcpProject := cfg.Require("gcpProject")
 		gcpRegion := cfg.Require("gcpRegion")
 		alertEmail := cfg.Require("alertEmail")

@@ -58,3 +58,4 @@ firestore-debug.log
 /debugging/
 
 pulumi-gcp-byot-backend/main
+pulumi-gcp-byot-backend/Pulumi.*.yaml

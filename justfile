@@ -34,3 +34,6 @@ test-browser:
 test-browser-profile:
     # Option 2: Use a specific browser profile
     open -a "Google Chrome" --args --profile-directory="Profile 1" "http://localhost:9002"
+
+add-pulumi-encryption-key:
+    ENCRYPTION_KEY=$(openssl rand -base64 32) && pulumi config set --secret ENCRYPTION_KEY "$ENCRYPTION_KEY"

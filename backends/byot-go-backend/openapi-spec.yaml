@@ -14,14 +14,18 @@ produces:
 consumes:
   - application/json
 
+# Disable all security - let Cloud Functions handle authentication
+security: []
+
 paths:
   /api/user/set-api-key:
     options:
       summary: Handle CORS preflight requests for Set API Key
       operationId: corsSetApiKey
+      security: []  # Explicitly disable security
       x-google-backend:
         address: "%s" # Placeholder for SetAPIKeyGCF URL (1st)
-        # jwt_audience removed for OPTIONS
+        disable_auth: true  # Disable API Gateway auth processing
       responses:
         '200':
           description: CORS preflight response
@@ -38,6 +42,7 @@ paths:
       summary: Stores or updates a user's Gemini API key securely.
       description: Requires Firebase JWT authentication. The API key is provided in the request body.
       operationId: setUserApiKey
+      security: []  # Explicitly disable security
       parameters:
         - name: body
           in: body
@@ -52,7 +57,7 @@ paths:
                 description: The user's Gemini API key.
       x-google-backend:
         address: "%s" # Placeholder for SetAPIKeyGCF URL (2nd)
-        jwt_audience: "%s" # Placeholder for SetAPIKeyGCF jwt_audience (3rd)
+        disable_auth: true  # Disable API Gateway auth processing
       responses:
         '200':
           description: API key stored successfully.
@@ -73,9 +78,10 @@ paths:
     options:
       summary: Handle CORS preflight requests for Remove API Key
       operationId: corsRemoveApiKey
+      security: []  # Explicitly disable security
       x-google-backend:
-        address: "%s" # Placeholder for RemoveAPIKeyGCF URL (4th)
-        # jwt_audience removed for OPTIONS
+        address: "%s" # Placeholder for RemoveAPIKeyGCF URL (3rd)
+        disable_auth: true  # Disable API Gateway auth processing
       responses:
         '200':
           description: CORS preflight response
@@ -92,9 +98,10 @@ paths:
       summary: Removes a user's stored Gemini API key.
       description: Requires Firebase JWT authentication.
       operationId: removeUserApiKey
+      security: []  # Explicitly disable security
       x-google-backend:
-        address: "%s" # Placeholder for RemoveAPIKeyGCF URL (5th)
-        jwt_audience: "%s" # Placeholder for RemoveAPIKeyGCF jwt_audience (6th)
+        address: "%s" # Placeholder for RemoveAPIKeyGCF URL (4th)
+        disable_auth: true  # Disable API Gateway auth processing
       responses:
         '200':
           description: API key removed successfully or was not found.
@@ -113,9 +120,10 @@ paths:
     options:
       summary: Handle CORS preflight requests for API Key Status
       operationId: corsApiKeyStatus
+      security: []  # Explicitly disable security
       x-google-backend:
-        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL (7th)
-        # jwt_audience removed for OPTIONS
+        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL (5th)
+        disable_auth: true  # Disable API Gateway auth processing
       responses:
         '200':
           description: CORS preflight response
@@ -132,9 +140,10 @@ paths:
       summary: Checks if a user has an active Gemini API key stored.
       description: Requires Firebase JWT authentication.
       operationId: getUserApiKeyStatus
+      security: []  # Explicitly disable security
       x-google-backend:
-        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL (8th)
-        jwt_audience: "%s" # Placeholder for GetAPIKeyStatusGCF jwt_audience (9th)
+        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL (6th)
+        disable_auth: true  # Disable API Gateway auth processing
       responses:
         '200':
           description: Status of the user's API key.
@@ -154,15 +163,16 @@ paths:
     options:
       summary: Handle CORS preflight requests for Genkit Flow
       operationId: corsGenkitFlow
+      security: []  # Explicitly disable security
       parameters:
         - name: flowName
           in: path
           required: true
           type: string
       x-google-backend:
-        address: "%s" # Placeholder for ProxyToGenkitGCF URL (10th)
+        address: "%s" # Placeholder for ProxyToGenkitGCF URL (7th)
         path_translation: APPEND_PATH_TO_ADDRESS
-        # jwt_audience removed for OPTIONS
+        disable_auth: true  # Disable API Gateway auth processing
       responses:
         '200':
           description: CORS preflight response
@@ -179,6 +189,7 @@ paths:
       summary: Proxies a request to a specified Genkit AI flow.
       description: Requires Firebase JWT authentication. The specific AI flow is determined by the `flowName` path parameter. The request body is forwarded to the Genkit flow.
       operationId: proxyToGenkitFlow
+      security: []  # Explicitly disable security
       parameters:
         - name: flowName
           in: path
@@ -193,9 +204,9 @@ paths:
             additionalProperties: true 
             description: The JSON payload to be forwarded to the Genkit AI flow.
       x-google-backend:
-        address: "%s" # Placeholder for ProxyToGenkitGCF URL (11th)
+        address: "%s" # Placeholder for ProxyToGenkitGCF URL (8th)
         path_translation: APPEND_PATH_TO_ADDRESS
-        jwt_audience: "%s" # Placeholder for ProxyToGenkitGCF jwt_audience (12th)
+        disable_auth: true  # Disable API Gateway auth processing
       responses:
         '200':
           description: Successful response from the Genkit AI flow.

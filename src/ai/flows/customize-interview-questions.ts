@@ -319,7 +319,10 @@ async function customizeSimpleQAInterviewQuestionsFlow(
         isGeneralInterviewType: !['behavioral', 'product sense', 'technical system design', 'machine learning', 'data structures & algorithms'].includes(baseInput.interviewType),
     };
 
-    const {output} = await aiInstance.run(customizeSimpleQAInterviewQuestionsPrompt, promptInput);
+    // Use aiInstance.generate() instead of aiInstance.run()
+    const response = await aiInstance.generate({prompt: customizeSimpleQAInterviewQuestionsPrompt, input: promptInput});
+    const output = response.output; // Assuming output is directly on the response, adjust if needed
+
     if (!output || !output.customizedQuestions || output.customizedQuestions.length === 0) {
         const fallbackQuestions = [
             { questionText: "Can you describe a challenging project you've worked on and your role in it?", idealAnswerCharacteristics: ["Clear context", "Specific personal contribution", "Quantifiable impact if possible"] },

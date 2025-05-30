@@ -45,6 +45,16 @@ func main() {
 			return err
 		}
 
+		// Add Secret Manager Admin role to allow creating and managing secrets
+		_, err = projects.NewIAMMember(ctx, "functionsSaSecretVersionManager", &projects.IAMMemberArgs{
+			Project: pulumi.String(gcpProject),
+			Role:    pulumi.String("roles/secretmanager.secretVersionManager"),
+			Member:  pulumi.Sprintf("serviceAccount:%s", functionsServiceAccount.Email),
+		})
+		if err != nil {
+			return err
+		}
+
 		// Allow functions to verify Firebase ID tokens (needed for Firebase Admin SDK)
 		// This role is often included in broader Firebase roles like 'Firebase Admin'
 		// but 'roles/firebaseauth.viewer' or a custom role with 'firebaseauth.tokens.verify' might be sufficient.
@@ -126,8 +136,8 @@ func main() {
 			// from the API Gateway's service account OR be public if Gateway handles auth.
 			// If functions are private & Gateway authenticates TO them, use Gateway's SA.
 			// If Gateway passes user's JWT for function to verify, function invoker can be more specific.
-			// Making functions invokable by 'allUsers' since Cloud Functions will handle
-			// Firebase authentication internally.
+			// We're making functions invokable by 'allUsers' and letting the Cloud Functions
+			// handle Firebase authentication directly (no jwt_audience in API Gateway).
 			_, err = cloudfunctions.NewFunctionIamMember(ctx, fmt.Sprintf("%s-invoker", name), &cloudfunctions.FunctionIamMemberArgs{
 				Project:       function.Project,
 				Region:        function.Region,

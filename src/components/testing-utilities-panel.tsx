@@ -158,7 +158,14 @@ export default function TestingUtilitiesPanel() {
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      const responseBody = await response.json().catch(() => response.text());
+      const responseText = await response.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        responseData = responseText; // If not JSON, use the raw text
+      }
+      
       const responseHeaders: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         responseHeaders[key] = value;
@@ -167,7 +174,7 @@ export default function TestingUtilitiesPanel() {
       return {
         status: response.status,
         statusText: response.statusText,
-        data: responseBody,
+        data: responseData,
         headers: responseHeaders,
       };
     } catch (error: any) {
@@ -194,7 +201,7 @@ export default function TestingUtilitiesPanel() {
     try {
       const res = await makeApiCall('/api/user/api-key-status', 'GET');
       setApiKeyStatusResponse(res);
-    } catch (error: any) { // Should be caught by makeApiCall now
+    } catch (error: any) { 
       setApiKeyStatusResponse({ status: 0, statusText: "ClientError_Outer", data: { error: error.message } });
     }
   };
@@ -215,7 +222,7 @@ export default function TestingUtilitiesPanel() {
         const errorDetail = res.data?.error || res.data?.details || JSON.stringify(res.data) || res.statusText;
         toast({ title: "Error Setting API Key", description: errorDetail, variant: "destructive" });
       }
-    } catch (error: any) {  // Should be caught by makeApiCall now
+    } catch (error: any) {  
       setSetApiKeyResponse({ status: 0, statusText: "ClientError_Outer", data: { error: error.message } });
     }
   };
@@ -232,7 +239,7 @@ export default function TestingUtilitiesPanel() {
         const errorDetail = res.data?.error || res.data?.details || JSON.stringify(res.data) || res.statusText;
         toast({ title: "Error Removing API Key", description: errorDetail, variant: "destructive" });
       }
-    } catch (error: any) { // Should be caught by makeApiCall now
+    } catch (error: any) { 
       setRemoveApiKeyResponse({ status: 0, statusText: "ClientError_Outer", data: { error: error.message } });
     }
   };
@@ -257,7 +264,7 @@ export default function TestingUtilitiesPanel() {
         const errorDetail = res.data?.error || res.data?.details || JSON.stringify(res.data) || res.statusText;
         toast({ title: `Error Calling Flow (${res.status})`, description: errorDetail, variant: "destructive" });
       }
-    } catch (error: any) { // Should be caught by makeApiCall now
+    } catch (error: any) { 
       setGenkitProxyResponse({ status: 0, statusText: "ClientError_Outer", data: { error: error.message } });
     }
   };
@@ -297,7 +304,6 @@ export default function TestingUtilitiesPanel() {
             {JSON.stringify({
               'content-type': response.headers?.['content-type'],
               'date': response.headers?.['date'],
-              // Add other relevant headers if needed, e.g., 'x-cloud-trace-context'
             }, null, 2)}
           </pre>
           <p className="mt-2"><strong>Body:</strong></p>

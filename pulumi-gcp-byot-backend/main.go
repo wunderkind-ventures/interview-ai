@@ -21,17 +21,10 @@ func main() {
 		gcpProject := cfg.Require("gcpProject") // From Pulumi.<stack>.yaml or `pulumi config set gcpProject your-project-id`
 		gcpRegion := cfg.Require("gcpRegion")   // e.g., "us-central1"
 
-		// These sensitive values should ideally come from Pulumi config (secrets) or environment variables
-		// that Pulumi can access during `pulumi up`.
-		// For Pulumi config: `pulumi config set --secret defaultGeminiApiKey YOUR_KEY`
 		defaultGeminiApiKey := cfg.RequireSecret("defaultGeminiApiKey")
-		nextjsBaseUrl := cfg.Require("nextjsBaseUrl") // e.g., "https://your-nextjs-app.com"
+		nextjsBaseUrl := cfg.Require("nextjsBaseUrl") 
 
-		// Path to your OpenAPI spec, relative to this Pulumi program's location or absolute.
-		// This assumes openapi-spec.yaml is in the parent directory relative to this Pulumi program,
-		// which might not be ideal. Better to copy it into the Pulumi project or reference it carefully.
-		// For simplicity here, let's assume it's accessible.
-		openapiSpecPath := "../backends/byot-go-backend/openapi-spec.yaml" // ADJUST PATH
+		openapiSpecPath := "../backends/byot-go-backend/openapi-spec.yaml"
 
 		// --- Service Account for Cloud Functions ---
 		functionsServiceAccount, err := serviceaccount.NewAccount(ctx, "byot-functions-sa", &serviceaccount.AccountArgs{
@@ -43,8 +36,6 @@ func main() {
 			return err
 		}
 
-		// Grant necessary roles to the functions' service account
-		// Secret Manager Accessor
 		_, err = projects.NewIAMMember(ctx, "functionsSaSecretAccessor", &projects.IAMMemberArgs{
 			Project: pulumi.String(gcpProject),
 			Role:    pulumi.String("roles/secretmanager.secretAccessor"),
@@ -53,31 +44,38 @@ func main() {
 		if err != nil {
 			return err
 		}
-		// Add other roles: Firebase Admin (if needed beyond ADC), etc.
-		// e.g., roles/firebase.admin if functions need broad Firebase access
-
-		// --- Cloud Functions ---
-		// Create a GCS bucket for storing function source archives
-		deploymentBucket, err := storage.NewBucket(ctx, "functions-deployment-bucket", &storage.BucketArgs{
-			Project:  pulumi.String(gcpProject),
-			Location: pulumi.String(gcpRegion),
+		
+		// Allow functions to verify Firebase ID tokens (needed for Firebase Admin SDK)
+		// This role is often included in broader Firebase roles like 'Firebase Admin'
+		// but 'roles/firebaseauth.viewer' or a custom role with 'firebaseauth.tokens.verify' might be sufficient.
+		// For simplicity and if functions already have broader Firebase access, this might be covered.
+		// If not, add:
+		_, err = projects.NewIAMMember(ctx, "functionsSaFirebaseTokenVerifier", &projects.IAMMemberArgs{
+			Project: pulumi.String(gcpProject),
+			Role:    pulumi.String("roles/firebase.tokenVerifier"), // or a more specific permission if possible
+			Member:  pulumi.Sprintf("serviceAccount:%s", functionsServiceAccount.Email),
 		})
 		if err != nil {
 			return err
 		}
 
-		// Define common environment variables for all functions
-		commonFunctionEnvVars := pulumi.StringMap{
-			"GCP_PROJECT_ID": pulumi.String(gcpProject),
-			// "FIREBASE_SERVICE_ACCOUNT_KEY_PATH": pulumi.String(""), // Typically not needed if using runtime SA
+
+		// --- Cloud Functions ---
+		deploymentBucket, err := storage.NewBucket(ctx, "functions-deployment-bucket", &storage.BucketArgs{
+			Project:  pulumi.String(gcpProject),
+			Location: pulumi.String(gcpRegion),
+			// UniformBucketLevelAccess: pulumi.Bool(true), // Recommended
+		})
+		if err != nil {
+			return err
 		}
 
-		// Helper function to create a Cloud Function resource
-		createCloudFunction := func(name, entryPoint, sourceDir string, specificEnvVars pulumi.StringMap) (*cloudfunctions.Function, error) {
-			// Create archive from source directory
-			archive := pulumi.NewFileArchive(sourceDir)
+		commonFunctionEnvVars := pulumi.StringMap{
+			"GCP_PROJECT_ID": pulumi.String(gcpProject),
+		}
 
-			// Upload archive to GCS bucket
+		createCloudFunction := func(name, entryPoint, sourceDir string, specificEnvVars pulumi.StringMap) (*cloudfunctions.Function, error) {
+			archive := pulumi.NewFileArchive(sourceDir)
 			sourceObject, err := storage.NewBucketObject(ctx, name+"-source", &storage.BucketObjectArgs{
 				Bucket: deploymentBucket.Name,
 				Name:   pulumi.String(name + "-source.zip"),
@@ -98,7 +96,7 @@ func main() {
 			functionArgs := &cloudfunctions.FunctionArgs{
 				Name:                 pulumi.String(name),
 				EntryPoint:           pulumi.String(entryPoint),
-				Runtime:              pulumi.String("go121"),
+				Runtime:              pulumi.String("go121"), // Ensure this matches your Go version
 				AvailableMemoryMb:    pulumi.Int(256),
 				SourceArchiveBucket:  deploymentBucket.Name,
 				SourceArchiveObject:  sourceObject.Name,
@@ -108,27 +106,30 @@ func main() {
 				ServiceAccountEmail:  functionsServiceAccount.Email,
 				EnvironmentVariables: allEnvVars,
 			}
-
-			// Add resource options to handle conflicts by deleting before replacing
+			
 			resourceOpts := []pulumi.ResourceOption{
 				pulumi.DeleteBeforeReplace(true),
-				pulumi.ReplaceOnChanges([]string{"name", "entryPoint", "runtime"}),
+				pulumi.ReplaceOnChanges([]string{"name", "entryPoint", "runtime", "serviceAccountEmail"}),
 			}
+
 
 			function, err := cloudfunctions.NewFunction(ctx, name, functionArgs, resourceOpts...)
 			if err != nil {
 				return nil, err
 			}
 
-			// Allow unauthenticated invocations for now (or configure IAM if you use API Gateway to auth to function)
-			// This is simpler if API Gateway is the one controlling public access.
-			// If your function is private and API Gateway calls it via IAM, then you don't set this.
+			// For API Gateway to invoke the function, the function needs to allow invocations
+			// from the API Gateway's service account OR be public if Gateway handles auth.
+			// If functions are private & Gateway authenticates TO them, use Gateway's SA.
+			// If Gateway passes user's JWT for function to verify, function invoker can be more specific.
+			// For simplicity with x-google-backend.jwt_audience, making functions invokable by 'allUsers'
+			// as API Gateway will perform the auth check.
 			_, err = cloudfunctions.NewFunctionIamMember(ctx, fmt.Sprintf("%s-invoker", name), &cloudfunctions.FunctionIamMemberArgs{
 				Project:       function.Project,
 				Region:        function.Region,
 				CloudFunction: function.Name,
 				Role:          pulumi.String("roles/cloudfunctions.invoker"),
-				Member:        pulumi.String("allUsers"), // For public access
+				Member:        pulumi.String("allUsers"), 
 			})
 			if err != nil {
 				return nil, err
@@ -136,33 +137,29 @@ func main() {
 			return function, nil
 		}
 
-		// Deploy SetAPIKeyGCF
 		setApiKeyFunction, err := createCloudFunction("SetAPIKeyGCF", "SetAPIKeyGCF",
-			"../backends/byot-go-backend/functions/setapikey", // ADJUST PATH
+			"../backends/byot-go-backend/functions/setapikey", 
 			pulumi.StringMap{})
 		if err != nil {
 			return err
 		}
 
-		// Deploy RemoveAPIKeyGCF
 		removeApiKeyFunction, err := createCloudFunction("RemoveAPIKeyGCF", "RemoveAPIKeyGCF",
-			"../backends/byot-go-backend/functions/removeapikey", // ADJUST PATH
+			"../backends/byot-go-backend/functions/removeapikey", 
 			pulumi.StringMap{})
 		if err != nil {
 			return err
 		}
 
-		// Deploy GetAPIKeyStatusGCF
 		getApiKeyStatusFunction, err := createCloudFunction("GetAPIKeyStatusGCF", "GetAPIKeyStatusGCF",
-			"../backends/byot-go-backend/functions/getapikeystatus", // ADJUST PATH
+			"../backends/byot-go-backend/functions/getapikeystatus", 
 			pulumi.StringMap{})
 		if err != nil {
 			return err
 		}
 
-		// Deploy ProxyToGenkitGCF
 		proxyToGenkitFunction, err := createCloudFunction("ProxyToGenkitGCF", "ProxyToGenkitGCF",
-			"../backends/byot-go-backend/functions/proxytogenkit", // ADJUST PATH
+			"../backends/byot-go-backend/functions/proxytogenkit", 
 			pulumi.StringMap{
 				"NEXTJS_BASE_URL":        pulumi.String(nextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": defaultGeminiApiKey,
@@ -172,7 +169,6 @@ func main() {
 		}
 
 		// --- API Gateway ---
-		// 1. Create the API resource
 		api, err := apigateway.NewApi(ctx, "byot-backend-api", &apigateway.ApiArgs{
 			ApiId:   pulumi.String("byot-backend-api"),
 			Project: pulumi.String(gcpProject),
@@ -180,61 +176,47 @@ func main() {
 		if err != nil {
 			return err
 		}
-
-		// 2. Create the API Config (using the OpenAPI spec)
-		// The content of the OpenAPI spec needs to be dynamically updated with deployed function URLs
-		// This is a bit advanced with Pulumi string interpolations directly in YAML.
-		// A common pattern is to use Pulumi to generate the OpenAPI spec content as a string.
-		// For now, let's assume you will manually update openapi-spec.yaml with deployed URLs
-		// or we can explore generating it.
-		// Simpler approach: Upload the openapi-spec.yaml as-is after ensuring it has
-		// placeholder URLs that are either resolvable or you accept they are illustrative.
-		// Better: dynamically construct the OpenAPI spec string.
-
+		
 		// Construct OpenAPI spec content dynamically
+		// Order of args MUST match the order of %s in the modified openapi-spec.yaml
 		openapiContent := pulumi.All(
-			// OPTIONS /api/user/set-api-key
-			setApiKeyFunction.HttpsTriggerUrl, // 1st URL for OPTIONS
-			pulumi.String(gcpProject),         // 2nd for jwt_audience
-			// POST /api/user/set-api-key
-			setApiKeyFunction.HttpsTriggerUrl, // 3rd URL for POST
-			pulumi.String(gcpProject),         // 4th for jwt_audience
-			// OPTIONS /api/user/remove-api-key
-			removeApiKeyFunction.HttpsTriggerUrl, // 5th URL for OPTIONS
-			pulumi.String(gcpProject),            // 6th for jwt_audience
-			// POST /api/user/remove-api-key
-			removeApiKeyFunction.HttpsTriggerUrl, // 7th URL for POST
-			pulumi.String(gcpProject),            // 8th for jwt_audience
-			// OPTIONS /api/user/api-key-status
-			getApiKeyStatusFunction.HttpsTriggerUrl, // 9th URL for OPTIONS
-			pulumi.String(gcpProject),               // 10th for jwt_audience
-			// GET /api/user/api-key-status
-			getApiKeyStatusFunction.HttpsTriggerUrl, // 11th URL for GET
-			pulumi.String(gcpProject),               // 12th for jwt_audience
-			// OPTIONS /api/ai/genkit/{flowName}
-			proxyToGenkitFunction.HttpsTriggerUrl, // 13th URL for OPTIONS
-			pulumi.String(gcpProject),             // 14th for jwt_audience
-			// POST /api/ai/genkit/{flowName}
-			proxyToGenkitFunction.HttpsTriggerUrl, // 15th URL for POST
-			pulumi.String(gcpProject),             // 16th for jwt_audience
+			// /api/user/set-api-key OPTIONS (1st placeholder)
+			setApiKeyFunction.HttpsTriggerUrl,
+			// /api/user/set-api-key POST (2nd, 3rd placeholders)
+			setApiKeyFunction.HttpsTriggerUrl, 
+			pulumi.String(gcpProject),         // jwt_audience for POST
+			// /api/user/remove-api-key OPTIONS (4th)
+			removeApiKeyFunction.HttpsTriggerUrl,
+			// /api/user/remove-api-key POST (5th, 6th)
+			removeApiKeyFunction.HttpsTriggerUrl, 
+			pulumi.String(gcpProject),            // jwt_audience for POST
+			// /api/user/api-key-status OPTIONS (7th)
+			getApiKeyStatusFunction.HttpsTriggerUrl,
+			// /api/user/api-key-status GET (8th, 9th)
+			getApiKeyStatusFunction.HttpsTriggerUrl, 
+			pulumi.String(gcpProject),               // jwt_audience for GET
+			// /api/ai/genkit/{flowName} OPTIONS (10th)
+			proxyToGenkitFunction.HttpsTriggerUrl,
+			// /api/ai/genkit/{flowName} POST (11th, 12th)
+			proxyToGenkitFunction.HttpsTriggerUrl, 
+			pulumi.String(gcpProject),             // jwt_audience for POST
 		).ApplyT(func(args []interface{}) (string, error) {
-			urls := make([]interface{}, len(args))
+			// Ensure all elements are strings, as expected by fmt.Sprintf
+			stringArgs := make([]interface{}, len(args))
 			for i, arg := range args {
-				urls[i] = arg.(string)
+				stringArgs[i] = arg.(string)
 			}
 
-			contentBytes, err := os.ReadFile(openapiSpecPath) // Ensure openapiSpecPath is correct
+			contentBytes, err := os.ReadFile(openapiSpecPath)
 			if err != nil {
 				return "", fmt.Errorf("failed to read openapi spec file %s: %w", openapiSpecPath, err)
 			}
 			templateContent := string(contentBytes)
-
-			// Use fmt.Sprintf to replace placeholders
-			// The order of urls here MUST match the order of %s in your YAML file
-			finalContent := fmt.Sprintf(templateContent, urls...)
-
+			
+			finalContent := fmt.Sprintf(templateContent, stringArgs...)
 			return finalContent, nil
 		}).(pulumi.StringOutput)
+
 
 		apiConfig, err := apigateway.NewApiConfig(ctx, "byot-api-config-v1", &apigateway.ApiConfigArgs{
 			Api:         api.ApiId,
@@ -243,13 +225,18 @@ func main() {
 			OpenapiDocuments: apigateway.ApiConfigOpenapiDocumentArray{
 				&apigateway.ApiConfigOpenapiDocumentArgs{
 					Document: &apigateway.ApiConfigOpenapiDocumentDocumentArgs{
-						Path: pulumi.String("openapi-spec.yaml"), // This is a conceptual path for the document within the config
+						Path: pulumi.String("openapi-spec.yaml"), 
 						Contents: openapiContent.ApplyT(func(content string) string {
-							return base64.StdEncoding.EncodeToString([]byte(content)) // Content MUST be base64 encoded
+							return base64.StdEncoding.EncodeToString([]byte(content))
 						}).(pulumi.StringOutput),
 					},
 				},
 			},
+			// GatewayConfig: &apigateway.ApiConfigGatewayConfigArgs{ // Optional: if you need to specify backend for all paths
+			// 	BackendConfig: &apigateway.ApiConfigGatewayConfigBackendConfigArgs{
+			// 		GoogleServiceAccount: functionsServiceAccount.Email,
+			// 	},
+			// },
 		}, pulumi.DependsOn([]pulumi.Resource{
 			setApiKeyFunction, removeApiKeyFunction, getApiKeyStatusFunction, proxyToGenkitFunction,
 		}))
@@ -257,28 +244,26 @@ func main() {
 			return err
 		}
 
-		// 3. Create the Gateway
 		gateway, err := apigateway.NewGateway(ctx, "byot-gateway", &apigateway.GatewayArgs{
-			ApiConfig: apiConfig.ID(), // Use .ID() or .SelfLink for the config
+			ApiConfig: apiConfig.ID(),
 			GatewayId: pulumi.String("byot-gateway"),
 			Project:   pulumi.String(gcpProject),
-			Region:    pulumi.String(gcpRegion), // Must be a supported region for API Gateway
+			Region:    pulumi.String(gcpRegion), 
 		})
 		if err != nil {
 			return err
 		}
 
-		// --- IAM for API Gateway to invoke Cloud Functions (if functions are private) ---
-		// If functions are public (allUsers invoker), this might not be strictly necessary,
-		// but it's good practice if you make functions private.
-		// API Gateway uses a Google-managed service account: service-PROJECT_NUMBER@gcp-sa-apigateway.iam.gserviceaccount.com
-		// Or you can assign a custom SA to the Gateway if needed (more advanced).
-
-		// Output the Gateway URL
 		ctx.Export("gatewayUrl", gateway.DefaultHostname)
 		ctx.Export("setApiKeyFunctionUrl", setApiKeyFunction.HttpsTriggerUrl)
-		// ... export other function URLs if needed for direct testing
+		ctx.Export("removeApiKeyFunctionUrl", removeApiKeyFunction.HttpsTriggerUrl)
+		ctx.Export("getApiKeyStatusFunctionUrl", getApiKeyStatusFunction.HttpsTriggerUrl)
+		ctx.Export("proxyToGenkitFunctionUrl", proxyToGenkitFunction.HttpsTriggerUrl)
+
 
 		return nil
 	})
 }
+
+
+    

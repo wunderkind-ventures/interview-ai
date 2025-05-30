@@ -14,27 +14,14 @@ produces:
 consumes:
   - application/json
 
-# Optional: Define security for the API Gateway itself.
-# This API key would be used by your Next.js frontend to call the Gateway.
-# It is separate from the user's Gemini API key and Firebase Auth.
-# securityDefinitions:
-#   api_key_header:
-#     type: apiKey
-#     name: x-api-key
-#     in: header
-
-# Apply security globally if defined and desired for all paths
-# security:
-#   - api_key_header: []
-
 paths:
   /api/user/set-api-key:
     options:
-      summary: Handle CORS preflight requests
+      summary: Handle CORS preflight requests for Set API Key
       operationId: corsSetApiKey
       x-google-backend:
-        address: "%s" # Placeholder for SetAPIKeyGCF URL
-        jwt_audience: "%s" # Placeholder for SetAPIKeyGCF jwt_audience
+        address: "%s" # Placeholder for SetAPIKeyGCF URL (1st)
+        # jwt_audience removed for OPTIONS
       responses:
         '200':
           description: CORS preflight response
@@ -45,12 +32,12 @@ paths:
               type: string
             Access-Control-Allow-Headers:
               type: string
+            Access-Control-Allow-Credentials:
+              type: string # Added based on common CORS setup
     post:
       summary: Stores or updates a user's Gemini API key securely.
       description: Requires Firebase JWT authentication. The API key is provided in the request body.
       operationId: setUserApiKey
-      # security: # Uncomment and use if you have securityDefinitions for the gateway
-      #   - api_key_header: []
       parameters:
         - name: body
           in: body
@@ -64,8 +51,8 @@ paths:
                 type: string
                 description: The user's Gemini API key.
       x-google-backend:
-        address: "%s" # Placeholder for SetAPIKeyGCF URL
-        jwt_audience: "%s" # Placeholder for SetAPIKeyGCF jwt_audience
+        address: "%s" # Placeholder for SetAPIKeyGCF URL (2nd)
+        jwt_audience: "%s" # Placeholder for SetAPIKeyGCF jwt_audience (3rd)
       responses:
         '200':
           description: API key stored successfully.
@@ -84,11 +71,11 @@ paths:
 
   /api/user/remove-api-key:
     options:
-      summary: Handle CORS preflight requests
+      summary: Handle CORS preflight requests for Remove API Key
       operationId: corsRemoveApiKey
       x-google-backend:
-        address: "%s" # Placeholder for RemoveAPIKeyGCF URL
-        jwt_audience: "%s" # Placeholder for RemoveAPIKeyGCF jwt_audience
+        address: "%s" # Placeholder for RemoveAPIKeyGCF URL (4th)
+        # jwt_audience removed for OPTIONS
       responses:
         '200':
           description: CORS preflight response
@@ -99,15 +86,15 @@ paths:
               type: string
             Access-Control-Allow-Headers:
               type: string
+            Access-Control-Allow-Credentials:
+              type: string # Added
     post:
       summary: Removes a user's stored Gemini API key.
       description: Requires Firebase JWT authentication.
       operationId: removeUserApiKey
-      # security:
-      #   - api_key_header: []
       x-google-backend:
-        address: "%s" # Placeholder for RemoveAPIKeyGCF URL
-        jwt_audience: "%s" # Placeholder for RemoveAPIKeyGCF jwt_audience
+        address: "%s" # Placeholder for RemoveAPIKeyGCF URL (5th)
+        jwt_audience: "%s" # Placeholder for RemoveAPIKeyGCF jwt_audience (6th)
       responses:
         '200':
           description: API key removed successfully or was not found.
@@ -124,11 +111,11 @@ paths:
 
   /api/user/api-key-status:
     options:
-      summary: Handle CORS preflight requests
+      summary: Handle CORS preflight requests for API Key Status
       operationId: corsApiKeyStatus
       x-google-backend:
-        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL
-        jwt_audience: "%s" # Placeholder for GetAPIKeyStatusGCF jwt_audience
+        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL (7th)
+        # jwt_audience removed for OPTIONS
       responses:
         '200':
           description: CORS preflight response
@@ -139,15 +126,15 @@ paths:
               type: string
             Access-Control-Allow-Headers:
               type: string
+            Access-Control-Allow-Credentials:
+              type: string # Added
     get:
       summary: Checks if a user has an active Gemini API key stored.
       description: Requires Firebase JWT authentication.
       operationId: getUserApiKeyStatus
-      # security:
-      #   - api_key_header: []
       x-google-backend:
-        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL
-        jwt_audience: "%s" # Placeholder for GetAPIKeyStatusGCF jwt_audience
+        address: "%s" # Placeholder for GetAPIKeyStatusGCF URL (8th)
+        jwt_audience: "%s" # Placeholder for GetAPIKeyStatusGCF jwt_audience (9th)
       responses:
         '200':
           description: Status of the user's API key.
@@ -165,7 +152,7 @@ paths:
 
   /api/ai/genkit/{flowName}:
     options:
-      summary: Handle CORS preflight requests
+      summary: Handle CORS preflight requests for Genkit Flow
       operationId: corsGenkitFlow
       parameters:
         - name: flowName
@@ -173,9 +160,9 @@ paths:
           required: true
           type: string
       x-google-backend:
-        address: "%s" # Placeholder for ProxyToGenkitGCF URL
+        address: "%s" # Placeholder for ProxyToGenkitGCF URL (10th)
         path_translation: APPEND_PATH_TO_ADDRESS
-        jwt_audience: "%s" # Placeholder for ProxyToGenkitGCF jwt_audience
+        # jwt_audience removed for OPTIONS
       responses:
         '200':
           description: CORS preflight response
@@ -186,36 +173,32 @@ paths:
               type: string
             Access-Control-Allow-Headers:
               type: string
+            Access-Control-Allow-Credentials:
+              type: string # Added
     post:
       summary: Proxies a request to a specified Genkit AI flow.
       description: Requires Firebase JWT authentication. The specific AI flow is determined by the `flowName` path parameter. The request body is forwarded to the Genkit flow.
       operationId: proxyToGenkitFlow
-      # security:
-      #   - api_key_header: []
       parameters:
         - name: flowName
           in: path
           required: true
           type: string
           description: The name of the Genkit flow to execute (e.g., customizeInterviewQuestions).
-        - name: body # Describes the general request body structure expected by your Next.js /api/execute-flow endpoint
+        - name: body
           in: body
           required: true
           schema:
             type: object
-            # Add properties here if you want to document the expected structure of AI flow inputs.
-            # For a generic proxy, it might be an open object: additionalProperties: true
             additionalProperties: true 
             description: The JSON payload to be forwarded to the Genkit AI flow.
       x-google-backend:
-        address: "%s" # Placeholder for ProxyToGenkitGCF URL
+        address: "%s" # Placeholder for ProxyToGenkitGCF URL (11th)
         path_translation: APPEND_PATH_TO_ADDRESS
-        jwt_audience: "%s" # Placeholder for ProxyToGenkitGCF jwt_audience
+        jwt_audience: "%s" # Placeholder for ProxyToGenkitGCF jwt_audience (12th)
       responses:
-        # Responses are largely proxied, so define common ones or use a default.
         '200':
           description: Successful response from the Genkit AI flow.
-          # schema: You might want to define a generic success or specific ones if known
         '400':
           description: Bad Request (e.g., invalid input to the AI flow, flowName not found by proxy logic).
         '401':
@@ -223,4 +206,4 @@ paths:
         '500':
           description: Internal Server Error (e.g., proxy failure, error in AI flow execution).
         '503':
-          description: Service Unavailable (e.g., failed to call the Next.js backend). 
+          description: Service Unavailable (e.g., failed to call the Next.js backend).

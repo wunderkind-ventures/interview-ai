@@ -8,3 +8,4 @@ config:
   byot-gcp-infra:nextjsBaseUrl: # VM instance NextJS url
   byot-gcp-infra:gcpProject: interviewai-mzf86
   byot-gcp-infra:gcpRegion: us-central1
+  byot-gcp-infra:alertEmail: ken@wkv.ai

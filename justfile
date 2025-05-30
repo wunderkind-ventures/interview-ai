@@ -5,6 +5,10 @@ pulumi-sa:
     export GOOGLE_APPLICATION_CREDENTIALS="$HOME/pulumi-sa-key.json"
     gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
+pulumi-deployer:
+    export GOOGLE_APPLICATION_CREDENTIALS="$HOME/pulumi-deployer-key.json"
+    gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+
 pulumi-up: pulumi-sa
     cd pulumi-gcp-byot-backend && pulumi up
 

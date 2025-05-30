@@ -7,6 +7,8 @@ import (
 
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/apigateway"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/cloudfunctions"
+	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/logging"    // Added import
+	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/monitoring" // Added import
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/projects"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/serviceaccount"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/storage"
@@ -17,9 +19,10 @@ import (
 func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
 		// --- Configuration ---
-		cfg := config.New(ctx, "")
-		gcpProject := cfg.Require("gcpProject") // From Pulumi.<stack>.yaml or `pulumi config set gcpProject your-project-id`
-		gcpRegion := cfg.Require("gcpRegion")   // e.g., "us-central1"
+		cfg := config.New(ctx, "byot-gcp-infra")
+		gcpProject := cfg.Require("gcpProject")
+		gcpRegion := cfg.Require("gcpRegion")
+		alertEmail := cfg.Require("alertEmail")
 
 		defaultGeminiApiKey := cfg.RequireSecret("defaultGeminiApiKey")
 		nextjsBaseUrl := cfg.Require("nextjsBaseUrl")
@@ -54,26 +57,6 @@ func main() {
 		if err != nil {
 			return err
 		}
-
-		// Allow functions to verify Firebase ID tokens (needed for Firebase Admin SDK)
-		// This role is often included in broader Firebase roles like 'Firebase Admin'
-		// but 'roles/firebaseauth.viewer' or a custom role with 'firebaseauth.tokens.verify' might be sufficient.
-		// For simplicity and if functions already have broader Firebase access, this might be covered.
-		// If not, add:
-		/*
-			// COMMENTED OUT: The role 'roles/firebase.tokenVerifier' doesn't exist
-			// Cloud Functions in the same project can already verify Firebase tokens using
-			// Application Default Credentials. If additional permissions are needed,
-			// use 'roles/firebase.viewer' or 'roles/firebaseauth.viewer' instead.
-			_, err = projects.NewIAMMember(ctx, "functionsSaFirebaseTokenVerifier", &projects.IAMMemberArgs{
-				Project: pulumi.String(gcpProject),
-				Role:    pulumi.String("roles/firebase.tokenVerifier"), // or a more specific permission if possible
-				Member:  pulumi.Sprintf("serviceAccount:%s", functionsServiceAccount.Email),
-			})
-			if err != nil {
-				return err
-			}
-		*/
 
 		// --- Cloud Functions ---
 		deploymentBucket, err := storage.NewBucket(ctx, "functions-deployment-bucket", &storage.BucketArgs{
@@ -132,12 +115,6 @@ func main() {
 				return nil, err
 			}
 
-			// For API Gateway to invoke the function, the function needs to allow invocations
-			// from the API Gateway's service account OR be public if Gateway handles auth.
-			// If functions are private & Gateway authenticates TO them, use Gateway's SA.
-			// If Gateway passes user's JWT for function to verify, function invoker can be more specific.
-			// We're making functions invokable by 'allUsers' and letting the Cloud Functions
-			// handle Firebase authentication directly (no jwt_audience in API Gateway).
 			_, err = cloudfunctions.NewFunctionIamMember(ctx, fmt.Sprintf("%s-invoker", name), &cloudfunctions.FunctionIamMemberArgs{
 				Project:       function.Project,
 				Region:        function.Region,
@@ -191,27 +168,16 @@ func main() {
 			return err
 		}
 
-		// Construct OpenAPI spec content dynamically
-		// Now only 8 placeholders after removing jwt_audience
 		openapiContent := pulumi.All(
-			// OPTIONS /api/user/set-api-key
-			setApiKeyFunction.HttpsTriggerUrl, // 1st placeholder
-			// POST /api/user/set-api-key
-			setApiKeyFunction.HttpsTriggerUrl, // 2nd placeholder
-			// OPTIONS /api/user/remove-api-key
-			removeApiKeyFunction.HttpsTriggerUrl, // 3rd placeholder
-			// POST /api/user/remove-api-key
-			removeApiKeyFunction.HttpsTriggerUrl, // 4th placeholder
-			// OPTIONS /api/user/api-key-status
-			getApiKeyStatusFunction.HttpsTriggerUrl, // 5th placeholder
-			// GET /api/user/api-key-status
-			getApiKeyStatusFunction.HttpsTriggerUrl, // 6th placeholder
-			// OPTIONS /api/ai/genkit/{flowName}
-			proxyToGenkitFunction.HttpsTriggerUrl, // 7th placeholder
-			// POST /api/ai/genkit/{flowName}
-			proxyToGenkitFunction.HttpsTriggerUrl, // 8th placeholder
+			setApiKeyFunction.HttpsTriggerUrl,
+			setApiKeyFunction.HttpsTriggerUrl,
+			removeApiKeyFunction.HttpsTriggerUrl,
+			removeApiKeyFunction.HttpsTriggerUrl,
+			getApiKeyStatusFunction.HttpsTriggerUrl,
+			getApiKeyStatusFunction.HttpsTriggerUrl,
+			proxyToGenkitFunction.HttpsTriggerUrl,
+			proxyToGenkitFunction.HttpsTriggerUrl,
 		).ApplyT(func(args []interface{}) (string, error) {
-			// Ensure all elements are strings, as expected by fmt.Sprintf
 			stringArgs := make([]interface{}, len(args))
 			for i, arg := range args {
 				stringArgs[i] = arg.(string)
@@ -241,11 +207,6 @@ func main() {
 					},
 				},
 			},
-			// GatewayConfig: &apigateway.ApiConfigGatewayConfigArgs{ // Optional: if you need to specify backend for all paths
-			// 	BackendConfig: &apigateway.ApiConfigGatewayConfigBackendConfigArgs{
-			// 		GoogleServiceAccount: functionsServiceAccount.Email,
-			// 	},
-			// },
 		}, pulumi.DependsOn([]pulumi.Resource{
 			setApiKeyFunction, removeApiKeyFunction, getApiKeyStatusFunction, proxyToGenkitFunction,
 		}))
@@ -253,21 +214,102 @@ func main() {
 			return err
 		}
 
-		gateway, err := apigateway.NewGateway(ctx, "byot-gateway", &apigateway.GatewayArgs{
+		gateway, err := apigateway.NewGateway(ctx, "byot-backend-gateway", &apigateway.GatewayArgs{
 			ApiConfig: apiConfig.ID(),
-			GatewayId: pulumi.String("byot-gateway"),
 			Project:   pulumi.String(gcpProject),
 			Region:    pulumi.String(gcpRegion),
+			GatewayId: pulumi.String("byot-backend-gateway"),
 		})
 		if err != nil {
 			return err
 		}
 
-		ctx.Export("gatewayUrl", gateway.DefaultHostname)
+		// --- Cloud Monitoring & Logging ---
+
+		// 1. Create a Notification Channel (Email)
+		emailChannel, err := monitoring.NewNotificationChannel(ctx, "emailNotificationChannel", &monitoring.NotificationChannelArgs{
+			DisplayName: pulumi.String("Email Alert Channel"),
+			Type:        pulumi.String("email"),
+			Labels: pulumi.StringMap{
+				"email_address": pulumi.String(alertEmail),
+			},
+			Project: pulumi.String(gcpProject),
+		})
+		if err != nil {
+			return err
+		}
+
+		// 2. Create a Log-Based Metric for Critical Errors in Cloud Functions
+		filter := `resource.type="cloud_function" severity>=ERROR textPayload:"CRITICAL_ERROR"`
+
+		criticalErrorLogMetric, err := logging.NewMetric(ctx, "criticalErrorLogMetric", &logging.MetricArgs{
+			Project:     pulumi.String(gcpProject),
+			Name:        pulumi.String("cloud-function-critical-errors"),
+			Description: pulumi.String("Counts critical errors logged by Cloud Functions."),
+			Filter:      pulumi.String(filter),
+			MetricDescriptor: &logging.MetricMetricDescriptorArgs{
+				MetricKind: pulumi.String("DELTA"),
+				ValueType:  pulumi.String("INT64"),
+				Unit:       pulumi.String("1"),
+				Labels: logging.MetricMetricDescriptorLabelArray{
+					&logging.MetricMetricDescriptorLabelArgs{
+						Key:         pulumi.String("function_name"),
+						ValueType:   pulumi.String("STRING"),
+						Description: pulumi.String("Name of the Cloud Function"),
+					},
+				},
+			},
+			LabelExtractors: pulumi.StringMap{
+				"function_name": pulumi.String("EXTRACT(resource.labels.function_name)"),
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		// 3. Create an Alert Policy for the Log-Based Metric
+		_, err = monitoring.NewAlertPolicy(ctx, "criticalErrorAlertPolicy", &monitoring.AlertPolicyArgs{
+			Project:     pulumi.String(gcpProject),
+			DisplayName: pulumi.String("Critical Errors in Cloud Functions Alert"),
+			Combiner:    pulumi.String("OR"),
+			Conditions: monitoring.AlertPolicyConditionArray{
+				&monitoring.AlertPolicyConditionArgs{
+					DisplayName: pulumi.String("Log-based metric: Critical Errors > 0"),
+					ConditionThreshold: &monitoring.AlertPolicyConditionConditionThresholdArgs{
+						Filter:         pulumi.Sprintf("metric.type=\"logging.googleapis.com/user/%s\" resource.type=\"cloud_function\"", criticalErrorLogMetric.Name),
+						Comparison:     pulumi.String("COMPARISON_GT"),
+						ThresholdValue: pulumi.Float64(0),
+						Duration:       pulumi.String("300s"), // 5 minutes
+						Aggregations: monitoring.AlertPolicyConditionConditionThresholdAggregationArray{
+							&monitoring.AlertPolicyConditionConditionThresholdAggregationArgs{
+								AlignmentPeriod:  pulumi.String("300s"),
+								PerSeriesAligner: pulumi.String("ALIGN_COUNT"),
+							},
+						},
+					},
+				},
+			},
+			NotificationChannels: pulumi.StringArray{
+				emailChannel.ID(),
+			},
+			Documentation: &monitoring.AlertPolicyDocumentationArgs{
+				Content:  pulumi.String("One or more Cloud Functions have logged a CRITICAL_ERROR message. Please investigate the logs for details."),
+				MimeType: pulumi.String("text/markdown"),
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		// --- Outputs ---
+		ctx.Export("byotFunctionsServiceAccountEmail", functionsServiceAccount.Email)
 		ctx.Export("setApiKeyFunctionUrl", setApiKeyFunction.HttpsTriggerUrl)
 		ctx.Export("removeApiKeyFunctionUrl", removeApiKeyFunction.HttpsTriggerUrl)
 		ctx.Export("getApiKeyStatusFunctionUrl", getApiKeyStatusFunction.HttpsTriggerUrl)
 		ctx.Export("proxyToGenkitFunctionUrl", proxyToGenkitFunction.HttpsTriggerUrl)
+		ctx.Export("apiGatewayDefaultHostname", gateway.DefaultHostname)
+		ctx.Export("emailNotificationChannelId", emailChannel.ID())
+		ctx.Export("criticalErrorLogMetricName", criticalErrorLogMetric.Name)
 
 		return nil
 	})

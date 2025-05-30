@@ -53,3 +53,5 @@ firestore-debug.log
 /backends/byot-go-backend/vendor/
 
 /debugging/
+
+pulumi-gcp-byot-backend/main

@@ -8,3 +8,4 @@ config:
   byot-gcp-infra:nextjsBaseUrl: https://4824-74-108-65-105.ngrok-free.app
   byot-gcp-infra:gcpProject: interviewai-mzf86
   byot-gcp-infra:gcpRegion: us-central1
+  byot-gcp-infra:alertEmail: ken@wkv.ai

@@ -11,3 +11,4 @@ config:
   byot-gcp-infra:alertEmail: ken@wkv.ai
   byot-gcp-infra:ENCRYPTION_KEY:
     secure: AAABAMfE4X8i2poXeti7r0367sdveENDq5rbf/0I2aOKAezaEyHyO56MKthEuDZoDfFaR8gH5uI8JXI+Yvb9bscdAJ57Bd/aHtlmRw==
+  foo:bar: biz

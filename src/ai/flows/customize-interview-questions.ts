@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -64,28 +63,19 @@ export async function customizeInterviewQuestions(
     interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
   };
 
-  let currentAI = globalAI; // Default to global AI instance
-
+  // For now, always use the global AI instance
+  // The BYOK backend will handle API key management
+  const currentAI = globalAI;
+  
   if (options?.apiKey) {
-    try {
-      console.log("[BYOK] Orchestrator: Using user-provided API key for AI operations.");
-      currentAI = genkit({
-        plugins: [googleAI({ apiKey: options.apiKey })],
-        model: globalAI.getModel().name, // Use the same model as the global config
-      });
-    } catch (e) {
-      console.warn(`[BYOK] Orchestrator: Failed to initialize Genkit with user-provided API key: ${(e as Error).message}. Falling back to default key.`);
-      // currentAI remains globalAI
-    }
-  } else {
-    console.log("[BYOK] Orchestrator: No user API key provided; using default global AI instance for customizeInterviewQuestions.");
+    console.log("[BYOK] API key provided, but using global AI instance. Backend will handle key management.");
   }
 
   if (saneInput.interviewStyle === 'take-home') {
     const takeHomeInput: GenerateTakeHomeAssignmentInput = saneInput;
     try {
-      // Pass the potentially user-specific AI instance and API key to the specialized flow
-      const takeHomeOutput = await generateTakeHomeAssignment(takeHomeInput, { aiInstance: currentAI, apiKey: options?.apiKey });
+      // Pass the options but let the flow decide how to handle it
+      const takeHomeOutput = await generateTakeHomeAssignment(takeHomeInput, options);
       return {
         customizedQuestions: [{
           questionText: takeHomeOutput.assignmentText,
@@ -99,8 +89,8 @@ export async function customizeInterviewQuestions(
     }
   } else if (saneInput.interviewStyle === 'case-study') {
     try {
-        // Pass the potentially user-specific AI instance and API key
-        const initialCaseOutput: GenerateInitialCaseSetupOutput = await generateInitialCaseSetup(saneInput, { aiInstance: currentAI, apiKey: options?.apiKey });
+        // Pass the options but let the flow decide how to handle it
+        const initialCaseOutput: GenerateInitialCaseSetupOutput = await generateInitialCaseSetup(saneInput, options);
         return {
           customizedQuestions: [{
             questionText: initialCaseOutput.firstQuestionToAsk,
@@ -126,8 +116,8 @@ export async function customizeInterviewQuestions(
         };
     }
   }
-  // Default to simple Q&A, passing the currentAI instance
-  return customizeSimpleQAInterviewQuestionsFlow(saneInput, currentAI);
+  // Default to simple Q&A, always using global AI
+  return customizeSimpleQAInterviewQuestionsFlow(saneInput, globalAI);
 }
 
 // Extended input schema for the Simple Q&A prompt, including boolean flags
@@ -235,7 +225,7 @@ Targeted Skills:
         - "Focus on personal contributions ('I' statements)."
         - "Articulation of impact and learnings from the experience, especially from challenges or setbacks."
     The Amazon Leadership Principles for your reference:
-{{{AMAZON_LPS_LIST}}}
+${AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n')}
   {{else}}
     You are an experienced interviewer. Generate 5-7 standard behavioral questions.
     1.  Questions should probe for past behaviors and experiences related to common workplace competencies (teamwork, problem-solving, leadership, conflict resolution, etc.), tailored by 'jobTitle', 'faangLevel', and 'targetedSkills'.
@@ -277,25 +267,12 @@ Targeted Skills:
 Output a JSON object with a 'customizedQuestions' key. This key holds an array of objects, where each object has:
 - 'questionText': The question itself (string).
 - 'idealAnswerCharacteristics': An array of 2-5 strings describing elements of a strong answer.
-`,
-  customize: (promptDef, callInput: SimpleQAPromptInput) => {
-    let promptText = promptDef.prompt!;
-    if (callInput.isBehavioral && callInput.isAmazonTarget) {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\\n');
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
-    } else {
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company or interview type.');
-    }
-    return {
-      ...promptDef,
-      prompt: promptText,
-    };
-  }
+`
 });
 
 // This flow is now specialized for Simple Q&A
 async function customizeSimpleQAInterviewQuestionsFlow(
-  baseInput: BaseCustomizeInterviewQuestionsInput, 
+  baseInput: CustomizeInterviewQuestionsInput, 
   aiInstance: any 
 ): Promise<z.infer<typeof SimpleQAQuestionsOutputSchema>> {
      if (baseInput.interviewStyle !== 'simple-qa') {
@@ -319,35 +296,41 @@ async function customizeSimpleQAInterviewQuestionsFlow(
         isGeneralInterviewType: !['behavioral', 'product sense', 'technical system design', 'machine learning', 'data structures & algorithms'].includes(baseInput.interviewType),
     };
 
-    // Use aiInstance.generate() instead of aiInstance.run()
-    const response = await aiInstance.generate({prompt: customizeSimpleQAInterviewQuestionsPrompt, input: promptInput});
-    const output = response.output; // Assuming output is directly on the response, adjust if needed
+    // Use aiInstance.run() with the prompt
+    try {
+      const response = await aiInstance.run(customizeSimpleQAInterviewQuestionsPrompt, promptInput);
+      const output = response; // The response should be the output directly when using run()
+      
+      if (!output || !output.customizedQuestions || output.customizedQuestions.length === 0) {
+        throw new Error("No questions generated");
+      }
+      
+      const compliantOutput = output.customizedQuestions.map((q: any) => ({
+          questionText: q.questionText,
+          idealAnswerCharacteristics: q.idealAnswerCharacteristics || [],
+          isInitialCaseQuestion: undefined, 
+          fullScenarioDescription: undefined, 
+          internalNotesForFollowUpGenerator: undefined, 
+          isLikelyFinalFollowUp: undefined, 
+      }));
+      return { customizedQuestions: compliantOutput };
+    } catch (error) {
+      console.error("[BYOK] Error generating questions:", error);
+      // Fall back to default questions if there's an error
+      const fallbackQuestions = [
+        { questionText: "Can you describe a challenging project you've worked on and your role in it?", idealAnswerCharacteristics: ["Clear context", "Specific personal contribution", "Quantifiable impact if possible"] },
+        { questionText: "What are your biggest strengths and how do they apply to this type of role?", idealAnswerCharacteristics: ["Relevant strengths", "Concrete examples", "Connection to role requirements"] },
+        { questionText: "How do you approach learning new technologies or concepts?", idealAnswerCharacteristics: ["Proactive learning strategies", "Examples of quick learning", "Adaptability"] },
+        { questionText: `Tell me about a time you had to solve a difficult problem related to ${baseInput.interviewFocus || baseInput.interviewType}.`, idealAnswerCharacteristics: ["Problem definition", "Analytical approach", "Solution and outcome"] },
+        { questionText: "Where do you see yourself in 5 years in terms of technical growth or career path?", idealAnswerCharacteristics: ["Realistic ambitions", "Alignment with potential career paths", "Desire for growth"] },
+        { questionText: "How do you handle ambiguity in requirements or project goals?", idealAnswerCharacteristics: ["Strategies for clarification", "Proactive communication", "Decision making under uncertainty"] },
+        { questionText: "Describe a situation where you had to make a difficult trade-off in a project.", idealAnswerCharacteristics: ["Context of trade-off", "Rationale for decision", "Impact of the decision"] }
+      ];
+      const numQuestions = (baseInput.interviewType === 'behavioral' && baseInput.targetCompany?.toLowerCase() === 'amazon') ? 3 : 5;
+      const selectedFallback = fallbackQuestions.slice(0, Math.min(numQuestions, fallbackQuestions.length));
 
-    if (!output || !output.customizedQuestions || output.customizedQuestions.length === 0) {
-        const fallbackQuestions = [
-            { questionText: "Can you describe a challenging project you've worked on and your role in it?", idealAnswerCharacteristics: ["Clear context", "Specific personal contribution", "Quantifiable impact if possible"] },
-            { questionText: "What are your biggest strengths and how do they apply to this type of role?", idealAnswerCharacteristics: ["Relevant strengths", "Concrete examples", "Connection to role requirements"] },
-            { questionText: "How do you approach learning new technologies or concepts?", idealAnswerCharacteristics: ["Proactive learning strategies", "Examples of quick learning", "Adaptability"] },
-            { questionText: `Tell me about a time you had to solve a difficult problem related to ${baseInput.interviewFocus || baseInput.interviewType}.`, idealAnswerCharacteristics: ["Problem definition", "Analytical approach", "Solution and outcome"] },
-            { questionText: "Where do you see yourself in 5 years in terms of technical growth or career path?", idealAnswerCharacteristics: ["Realistic ambitions", "Alignment with potential career paths", "Desire for growth"] },
-            { questionText: "How do you handle ambiguity in requirements or project goals?", idealAnswerCharacteristics: ["Strategies for clarification", "Proactive communication", "Decision making under uncertainty"] },
-            { questionText: "Describe a situation where you had to make a difficult trade-off in a project.", idealAnswerCharacteristics: ["Context of trade-off", "Rationale for decision", "Impact of the decision"] }
-        ];
-        const numQuestions = (baseInput.interviewType === 'behavioral' && baseInput.targetCompany?.toLowerCase() === 'amazon') ? 3 : 5;
-        const selectedFallback = fallbackQuestions.slice(0, Math.min(numQuestions, fallbackQuestions.length));
-
-        return { customizedQuestions: selectedFallback.map(q => ({...q, isInitialCaseQuestion: undefined, fullScenarioDescription: undefined, internalNotesForFollowUpGenerator: undefined, isLikelyFinalFollowUp: undefined })) };
+      return { customizedQuestions: selectedFallback.map(q => ({...q, isInitialCaseQuestion: undefined, fullScenarioDescription: undefined, internalNotesForFollowUpGenerator: undefined, isLikelyFinalFollowUp: undefined })) };
     }
-
-    const compliantOutput = output.customizedQuestions.map(q => ({
-        questionText: q.questionText,
-        idealAnswerCharacteristics: q.idealAnswerCharacteristics || [],
-        isInitialCaseQuestion: undefined, 
-        fullScenarioDescription: undefined, 
-        internalNotesForFollowUpGenerator: undefined, 
-        isLikelyFinalFollowUp: undefined, 
-    }));
-    return { customizedQuestions: compliantOutput };
   }
 
 // Export the main orchestrator type for potential external use if needed, though it's primarily for internal routing now.

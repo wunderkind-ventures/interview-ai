@@ -1,4 +1,3 @@
-
 import { z } from 'genkit';
 
 // Input schema for customizing interview questions (e.g., adding follow-ups)
@@ -36,6 +35,10 @@ export const CustomizeInterviewQuestionsInputSchema = z.object({
     .string()
     .optional()
     .describe('A specific focus area or sub-topic.'),
+  interviewerPersona: z
+    .string()
+    .optional()
+    .describe('The interviewer persona to adopt (e.g., standard, friendly_peer, skeptical_hiring_manager).'),
   previousConversation: z
     .string()
     .optional()

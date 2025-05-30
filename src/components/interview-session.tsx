@@ -1,10 +1,10 @@
-
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-questions";
 import type { CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
+import { executeBYOKFlow } from "@/lib/byok-flows-api";
 import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-follow-up";
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
 import { explainConcept } from "@/ai/flows/explain-concept";
@@ -304,7 +304,10 @@ export default function InterviewSession() {
     }));
 
     try {
-      const response: CustomizeInterviewQuestionsOutput = await customizeInterviewQuestions(saneInput);
+      // Use BYOK flow if backend URL is configured, otherwise use direct flow
+      const response: CustomizeInterviewQuestionsOutput = process.env.NEXT_PUBLIC_GO_BACKEND_URL
+        ? await executeBYOKFlow<any, CustomizeInterviewQuestionsOutput>('customizeInterviewQuestions', saneInput)
+        : await customizeInterviewQuestions(saneInput);
 
       if (!response.customizedQuestions || response.customizedQuestions.length === 0) {
         throw new Error("AI did not return any questions. Please try again.");

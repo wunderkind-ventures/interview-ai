@@ -21,7 +21,7 @@ func main() {
 		// --- Configuration ---
 		cfg := config.New(ctx, "byot-gcp-infra")
 
-		encryptionKey := cfg.RequireSecret("ENCRYPTION_KEY") // For secrets
+		// encryptionKey := cfg.RequireSecret("ENCRYPTION_KEY") // For secrets
 
 		gcpProject := cfg.Require("gcpProject")
 		gcpRegion := cfg.Require("gcpRegion")

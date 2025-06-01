@@ -301,22 +301,22 @@ export async function refineInterviewFeedback(
       output = result.output;
     }
     
-    if (!output) {
-      throw new Error('AI did not return refined feedback.');
-    }
-    
-    const validatedOutput: RefineInterviewFeedbackOutput = {
-        overallSummary: output.overallSummary,
-        feedbackItems: output.feedbackItems.map(item => ({
-            ...item,
-            strengths: item.strengths || [],
-            areasForImprovement: item.areasForImprovement || [],
-            specificSuggestions: item.specificSuggestions || [],
-            idealAnswerPointers: item.idealAnswerPointers || [],
-            reflectionPrompts: item.reflectionPrompts || [],
-        })),
-    };
-    return validatedOutput;
+  if (!output) {
+    throw new Error('AI did not return refined feedback.');
+  }
+  
+  const validatedOutput: RefineInterviewFeedbackOutput = {
+      overallSummary: output.overallSummary,
+      feedbackItems: output.feedbackItems.map(item => ({
+          ...item,
+          strengths: item.strengths || [],
+          areasForImprovement: item.areasForImprovement || [],
+          specificSuggestions: item.specificSuggestions || [],
+          idealAnswerPointers: item.idealAnswerPointers || [],
+          reflectionPrompts: item.reflectionPrompts || [],
+      })),
+  };
+  return validatedOutput;
   } catch (error) {
     console.error("Error during feedback refinement:", error);
     throw error;

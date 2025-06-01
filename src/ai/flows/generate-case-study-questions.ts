@@ -210,19 +210,33 @@ export async function generateInitialCaseSetup(
     if (isByokPath) {
       console.log("[BYOK] generateInitialCaseSetup: Using .generate() for BYOK path.");
       const customizedPromptText = initialCaseSetupCustomizeFn(INITIAL_CASE_SETUP_PROMPT_TEMPLATE_STRING, saneInput);
-      // Generate output directly without wrapper
-      const generateResult = await aiInstanceToUse.generate<typeof GenerateInitialCaseSetupOutputSchema>({
+      
+      const generateResult = await aiInstanceToUse.generate<z.Schema<string>>({ // Expect a string
         model: googleAI.model('gemini-1.5-flash-latest') as ModelReference<any>,
         prompt: customizedPromptText,
         context: saneInput,
         tools: toolsForInstance,
-        // Use the direct output schema
-        output: { schema: GenerateInitialCaseSetupOutputSchema },
-        config: { responseMimeType: "application/json" },
+        output: { schema: z.string() }, // AI should output a JSON string
+        config: { responseMimeType: "text/plain" }, // Get raw text
       });
       
-      // Directly use the output without parsing jsonString
-      outputFromAI = generateResult.output || null;
+      const rawJsonString = generateResult.output;
+
+      if (typeof rawJsonString === 'string' && rawJsonString.trim()) {
+        try {
+          // Attempt to clean the string if it's not perfect JSON (e.g., remove markdown fences)
+          const cleanedJsonString = rawJsonString.replace(/^```json\n?|```$/g, '').trim();
+          const parsedJson = JSON.parse(cleanedJsonString);
+          outputFromAI = GenerateInitialCaseSetupOutputSchema.parse(parsedJson);
+        } catch (e) {
+          console.error("[BYOK] generateInitialCaseSetup: Failed to parse or validate AI's JSON response.", e);
+          console.error("[BYOK] Raw AI Response String (after basic cleaning attempt):", rawJsonString.replace(/^```json\n?|```$/g, '').trim());
+          outputFromAI = null; // Ensure fallback is triggered
+        }
+      } else {
+        console.warn("[BYOK] generateInitialCaseSetup: AI response was not a string or was empty. Raw output:", rawJsonString);
+        outputFromAI = null; // Ensure fallback is triggered
+      }
     } else {
       console.log("[BYOK] generateInitialCaseSetup: Using .run() for globalAI path.");
       const result: unknown = await globalAI.run(initialCaseSetupPromptGlobalConfig.name, async () => saneInput);
@@ -231,14 +245,14 @@ export async function generateInitialCaseSetup(
     
     // Fallback if output is not as expected (e.g., missing critical fields)
     if (!outputFromAI || !outputFromAI.fullScenarioDescription || !outputFromAI.firstQuestionToAsk) {
-      console.warn("AI Case Study Generation Fallback - Essential fields missing. Input:", saneInput);
+      console.warn("AI Case Study Generation Fallback - Essential fields missing or AI response issue. Input:", saneInput);
       // Simplified fallback object structure matching GenerateInitialCaseSetupOutputSchema
       return {
-        caseTitle: "Fallback Case Study Title",
-        fullScenarioDescription: "Fallback: Could not generate detailed scenario. Please consider a general project you have worked on.",
-        firstQuestionToAsk: "Describe a significant challenge you faced in a recent project and how you overcame it.",
-        idealAnswerCharacteristicsForFirstQuestion: ["Clear problem statement", "Specific actions taken", "Tangible results"],
-        internalNotesForFollowUpGenerator: "Focus on problem-solving and impact."
+        caseTitle: "Fallback Case Study: Error Occurred",
+        fullScenarioDescription: "An unexpected error occurred while generating the case study scenario. Please try again or contact support if the issue persists.",
+        firstQuestionToAsk: "Please describe a past project or challenge you encountered.",
+        idealAnswerCharacteristicsForFirstQuestion: ["Problem identification", "Solution approach", "Outcome/Learning"],
+        internalNotesForFollowUpGenerator: "Error during generation. Focus on general problem-solving."
       };
     }
     return outputFromAI;
@@ -246,8 +260,16 @@ export async function generateInitialCaseSetup(
   } catch (error) {
     console.error(`Error in generateInitialCaseSetup (input: ${JSON.stringify(input)}):`, error);
     if (error instanceof z.ZodError) {
-        console.error("Zod validation error in generateInitialCaseSetup:", error.errors);
+        console.error("Zod validation error in generateInitialCaseSetup (outside BYOK parsing):", error.errors);
     }
-    return { /* ... comprehensive fallback error object ... */ caseTitle: "Error", fullScenarioDescription: `Error: ${error instanceof Error ? error.message : 'Unknown'}`, firstQuestionToAsk: "An error occurred.", internalNotesForFollowUpGenerator: "Error" };
+    // Fallback for any other errors, ensuring a valid structure is returned.
+    console.error(`General error in generateInitialCaseSetup, returning fallback. Error details: ${error}`);
+    return {
+        caseTitle: "Fallback Case Study: Error Occurred",
+        fullScenarioDescription: "An unexpected error occurred while generating the case study scenario. Please try again or contact support if the issue persists.",
+        firstQuestionToAsk: "Please describe a past project or challenge you encountered.",
+        idealAnswerCharacteristicsForFirstQuestion: ["Problem identification", "Solution approach", "Outcome/Learning"],
+        internalNotesForFollowUpGenerator: "Error during generation. Focus on general problem-solving."
+    };
   }
 }

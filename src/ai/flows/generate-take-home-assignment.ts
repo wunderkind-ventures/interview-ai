@@ -139,12 +139,12 @@ Output a JSON object with two keys:
 
 const takeHomePromptCustomizeFn = (promptText: string, callInput: GenerateTakeHomeAssignmentInput): string => {
   let newPromptText = promptText;
-  if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
+    if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
     const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
     newPromptText = newPromptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
-  } else {
+    } else {
     newPromptText = newPromptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
-  }
+    }
   return newPromptText;
 };
 
@@ -188,11 +188,11 @@ export async function generateTakeHomeAssignment(
     console.log("[BYOK] generateTakeHomeAssignment: Using default global AI instance and tools.");
   }
 
-  const saneInput: GenerateTakeHomeAssignmentInput = {
-    ...input,
-    interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-  };
-
+      const saneInput: GenerateTakeHomeAssignmentInput = {
+        ...input,
+        interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+      };
+      
   try {
     let outputFromAI: GenerateTakeHomeAssignmentOutput | undefined | null;
 
@@ -215,13 +215,13 @@ export async function generateTakeHomeAssignment(
     }
 
     if (!outputFromAI || !outputFromAI.assignmentText || !outputFromAI.idealSubmissionCharacteristics || outputFromAI.idealSubmissionCharacteristics.length === 0) {
-      const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
-      const fallbackJobContext = input.jobTitle ? `for the role of ${input.jobTitle}` : `for the specified role`;
-      const fallbackCompanyContext = input.targetCompany ? `at ${input.targetCompany}` : `at a leading tech company`;
-      const fallbackFocusContext = input.interviewFocus || input.interviewType;
-      const fallbackLevelContext = input.faangLevel || 'a relevant professional';
+        const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
+        const fallbackJobContext = input.jobTitle ? `for the role of ${input.jobTitle}` : `for the specified role`;
+        const fallbackCompanyContext = input.targetCompany ? `at ${input.targetCompany}` : `at a leading tech company`;
+        const fallbackFocusContext = input.interviewFocus || input.interviewType;
+        const fallbackLevelContext = input.faangLevel || 'a relevant professional';
 
-      const fallbackText = `## ${fallbackTitle}
+        const fallbackText = `## ${fallbackTitle}
 
 ### Goal
 Demonstrate your ability to analyze a complex problem related to ${fallbackFocusContext} and propose a well-reasoned solution appropriate for a ${fallbackLevelContext} level ${fallbackJobContext} ${fallbackCompanyContext}.
@@ -243,21 +243,21 @@ A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, 
 - Be clear and concise in your communication.
 - State any assumptions you've made.`;
 
-      const fallbackCharacteristics = [
-        "Clear problem understanding and scoping.",
-        "Well-reasoned approach and justification of choices.",
-        "Consideration of potential challenges and trade-offs.",
-        `Depth of analysis appropriate for ${input.faangLevel}.`,
-        "Clear and concise communication of ideas."
-      ];
-      console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated. Input: ${JSON.stringify(saneInput)}. This might be due to an issue with the AI model or prompt.`);
+        const fallbackCharacteristics = [
+          "Clear problem understanding and scoping.",
+          "Well-reasoned approach and justification of choices.",
+          "Consideration of potential challenges and trade-offs.",
+          `Depth of analysis appropriate for ${input.faangLevel}.`,
+          "Clear and concise communication of ideas."
+        ];
+        console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated. Input: ${JSON.stringify(saneInput)}. This might be due to an issue with the AI model or prompt.`);
       return { assignmentText: fallbackText, idealSubmissionCharacteristics: fallbackCharacteristics };
-    }
+      }
     return outputFromAI;
-  } catch (error) {
-    const errMessage = error instanceof Error ? error.message : 'Unknown error during take-home assignment generation.';
-    console.error(`Error in generateTakeHomeAssignmentFlow (input: ${JSON.stringify(input)}):`, error);
-    const errorAssignmentText = `## Error Generating Take-Home Assignment
+    } catch (error) {
+        const errMessage = error instanceof Error ? error.message : 'Unknown error during take-home assignment generation.';
+        console.error(`Error in generateTakeHomeAssignmentFlow (input: ${JSON.stringify(input)}):`, error);
+        const errorAssignmentText = `## Error Generating Take-Home Assignment
 
 We encountered an error while trying to generate your take-home assignment for:
 - Interview Type: ${input.interviewType}
@@ -268,11 +268,11 @@ We encountered an error while trying to generate your take-home assignment for:
 
 Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment. The error was: ${errMessage}`;
 
-    const errorCharacteristics = ["Error during generation - please report this."];
+        const errorCharacteristics = ["Error during generation - please report this."];
 
-    return {
-        assignmentText: errorAssignmentText,
-        idealSubmissionCharacteristics: errorCharacteristics
-    };
-  }
+        return {
+            assignmentText: errorAssignmentText,
+            idealSubmissionCharacteristics: errorCharacteristics
+        };
+    }
 }

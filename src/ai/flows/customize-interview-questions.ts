@@ -65,7 +65,7 @@ export async function customizeInterviewQuestions(
 
   let aiInstanceToUse: GenkitInstanceType = globalAI;
   let toolsForInstance = [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool];
-
+  
   if (options?.apiKey) {
     try {
       console.log("[BYOK] Orchestrator: Using user-provided API key for AI operations.");
@@ -149,7 +149,7 @@ type SimpleQAPromptInput = z.infer<typeof SimpleQAPromptInputSchema>;
 
 const SimpleQAQuestionsOutputSchema = z.object({
   customizedQuestions: z.array(
-    OrchestratorQuestionOutputSchema
+    OrchestratorQuestionOutputSchema 
   ).describe('An array of 5-10 customized Q&A questions (or 2-3 for Amazon behavioral), each with text and ideal answer characteristics.'),
 });
 
@@ -461,20 +461,20 @@ const customizeSimpleQAInterviewQuestionsPrompt = globalAI.definePrompt({
 });
 
 async function customizeSimpleQAInterviewQuestionsFlow(
-  baseInput: CustomizeInterviewQuestionsInput,
+  baseInput: CustomizeInterviewQuestionsInput, 
   aiInstance: GenkitInstanceType,
   toolsToUse: any[]
 ): Promise<z.infer<typeof SimpleQAQuestionsOutputSchema>> {
-    if (baseInput.interviewStyle !== 'simple-qa') {
+     if (baseInput.interviewStyle !== 'simple-qa') {
         console.warn(`[BYOK] customizeSimpleQAInterviewQuestionsFlow called with incorrect style: ${baseInput.interviewStyle}. This indicates an orchestrator logic issue.`);
         return { customizedQuestions: [{ questionText: `Error: This flow is for 'simple-qa' only. Received '${baseInput.interviewStyle}'.`, idealAnswerCharacteristics: [] }] };
     }
 
     const promptInput: SimpleQAPromptInput = {
-        ...baseInput,
-        interviewType: baseInput.interviewType,
-        interviewStyle: baseInput.interviewStyle,
-        faangLevel: baseInput.faangLevel,
+        ...baseInput, 
+        interviewType: baseInput.interviewType, 
+        interviewStyle: baseInput.interviewStyle, 
+        faangLevel: baseInput.faangLevel, 
         interviewerPersona: baseInput.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         isBehavioral: baseInput.interviewType === 'behavioral',
         isProductSense: baseInput.interviewType === 'product sense',
@@ -617,7 +617,7 @@ function getFallbackQuestions(interviewType: string, faangLevel?: string): any[]
                 }
             ];
     }
-}
+  }
 
 // Export the main orchestrator type for potential external use if needed, though it's primarily for internal routing now.
 export type { CustomizeInterviewQuestionsInput as CustomizeInterviewQuestionsOrchestratorInput, CustomizeInterviewQuestionsOutput as CustomizeInterviewQuestionsOrchestratorOutput };

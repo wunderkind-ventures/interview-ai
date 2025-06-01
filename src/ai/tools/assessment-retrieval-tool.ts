@@ -65,37 +65,37 @@ const SIMULATED_ASSESSMENT_DB: Array<{ keywords: string[]; content: string; type
 // Export a function that defines the tool on a given Genkit instance
 export async function defineFindRelevantAssessmentsTool(kit: Genkit) {
   return kit.defineTool(
-    {
-      name: 'findRelevantAssessmentsTool',
-      description: 'Simulates retrieving snippets from existing assessments based on a query. Use this to get inspiration or understand common patterns for certain types of interview questions or scenarios. Do not directly copy the retrieved content. THIS IS A SIMULATION - a real implementation would query a vector database.',
-      inputSchema: FindRelevantAssessmentsInputSchema,
-      outputSchema: FindRelevantAssessmentsOutputSchema,
-    },
+  {
+    name: 'findRelevantAssessmentsTool',
+    description: 'Simulates retrieving snippets from existing assessments based on a query. Use this to get inspiration or understand common patterns for certain types of interview questions or scenarios. Do not directly copy the retrieved content. THIS IS A SIMULATION - a real implementation would query a vector database.',
+    inputSchema: FindRelevantAssessmentsInputSchema,
+    outputSchema: FindRelevantAssessmentsOutputSchema,
+  },
     // This function itself MUST be async as it returns a Promise indirectly via its declared type
-    async (input): Promise<FindRelevantAssessmentsOutput> => {
-      // ** REAL RAG IMPLEMENTATION STEPS (Conceptual): **
+  async (input): Promise<FindRelevantAssessmentsOutput> => {
+    // ** REAL RAG IMPLEMENTATION STEPS (Conceptual): **
       // 1. Generate an embedding for `
-      // ** CURRENT SIMULATION LOGIC: **
-      console.log(`[findRelevantAssessmentsTool (SIMULATED)] Received query: "${input.query}", count: ${input.count}`);
-      const queryLower = input.query.toLowerCase();
-      const queryKeywords = queryLower.split(/\s+/);
+    // ** CURRENT SIMULATION LOGIC: **
+    console.log(`[findRelevantAssessmentsTool (SIMULATED)] Received query: "${input.query}", count: ${input.count}`);
+    const queryLower = input.query.toLowerCase();
+    const queryKeywords = queryLower.split(/\s+/);
 
-      const relevant = SIMULATED_ASSESSMENT_DB.filter(assessment => {
-        const assessmentText = `${assessment.content.toLowerCase()} ${assessment.keywords.join(' ').toLowerCase()} ${assessment.type} ${assessment.level}`;
-        return queryKeywords.some(qk => assessmentText.includes(qk));
-      });
+    const relevant = SIMULATED_ASSESSMENT_DB.filter(assessment => {
+      const assessmentText = `${assessment.content.toLowerCase()} ${assessment.keywords.join(' ').toLowerCase()} ${assessment.type} ${assessment.level}`;
+      return queryKeywords.some(qk => assessmentText.includes(qk));
+    });
 
       let snippets = relevant
-        .sort(() => 0.5 - Math.random()) // Basic shuffle for variety
-        .slice(0, input.count)
-        .map(r => `SIMULATED SNIPPET (Type: ${r.type}, Level: ${r.level}): ${r.content.substring(0, 250)}${r.content.length > 250 ? '...' : ''}`);
+      .sort(() => 0.5 - Math.random()) // Basic shuffle for variety
+      .slice(0, input.count)
+      .map(r => `SIMULATED SNIPPET (Type: ${r.type}, Level: ${r.level}): ${r.content.substring(0, 250)}${r.content.length > 250 ? '...' : ''}`);
 
-      if (snippets.length === 0) {
-          snippets.push("Simulated RAG: No highly relevant assessment snippets found for this specific query in the demo database. Consider general best practices for the requested interview type and level.");
-      }
-
-      console.log(`[findRelevantAssessmentsTool (SIMULATED)] Returning ${snippets.length} snippets.`);
-      return { retrievedSnippets: snippets };
+    if (snippets.length === 0) {
+        snippets.push("Simulated RAG: No highly relevant assessment snippets found for this specific query in the demo database. Consider general best practices for the requested interview type and level.");
     }
-  );
+
+    console.log(`[findRelevantAssessmentsTool (SIMULATED)] Returning ${snippets.length} snippets.`);
+    return { retrievedSnippets: snippets };
+  }
+);
 }

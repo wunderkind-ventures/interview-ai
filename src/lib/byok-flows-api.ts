@@ -63,28 +63,46 @@ export async function executeBYOKFlow<TInput, TOutput>(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      console.error(`[BYOK] Flow execution failed:`, errorData);
-      
-      // Check for schema validation errors
-      if (errorData.error && errorData.error.includes('Schema validation failed')) {
-        console.error('[BYOK] Schema validation error detected:', errorData.error);
-        // Log the problematic data for debugging
-        console.error('[BYOK] Input that caused error:', input);
-        
-        // Try to parse the error message for more details
-        const providedDataMatch = errorData.error.match(/Provided data: ({[\s\S]*?})\s*Required/);
-        if (providedDataMatch) {
-          try {
-            const providedData = JSON.parse(providedDataMatch[1]);
-            console.error('[BYOK] Data that Genkit received:', JSON.stringify(providedData, null, 2));
-          } catch (e) {
-            console.error('[BYOK] Could not parse provided data from error message');
+      let errorResponseMessage = `Flow execution failed with status ${response.status}`;
+      try {
+        const errorText = await response.text();
+        console.error(`[BYOK] Raw error response:`, errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          console.error(`[BYOK] Flow execution failed JSON data:`, errorData);
+          if (errorData && typeof errorData.error === 'string') {
+            errorResponseMessage = errorData.error;
+            // Check for schema validation errors
+            if (errorData.error.includes('Schema validation failed')) {
+              console.error('[BYOK] Schema validation error detected:', errorData.error);
+              // Log the problematic data for debugging
+              console.error('[BYOK] Input that caused error:', input);
+              
+              // Try to parse the error message for more details
+              const providedDataMatch = errorData.error.match(/Provided data: ({[\s\S]*?})\s*Required/);
+              if (providedDataMatch) {
+                try {
+                  const providedData = JSON.parse(providedDataMatch[1]);
+                  console.error('[BYOK] Data that Genkit received:', JSON.stringify(providedData, null, 2));
+                } catch (e) {
+                  console.error('[BYOK] Could not parse provided data from error message');
+                }
+              }
+            }
+          } else if (errorData && typeof errorData.message === 'string') { // some errors might use message
+            errorResponseMessage = errorData.message;
+          } else {
+             errorResponseMessage = `Flow execution failed: ${errorText || 'No additional error information available.'}`;
           }
+        } catch (parseError) {
+          console.error('[BYOK] Failed to parse error response as JSON:', parseError);
+          errorResponseMessage = `Flow execution failed. Raw response: ${errorText || 'No additional error information available.'}`;
         }
+      } catch (textError) {
+        console.error('[BYOK] Failed to get error response text:', textError);
+        // If getting text fails, we still want to throw the original status-based message.
       }
-      
-      throw new Error(errorData.error || `Flow execution failed with status ${response.status}`);
+      throw new Error(errorResponseMessage);
     }
 
     const result = await response.json();

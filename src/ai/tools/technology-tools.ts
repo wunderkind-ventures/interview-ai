@@ -32,18 +32,18 @@ const technologySummaries: Record<string, string> = {
 // Export a function that defines the tool on a given Genkit instance
 export async function defineGetTechnologyBriefTool(kit: Genkit) {
   return kit.defineTool(
-    {
-      name: 'getTechnologyBriefTool',
-      description: 'Provides a brief, factual summary of a specific technology and its primary use case. Useful when encountering a technology term that needs clarification for generating relevant interview questions or feedback.',
-      inputSchema: TechnologyBriefInputSchema,
-      outputSchema: TechnologyBriefOutputSchema,
-    },
+  {
+    name: 'getTechnologyBriefTool',
+    description: 'Provides a brief, factual summary of a specific technology and its primary use case. Useful when encountering a technology term that needs clarification for generating relevant interview questions or feedback.',
+    inputSchema: TechnologyBriefInputSchema,
+    outputSchema: TechnologyBriefOutputSchema,
+  },
     async (input): Promise<string> => {
-      const techNameLower = input.technologyName.toLowerCase();
-      if (technologySummaries[techNameLower]) {
-        return technologySummaries[techNameLower];
-      }
-      return `Information for "${input.technologyName}" is not available in the current brief. Please proceed based on general knowledge or ask for clarification if essential.`;
+    const techNameLower = input.technologyName.toLowerCase();
+    if (technologySummaries[techNameLower]) {
+      return technologySummaries[techNameLower];
     }
-  );
+    return `Information for "${input.technologyName}" is not available in the current brief. Please proceed based on general knowledge or ask for clarification if essential.`;
+  }
+);
 }

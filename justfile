@@ -2,8 +2,7 @@
 
 pulumi-sa:
     # Set up Google Cloud credentials
-    export GOOGLE_APPLICATION_CREDENTIALS="$HOME/pulumi-sa-key.json"
-    gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+    export GOOGLE_APPLICATION_CREDENTIALS="$HOME/pulumi-sa-key.json" && gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
 pulumi-deployer:
     export GOOGLE_APPLICATION_CREDENTIALS="$HOME/pulumi-deployer-key.json"

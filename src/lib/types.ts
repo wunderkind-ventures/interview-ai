@@ -1,4 +1,3 @@
-
 import type { InterviewType, FaangLevel, InterviewStyle, Skill, InterviewerPersona } from './constants';
 import type { Timestamp } from 'firebase/firestore';
 
@@ -98,6 +97,7 @@ export interface InterviewSessionData extends InterviewSetupData {
   sampleAnswers?: Record<string, string>;
   currentCaseTurnNumber?: number | null;
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
+  previousConversation?: string;
   isLoggedToServer?: boolean;
   firestoreDocId?: string;
   completedAt?: Timestamp | any;

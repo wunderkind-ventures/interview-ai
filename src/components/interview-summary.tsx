@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
@@ -188,6 +187,7 @@ function InterviewSummaryContent() {
           createdAt: fb.createdAt instanceof Timestamp ? fb.createdAt : Timestamp.now(),
         })),
         caseConversationHistory: dataToLog.caseConversationHistory && dataToLog.caseConversationHistory.length > 0 ? dataToLog.caseConversationHistory : [],
+        previousConversation: dataToLog.previousConversation ?? null,
     };
 
     Object.keys(payloadToSave).forEach(key => {
@@ -339,6 +339,7 @@ function InterviewSummaryContent() {
                 sampleAnswers: firestoreData.sampleAnswers || {},
                 caseStudyNotes: firestoreData.caseStudyNotes ?? null,
                 caseConversationHistory: firestoreData.caseConversationHistory || [],
+                previousConversation: firestoreData.previousConversation || "",
                 adminFeedback: firestoreData.adminFeedback || [],
                 isLoading: false,
                 error: null,
@@ -385,6 +386,7 @@ function InterviewSummaryContent() {
             parsedSession.sampleAnswers = parsedSession.sampleAnswers || {};
             parsedSession.caseStudyNotes = parsedSession.caseStudyNotes ?? null;
             parsedSession.caseConversationHistory = parsedSession.caseConversationHistory || [];
+            parsedSession.previousConversation = parsedSession.previousConversation || "";
             parsedSession.adminFeedback = parsedSession.adminFeedback || [];
             parsedSession.interviewerPersona = parsedSession.interviewerPersona || INTERVIEWER_PERSONAS[0].value;
             parsedSession.selectedThemeId = parsedSession.selectedThemeId || "custom";

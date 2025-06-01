@@ -27,14 +27,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical, UserCheck2, MessageCircleQuestion } from "lucide-react";
-import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEWER_PERSONAS } from "@/lib/constants";
-import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer, InterviewerPersona } from "@/lib/types";
+import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEWER_PERSONAS, type InterviewStyle, type InterviewerPersona } from "@/lib/constants";
+import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
 const MAX_CASE_FOLLOW_UPS = 4;
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, interviewerPersona?: InterviewerPersona | string, caseStudyNotes?: string } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, interviewerPersona?: InterviewerPersona | string, caseStudyNotes?: string, previousConversation?: string } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -53,6 +53,7 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   caseConversationHistory: [],
   caseStudyNotes: "",
   sampleAnswers: {},
+  previousConversation: "",
 };
 
 interface CustomSpeechRecognition extends SpeechRecognition {
@@ -296,6 +297,7 @@ export default function InterviewSession() {
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
       caseStudyNotes: setupData.interviewStyle === 'case-study' ? (prev?.caseStudyNotes || "") : "",
+      previousConversation: "",
       targetedSkills: setupData.targetedSkills || [],
       targetCompany: setupData.targetCompany || "",
       jobTitle: setupData.jobTitle || "",
@@ -379,6 +381,7 @@ export default function InterviewSession() {
       currentSession.caseConversationHistory = currentSession.interviewStyle === 'case-study' ? (currentSession.caseConversationHistory ?? []) : undefined;
       currentSession.caseStudyNotes = currentSession.interviewStyle === 'case-study' ? (currentSession.caseStudyNotes ?? "") : "";
       currentSession.sampleAnswers = currentSession.sampleAnswers ?? {};
+      currentSession.previousConversation = currentSession.previousConversation ?? "";
 
 
       setSessionData(currentSession);
@@ -457,6 +460,10 @@ export default function InterviewSession() {
     let updatedAnswers = [...sessionData.answers, newAnswer];
     let newSessionData: InterviewSessionData | null = null;
 
+    // Update previousConversation with the Q&A exchange
+    const updatedPreviousConversation = (sessionData.previousConversation || "") + 
+      `\n\nInterviewer: ${currentQ.text}\nCandidate: ${currentAnswer}`;
+
     if (sessionData.interviewStyle === 'case-study') {
       setIsGeneratingFollowUp(true);
       const updatedCaseConversationHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
@@ -470,6 +477,7 @@ export default function InterviewSession() {
           answers: updatedAnswers,
           caseConversationHistory: updatedCaseConversationHistory,
           currentCaseTurnNumber: updatedCurrentCaseTurnNumber,
+          previousConversation: updatedPreviousConversation,
           isLoading: false,
           interviewFinished: true,
           currentQuestionStartTime: undefined,
@@ -498,6 +506,7 @@ export default function InterviewSession() {
               targetCompany: sessionData.targetCompany,
               interviewFocus: sessionData.interviewFocus,
               interviewerPersona: sessionData.interviewerPersona,
+              previousConversation: updatedPreviousConversation,
             },
             currentTurnNumber: updatedCurrentCaseTurnNumber,
           };
@@ -520,12 +529,13 @@ export default function InterviewSession() {
             currentQuestionStartTime: Date.now(),
             currentCaseTurnNumber: updatedCurrentCaseTurnNumber,
             caseConversationHistory: updatedCaseConversationHistory,
+            previousConversation: updatedPreviousConversation,
           };
 
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : "Failed to generate follow-up question.";
           toast({ title: "Error", description: errorMessage, variant: "destructive" });
-          newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage, currentQuestionStartTime: Date.now() };
+          newSessionData = { ...sessionData, answers: updatedAnswers, previousConversation: updatedPreviousConversation, isLoading: false, error: errorMessage, currentQuestionStartTime: Date.now() };
         }
       }
       setIsGeneratingFollowUp(false);
@@ -534,6 +544,7 @@ export default function InterviewSession() {
         newSessionData = {
           ...sessionData,
           answers: updatedAnswers,
+          previousConversation: updatedPreviousConversation,
           isLoading: false,
           interviewFinished: true,
           currentQuestionStartTime: undefined,
@@ -543,6 +554,7 @@ export default function InterviewSession() {
         newSessionData = {
           ...sessionData,
           answers: updatedAnswers,
+          previousConversation: updatedPreviousConversation,
           currentQuestionIndex: sessionData.currentQuestionIndex + 1,
           isLoading: false,
           currentQuestionStartTime: Date.now(),
@@ -574,6 +586,7 @@ export default function InterviewSession() {
 
     let updatedAnswers = sessionData.answers;
     let updatedCaseHistory = sessionData.caseConversationHistory;
+    let updatedPreviousConversation = sessionData.previousConversation || "";
 
     if (sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length) {
       const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
@@ -585,6 +598,12 @@ export default function InterviewSession() {
            confidenceScore: currentConfidenceScore ?? undefined,
           };
          updatedAnswers = [...sessionData.answers.filter(a => a.questionId !== currentQ.id), newAnswer];
+         
+         // Update previousConversation with the final Q&A
+         if (currentAnswer.trim() !== "") {
+           updatedPreviousConversation += `\n\nInterviewer: ${currentQ.text}\nCandidate: ${currentAnswer}`;
+         }
+         
          if (sessionData.interviewStyle === 'case-study') {
            updatedCaseHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
          }
@@ -595,6 +614,7 @@ export default function InterviewSession() {
       ...sessionData,
       answers: updatedAnswers,
       caseConversationHistory: updatedCaseHistory,
+      previousConversation: updatedPreviousConversation,
       isLoading: false,
       interviewFinished: true,
       currentQuestionStartTime: undefined,
@@ -740,10 +760,25 @@ export default function InterviewSession() {
           targetCompany: sessionData.targetCompany,
           interviewFocus: sessionData.interviewFocus,
           interviewerPersona: sessionData.interviewerPersona,
+          previousConversation: sessionData.previousConversation,
         },
       };
       const result: ClarifyInterviewQuestionOutput = await clarifyInterviewQuestion(input);
       setClarificationForQuestion(result.clarificationText);
+      
+      // Update previousConversation with the clarification exchange
+      const updatedPreviousConversation = (sessionData.previousConversation || "") + 
+        `\n\n[USER ASKS FOR CLARIFICATION ON: "${currentQ.text}"]\nUser's request: ${userClarifyingQuestionInput}` +
+        `\n[AI CLARIFIES]: ${result.clarificationText}`;
+        
+      // Update session data with the new previousConversation
+      const updatedSession = {
+        ...sessionData,
+        previousConversation: updatedPreviousConversation,
+      };
+      localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+      setSessionData(updatedSession);
+      
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to get clarification.";
       setQuestionClarificationError(errorMsg);

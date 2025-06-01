@@ -1,3 +1,2 @@
 .env*
 pulumi-gcp-byot-backend/Pulumi.*.yaml
-pulumi-gcp-byot-backend/

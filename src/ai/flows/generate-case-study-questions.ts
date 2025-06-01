@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Generates the initial setup for a case study interview.
@@ -9,10 +8,9 @@
  * - GenerateInitialCaseSetupInput - Input type.
  * - GenerateInitialCaseSetupOutput - Output type for the initial case setup.
  */
-import { genkit } from 'genkit';
+import { genkit, z, type Genkit as GenkitInstanceType, GenkitError } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { ai as globalAI } from '@/ai/genkit';
-import {z} from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; 
@@ -39,16 +37,8 @@ export type GenerateInitialCaseSetupOutput = z.infer<
   typeof GenerateInitialCaseSetupOutputSchema
 >;
 
-const initialCaseSetupPromptObj = globalAI.definePrompt({ 
-  name: 'generateInitialCaseSetupPrompt',
-  tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], 
-  input: {
-    schema: CustomizeInterviewQuestionsInputSchema, 
-  },
-  output: {
-    schema: GenerateInitialCaseSetupOutputSchema,
-  },
-  prompt: `You are an **Expert Case Study Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**. You excel at designing compelling, realistic, and thought-provoking case study interviews.
+// Define the prompt template string as a constant
+const INITIAL_CASE_SETUP_PROMPT_TEMPLATE = `You are an **Expert Case Study Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**. You excel at designing compelling, realistic, and thought-provoking case study interviews.
 Your task is to design the **initial setup** for a case study.
 If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), ensure the 'fullScenarioDescription' and 'firstQuestionToAsk' reflect this persona's style.
 For example:
@@ -119,88 +109,91 @@ End of Amazon-specific considerations.
 
 **Final Output Format:**
 Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema. Ensure 'caseTitle', 'fullScenarioDescription', 'firstQuestionToAsk', 'idealAnswerCharacteristicsForFirstQuestion', and 'internalNotesForFollowUpGenerator' are all populated with relevant, detailed content.
-`,
-  customize: (promptDef, callInput: GenerateInitialCaseSetupInput) => {
-    let promptText = promptDef.prompt!;
-    if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\\n');
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
-    } else {
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
-    }
-    return {
-      ...promptDef,
-      prompt: promptText,
-    };
-  }
-});
+`;
 
 export async function generateInitialCaseSetup(
   input: GenerateInitialCaseSetupInput,
   options?: { aiInstance?: any, apiKey?: string } 
 ): Promise<GenerateInitialCaseSetupOutput> {
-  let activeAI = globalAI;
-  if (options?.aiInstance) {
-    activeAI = options.aiInstance;
-    console.log("[BYOK] generateInitialCaseSetup: Using provided aiInstance.");
-  } else if (options?.apiKey) {
-    try {
-      activeAI = genkit({
-        plugins: [googleAI({ apiKey: options.apiKey })],
-        model: globalAI.getModel().name,
-      });
-      console.log("[BYOK] generateInitialCaseSetup: Using user-provided API key.");
-    } catch (e) {
-      console.warn(`[BYOK] generateInitialCaseSetup: Failed to initialize with user API key: ${(e as Error).message}. Falling back.`);
-      // activeAI remains globalAI
-    }
-  } else {
-    console.log("[BYOK] generateInitialCaseSetup: No specific API key or AI instance provided; using default global AI instance.");
-  }
-  
   try {
-      const saneInput: GenerateInitialCaseSetupInput = {
-        ...input,
-        interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-      };
-      
-      const {output} = await activeAI.run(initialCaseSetupPromptObj, saneInput);
-      
-      if (!output || !output.fullScenarioDescription || !output.firstQuestionToAsk || !output.caseTitle || !output.internalNotesForFollowUpGenerator) {
-          console.warn(`AI Initial Case Setup Fallback Triggered. Input: ${JSON.stringify(saneInput)}`);
-          const scenarioType = saneInput.interviewType === "technical system design" ? "system design challenge" :
-                               saneInput.interviewType === "machine learning" ? "ML problem" :
-                               saneInput.interviewType === "data structures & algorithms" ? "algorithmic design task" :
-                               "product strategy scenario";
-          const fallbackTitle = `${saneInput.interviewFocus || scenarioType} Setup (${saneInput.faangLevel})`;
-          const fallbackDescription = `You are tasked with addressing a significant ${scenarioType} for a ${saneInput.jobTitle || 'relevant role'} at ${saneInput.targetCompany || 'a leading tech firm'}, focusing on "${saneInput.interviewFocus || saneInput.interviewType}". The complexity is aligned with a ${saneInput.faangLevel || 'senior'} level. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${saneInput.faangLevel} expectations for this domain].`;
-          const fallbackFirstQuestion = "Given this situation, what are your initial thoughts, and what clarifying questions would you ask to better understand the problem space and constraints?";
-          const fallbackIdealChars = ["Problem framing and clarification", "Identification of key ambiguities", "Structured approach to information gathering"];
-          const fallbackInternalNotes = `Fallback Case. Focus: ${saneInput.interviewFocus || scenarioType}. Level: ${saneInput.faangLevel}. Key areas: problem definition, initial strategy, constraints. Persona: ${saneInput.interviewerPersona}`;
+    const saneInput: GenerateInitialCaseSetupInput = {
+      ...input,
+      interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+    };
 
-          return {
-              caseTitle: fallbackTitle,
-              fullScenarioDescription: fallbackDescription,
-              firstQuestionToAsk: fallbackFirstQuestion,
-              idealAnswerCharacteristicsForFirstQuestion: fallbackIdealChars,
-              internalNotesForFollowUpGenerator: fallbackInternalNotes,
-          };
+    let finalOutput: any;
+    let runner: GenkitInstanceType;
+    const promptName = 'generateInitialCaseSetupPrompt';
+
+    if (options?.apiKey) {
+      console.log("[BYOK DEBUG] Attempting ultra-simple prompt with tempRunner...");
+      try {
+        const userAPIKey = options.apiKey; // Ensure it's not undefined for clarity
+        const simpleRunner = genkit({
+          plugins: [googleAI({ apiKey: userAPIKey })],
+          model: 'gemini-1.5-flash-latest', // Configure simpleRunner to use this model by default
+        });
+        const simpleResult = await simpleRunner.generate({
+          prompt: "Tell me a one-sentence joke.",
+          output: { format: 'text' } // Request text output
+        });
+        console.log("[BYOK DEBUG] Ultra-simple prompt result:", JSON.stringify(simpleResult.output(), null, 2));
+      } catch (e) {
+        console.error("[BYOK DEBUG] Ultra-simple prompt error:", e);
       }
-      return output;
+
+      console.log("[BYOK] generateInitialCaseSetup: Using user-provided API key. Defining prompt with explicit model.");
+      runner = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+      });
+      runner.definePrompt({
+        name: promptName,
+        model: 'gemini-1.5-flash-latest',
+        input: { schema: CustomizeInterviewQuestionsInputSchema },
+        output: { schema: GenerateInitialCaseSetupOutputSchema },
+        prompt: INITIAL_CASE_SETUP_PROMPT_TEMPLATE,
+        // tools: [], 
+      });
+    } else {
+      console.log("[BYOK] generateInitialCaseSetup: Using globalAI. Defining prompt (model from globalAI config).");
+      runner = globalAI;
+      runner.definePrompt({
+        name: promptName,
+        input: { schema: CustomizeInterviewQuestionsInputSchema },
+        output: { schema: GenerateInitialCaseSetupOutputSchema },
+        prompt: INITIAL_CASE_SETUP_PROMPT_TEMPLATE,
+      });
+    }
+
+    console.log(`[BYOK] Attempting to run prompt '${promptName}' on selected runner with input loader.`);
+    finalOutput = await runner.run(promptName, async () => saneInput);
+
+    console.log("[BYOK DEBUG] Raw result from AI execution:", JSON.stringify(finalOutput, null, 2));
+
+    if (finalOutput && 
+        typeof finalOutput === 'object' && 
+        'caseTitle' in finalOutput && 
+        'fullScenarioDescription' in finalOutput && 
+        'firstQuestionToAsk' in finalOutput && 
+        'internalNotesForFollowUpGenerator' in finalOutput
+    ) {
+        return finalOutput as GenerateInitialCaseSetupOutput;
+    } else {
+        console.error("[BYOK ERROR] Unexpected/incomplete result structure after AI execution. Expected output schema, got:", finalOutput);
+        throw new Error("Unexpected or incomplete result structure from prompt execution.");
+    }
+
   } catch (error) {
-      const errMessage = error instanceof Error ? error.message : 'Unknown error during initial case setup generation.';
-      console.error(`Error in generateInitialCaseSetupFlow (input: ${JSON.stringify(input)}):`, error);
-      const fallbackTitle = `Error: ${input.interviewFocus || input.interviewType} Setup (${input.faangLevel})`;
-      const fallbackDescription = `Error generating initial case setup for ${input.jobTitle || 'role'} on ${input.interviewFocus || input.interviewType}. The AI model might be temporarily unavailable or the prompt requires adjustment. Error: ${errMessage}`;
-      const fallbackFirstQuestion = "An error occurred generating the first question. Please try again later or reconfigure your interview.";
-      const fallbackIdealChars = ["Report error."];
-      const fallbackInternalNotes = `Error in generation. Input: ${JSON.stringify(input)}. Error: ${errMessage}`;
-      return {
-          caseTitle: fallbackTitle,
-          fullScenarioDescription: fallbackDescription,
-          firstQuestionToAsk: fallbackFirstQuestion,
-          idealAnswerCharacteristicsForFirstQuestion: fallbackIdealChars,
-          internalNotesForFollowUpGenerator: fallbackInternalNotes,
-      };
+    console.error(`[BYOK] Error in generateInitialCaseSetup:`, error);
+    if (error instanceof Error) {
+        console.error(`[BYOK] Error message: ${error.message}`);
+        if ((error as any).stack) {
+            console.error(`[BYOK] Stack: ${(error as any).stack}`);
+        }
+    }
+    if (error instanceof GenkitError) {
+        console.error(`[BYOK] GenkitError Details: Status: ${error.status}, Message: ${error.message}, Details: ${JSON.stringify(error.detail)}`);
+    }
+    throw error; 
   }
 }

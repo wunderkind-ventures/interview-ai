@@ -5,7 +5,8 @@
 /backends/byot-go-backend/interviewai-byot.json
 /pulumi-gcp-byot-backend/Pulumi.*.yaml
 /pulumi-gcp-byot-backend/main
-.env*
+.env
+.env.local
 
 
 # dependencies

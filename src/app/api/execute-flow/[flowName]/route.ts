@@ -1,4 +1,3 @@
-
 // src/app/api/execute-flow/[flowName]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { genkit, GenkitError } from 'genkit';
@@ -50,9 +49,9 @@ const flowMap: Record<string, Function> = {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { flowName: string } }
+  context: { params: { flowName: string } }
 ) {
-  const flowName = params.flowName;
+  const flowName = context.params.flowName;
   const apiKey = req.headers.get('X-Internal-API-Key');
   const apiKeySource = req.headers.get('X-API-Key-Source'); // For logging, sent by Go backend
 
@@ -81,7 +80,7 @@ export async function POST(
     let errorDetails = error.message;
     if (error instanceof GenkitError) {
         errorMessage = error.message; // GenkitError often has a user-friendly message
-        errorDetails = JSON.stringify(error.data || error.cause || error.stack);
+        errorDetails = JSON.stringify(error.detail || error.cause || error.stack); // Try error.detail (singular)
     }
     return NextResponse.json({ error: errorMessage, details: errorDetails }, { status: 500 });
   }

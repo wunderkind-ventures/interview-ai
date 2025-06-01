@@ -9,12 +9,12 @@
 
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
-import { ai as globalAI } from '@/ai/genkit';
-import { z } from 'genkit';
+import { ai as globalAI, getTechnologyBriefTool as globalGetTechnologyBriefTool, findRelevantAssessmentsTool as globalFindRelevantAssessmentsTool } from '@/ai/genkit';
+import { z, type Genkit as GenkitInstanceType, type ModelReference } from 'genkit';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
-import { getTechnologyBriefTool } from '../tools/technology-tools';
-import { findRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool'; 
-import { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsInputSchema } from '../schemas';
+import { defineGetTechnologyBriefTool } from '../tools/technology-tools';
+import { defineFindRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool';
+import { CustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput } from '../schemas';
 
 export type GenerateTakeHomeAssignmentInput = CustomizeInterviewQuestionsInput;
 
@@ -28,17 +28,8 @@ export type GenerateTakeHomeAssignmentOutput = z.infer<
   typeof GenerateTakeHomeAssignmentOutputSchema
 >;
 
-// Internal prompt definition
-const promptObj = globalAI.definePrompt({
-  name: 'generateTakeHomeAssignmentPrompt',
-  tools: [getTechnologyBriefTool, findRelevantAssessmentsTool], 
-  input: {
-    schema: CustomizeInterviewQuestionsInputSchema,
-  },
-  output: {
-    schema: GenerateTakeHomeAssignmentOutputSchema,
-  },
-  prompt: `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
+// Store the raw prompt template and customize function separately
+const TAKE_HOME_PROMPT_TEMPLATE_STRING = `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
 Your primary function is to generate a single, comprehensive, and self-contained take-home assignment based on the provided specifications.
 If an 'interviewerPersona' is provided (current: '{{{interviewerPersona}}}'), subtly adapt the framing or expectations of the assignment to reflect this persona.
 For example:
@@ -144,62 +135,93 @@ End of Amazon-specific considerations.
 Output a JSON object with two keys:
 - 'assignmentText': The full assignment text (string, Markdown-like headings).
 - 'idealSubmissionCharacteristics': An array of 3-5 strings describing elements of a strong submission.
-`,
-  customize: (promptDef, callInput: GenerateTakeHomeAssignmentInput) => {
-    let promptText = promptDef.prompt!;
-    if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\\n');
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
-    } else {
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
-    }
-    return {
-      ...promptDef,
-      prompt: promptText,
-    };
-  }
-});
+`;
 
-// Main exported function that calls the flow
+const takeHomePromptCustomizeFn = (promptText: string, callInput: GenerateTakeHomeAssignmentInput): string => {
+  let newPromptText = promptText;
+  if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
+    const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
+    newPromptText = newPromptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
+  } else {
+    newPromptText = newPromptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
+  }
+  return newPromptText;
+};
+
+// Configuration object for the prompt
+const takeHomeAssignmentPromptGlobalConfig = {
+  name: 'generateTakeHomeAssignmentPromptGlobal',
+  tools: [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool],
+  input: { schema: CustomizeInterviewQuestionsInputSchema },
+  output: { schema: GenerateTakeHomeAssignmentOutputSchema },
+  prompt: TAKE_HOME_PROMPT_TEMPLATE_STRING,
+  customize: (promptDef: { prompt?: string }, callInput: GenerateTakeHomeAssignmentInput) => {
+    return { ...promptDef, prompt: takeHomePromptCustomizeFn(promptDef.prompt!, callInput) };
+  }
+};
+globalAI.definePrompt(takeHomeAssignmentPromptGlobalConfig as any);
+
 export async function generateTakeHomeAssignment(
   input: GenerateTakeHomeAssignmentInput,
-  options?: { aiInstance?: any, apiKey?: string } // Accept aiInstance or apiKey
+  options?: { aiInstance?: GenkitInstanceType, tools?: any[], apiKey?: string }
 ): Promise<GenerateTakeHomeAssignmentOutput> {
-  let activeAI = globalAI;
-  if (options?.aiInstance) {
-    activeAI = options.aiInstance;
-     console.log("[BYOK] generateTakeHomeAssignment: Using provided aiInstance.");
+  let aiInstanceToUse: GenkitInstanceType = globalAI;
+  let toolsForInstance = options?.tools || [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool];
+  let isByokPath = false;
+
+  if (options?.aiInstance && options.aiInstance !== globalAI) {
+    aiInstanceToUse = options.aiInstance;
+    isByokPath = true;
+    console.log("[BYOK] generateTakeHomeAssignment: Using provided aiInstance and its tools.");
   } else if (options?.apiKey) {
     try {
-      activeAI = genkit({
-        plugins: [googleAI({ apiKey: options.apiKey })],
-        model: globalAI.getModel().name,
-      });
-      console.log("[BYOK] generateTakeHomeAssignment: Using user-provided API key.");
+      const userGoogleAIPlugin = googleAI({ apiKey: options.apiKey });
+      const userKit = genkit({ plugins: [userGoogleAIPlugin] });
+      toolsForInstance = [defineGetTechnologyBriefTool(userKit), defineFindRelevantAssessmentsTool(userKit)];
+      aiInstanceToUse = userKit;
+      isByokPath = true;
+      console.log("[BYOK] generateTakeHomeAssignment: Using user-provided API key and new tools.");
     } catch (e) {
-      console.warn(`[BYOK] generateTakeHomeAssignment: Failed to initialize with user API key: ${(e as Error).message}. Falling back.`);
-      // activeAI remains globalAI
+      console.warn(`[BYOK] generateTakeHomeAssignment: Failed to initialize with user API key: ${(e as Error).message}. Falling back to global AI and tools.`);
     }
   } else {
-     console.log("[BYOK] generateTakeHomeAssignment: No specific API key or AI instance provided; using default global AI instance.");
+    console.log("[BYOK] generateTakeHomeAssignment: Using default global AI instance and tools.");
   }
 
+  const saneInput: GenerateTakeHomeAssignmentInput = {
+    ...input,
+    interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+  };
+
   try {
-      const saneInput: GenerateTakeHomeAssignmentInput = {
-        ...input,
-        interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
-      };
-      
-      const {output} = await activeAI.run(promptObj, saneInput);
+    let outputFromAI: GenerateTakeHomeAssignmentOutput | undefined | null;
 
-      if (!output || !output.assignmentText || !output.idealSubmissionCharacteristics || output.idealSubmissionCharacteristics.length === 0) {
-        const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
-        const fallbackJobContext = input.jobTitle ? `for the role of ${input.jobTitle}` : `for the specified role`;
-        const fallbackCompanyContext = input.targetCompany ? `at ${input.targetCompany}` : `at a leading tech company`;
-        const fallbackFocusContext = input.interviewFocus || input.interviewType;
-        const fallbackLevelContext = input.faangLevel || 'a relevant professional';
+    if (isByokPath) {
+      console.log("[BYOK] generateTakeHomeAssignment: Using .generate() for BYOK path.");
+      const customizedPromptText = takeHomePromptCustomizeFn(TAKE_HOME_PROMPT_TEMPLATE_STRING, saneInput);
+      const generateResult = await aiInstanceToUse.generate<typeof GenerateTakeHomeAssignmentOutputSchema>({
+        model: googleAI.model('gemini-1.5-flash-latest') as ModelReference<any>,
+        prompt: customizedPromptText,
+        context: saneInput,
+        tools: toolsForInstance,
+        output: { schema: GenerateTakeHomeAssignmentOutputSchema },
+        config: { responseMimeType: "application/json" },
+      });
+      outputFromAI = generateResult.output;
+    } else {
+      console.log("[BYOK] generateTakeHomeAssignment: Using .run() for globalAI path.");
+      const result: unknown = await globalAI.run(takeHomeAssignmentPromptGlobalConfig.name, async () => saneInput);
+      outputFromAI = GenerateTakeHomeAssignmentOutputSchema.parse(result);
+    }
 
-        const fallbackText = `## ${fallbackTitle}
+    if (!outputFromAI || !outputFromAI.assignmentText || !outputFromAI.idealSubmissionCharacteristics || outputFromAI.idealSubmissionCharacteristics.length === 0) {
+      const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
+      const fallbackJobContext = input.jobTitle ? `for the role of ${input.jobTitle}` : `for the specified role`;
+      const fallbackCompanyContext = input.targetCompany ? `at ${input.targetCompany}` : `at a leading tech company`;
+      const fallbackFocusContext = input.interviewFocus || input.interviewType;
+      const fallbackLevelContext = input.faangLevel || 'a relevant professional';
+
+      const fallbackText = `## ${fallbackTitle}
 
 ### Goal
 Demonstrate your ability to analyze a complex problem related to ${fallbackFocusContext} and propose a well-reasoned solution appropriate for a ${fallbackLevelContext} level ${fallbackJobContext} ${fallbackCompanyContext}.
@@ -221,26 +243,21 @@ A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, 
 - Be clear and concise in your communication.
 - State any assumptions you've made.`;
 
-        const fallbackCharacteristics = [
-          "Clear problem understanding and scoping.",
-          "Well-reasoned approach and justification of choices.",
-          "Consideration of potential challenges and trade-offs.",
-          `Depth of analysis appropriate for ${input.faangLevel}.`,
-          "Clear and concise communication of ideas."
-        ];
-
-        console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated. Input: ${JSON.stringify(saneInput)}. This might be due to an issue with the AI model or prompt.`);
-
-        return {
-          assignmentText: fallbackText,
-          idealSubmissionCharacteristics: fallbackCharacteristics
-        };
-      }
-      return output;
-    } catch (error) {
-        const errMessage = error instanceof Error ? error.message : 'Unknown error during take-home assignment generation.';
-        console.error(`Error in generateTakeHomeAssignmentFlow (input: ${JSON.stringify(input)}):`, error);
-        const errorAssignmentText = `## Error Generating Take-Home Assignment
+      const fallbackCharacteristics = [
+        "Clear problem understanding and scoping.",
+        "Well-reasoned approach and justification of choices.",
+        "Consideration of potential challenges and trade-offs.",
+        `Depth of analysis appropriate for ${input.faangLevel}.`,
+        "Clear and concise communication of ideas."
+      ];
+      console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated. Input: ${JSON.stringify(saneInput)}. This might be due to an issue with the AI model or prompt.`);
+      return { assignmentText: fallbackText, idealSubmissionCharacteristics: fallbackCharacteristics };
+    }
+    return outputFromAI;
+  } catch (error) {
+    const errMessage = error instanceof Error ? error.message : 'Unknown error during take-home assignment generation.';
+    console.error(`Error in generateTakeHomeAssignmentFlow (input: ${JSON.stringify(input)}):`, error);
+    const errorAssignmentText = `## Error Generating Take-Home Assignment
 
 We encountered an error while trying to generate your take-home assignment for:
 - Interview Type: ${input.interviewType}
@@ -251,11 +268,11 @@ We encountered an error while trying to generate your take-home assignment for:
 
 Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment. The error was: ${errMessage}`;
 
-        const errorCharacteristics = ["Error during generation - please report this."];
+    const errorCharacteristics = ["Error during generation - please report this."];
 
-        return {
-            assignmentText: errorAssignmentText,
-            idealSubmissionCharacteristics: errorCharacteristics
-        };
-    }
+    return {
+        assignmentText: errorAssignmentText,
+        idealSubmissionCharacteristics: errorCharacteristics
+    };
+  }
 }

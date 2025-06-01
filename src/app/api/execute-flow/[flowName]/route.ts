@@ -51,7 +51,7 @@ export async function POST(
   req: NextRequest,
   context: { params: { flowName: string } }
 ) {
-  const flowName = context.params.flowName;
+  const { flowName } = context.params;
   const apiKey = req.headers.get('X-Internal-API-Key');
   const apiKeySource = req.headers.get('X-API-Key-Source'); // For logging, sent by Go backend
 

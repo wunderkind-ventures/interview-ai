@@ -1,2 +1,4 @@
 .env*
 pulumi-gcp-byot-backend/Pulumi.*.yaml
+/debugging/*2.ts
+/debugging/*3.ts

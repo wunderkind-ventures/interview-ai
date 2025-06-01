@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Generates feedback for a completed interview session.
@@ -12,9 +11,8 @@
 
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
-import { ai as globalAi } from '@/ai/genkit';
+import { ai as globalAi, getTechnologyBriefTool } from '@/ai/genkit';
 import {z} from 'genkit';
-import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { refineInterviewFeedback } from './refine-interview-feedback';
 import type { RefineInterviewFeedbackInput } from './refine-interview-feedback';
 import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema } from '../schemas'; 
@@ -106,10 +104,10 @@ const GenerateInterviewFeedbackInputSchema = z.object({ // Not exported
       confidenceScore: z.number().min(1).max(5).optional(),
     })
   ).describe("The list of answers provided by the user, including time taken and confidence for each."),
-  interviewType: z.nativeEnum(
+  interviewType: z.enum(
     ['product sense', 'technical system design', 'behavioral', 'machine learning', 'data structures & algorithms']
   ).describe("The type of the interview."),
-   interviewStyle: z.nativeEnum(['simple-qa', 'case-study', 'take-home'])
+   interviewStyle: z.enum(['simple-qa', 'case-study', 'take-home'])
     .describe('The style of the interview: simple Q&A or multi-turn case study or take home.'),
   faangLevel: z
     .string()
@@ -302,6 +300,7 @@ export async function generateInterviewFeedback(
     }
   }
 
+  // Map to the input structure expected by the AI prompt template
   const draftPromptInput: z.infer<typeof DraftPromptInputSchema> = {
     interviewType: input.interviewType,
     faangLevel: input.faangLevel,
@@ -309,80 +308,89 @@ export async function generateInterviewFeedback(
     jobDescription: input.jobDescription,
     resume: input.resume,
     interviewFocus: input.interviewFocus,
-    questionsAndAnswers: questionsAndAnswersForPrompt,
+    questionsAndAnswers: input.questions.map((q, index) => {
+      const answer = input.answers.find(a => a.questionId === q.id);
+      return {
+        questionId: q.id.toString(), // Ensure string
+        questionText: q.text,
+        answerText: answer?.answerText || "No answer provided.",
+        timeTakenMs: answer?.timeTakenMs,
+        indexPlusOne: index + 1,
+        idealAnswerCharacteristics: q.idealAnswerCharacteristics,
+        confidenceScore: answer?.confidenceScore,
+      };
+    }),
     isTakeHomeStyle,
     isSimpleQAOrCaseStudyStyle,
     structuredTakeHomeAnalysis: isTakeHomeStyle ? structuredTakeHomeAnalysis : undefined,
   };
 
-  const {output: draftAiOutput} = await activeAI.run(draftPromptObj, draftPromptInput);
+  try {
+    console.log(`[BYOK] generateInterviewFeedback: Generating DRAFT feedback with AI. Input: ${JSON.stringify(draftPromptInput, null, 2)}`);
+    
+    let draftFeedback: z.infer<typeof AIDraftOutputSchema>;
 
-  if (!draftAiOutput) {
-    throw new Error('AI did not return draft feedback.');
+    if (activeAI === globalAi) {
+      // Global path: use run with prompt name and input data provider, then parse.
+      const outputFromRun = await globalAi.run(draftPromptObj.name, async () => draftPromptInput);
+      draftFeedback = AIDraftOutputSchema.parse(outputFromRun);
+    } else {
+      // BYOK path: This is a NON-FUNCTIONAL placeholder for generateInterviewFeedback's draft prompt.
+      // It requires userKit.generate() with the full prompt template, tools, schemas, etc.
+      // The current call will likely fail at runtime as draftPromptObj.name is not on userKit.
+      console.warn("[BYOK] generateInterviewFeedback: BYOK path for draft feedback prompt is NOT fully implemented and will likely fail. Requires refactoring to use userKit.generate().");
+      const tempOutput = await activeAI.run(draftPromptObj.name, async () => draftPromptInput); // This line is problematic for BYOK
+      draftFeedback = AIDraftOutputSchema.parse(tempOutput); 
+    }
+
+    if (!draftFeedback || !draftFeedback.feedbackItems || !draftFeedback.overallSummary) {
+      throw new Error("AI draft feedback is missing essential parts.");
+    }
+
+    // Prepare input for refinement step
+    const refinementInput: RefineInterviewFeedbackInput = {
+      draftFeedback: {
+        feedbackItems: draftFeedback.feedbackItems.map((aiItem: z.infer<typeof AIDraftFeedbackItemSchema>) => ({
+          questionId: aiItem.questionId.toString(),
+          questionText: input.questions.find(q => q.id === aiItem.questionId)?.text || "Unknown Question",
+          answerText: input.answers.find(a => a.questionId === aiItem.questionId)?.answerText || "No answer provided.",
+          timeTakenMs: input.answers.find(a => a.questionId === aiItem.questionId)?.timeTakenMs,
+          confidenceScore: input.answers.find(a => a.questionId === aiItem.questionId)?.confidenceScore,
+          strengths: aiItem.strengths,
+          areasForImprovement: aiItem.areasForImprovement,
+          specificSuggestions: aiItem.specificSuggestions,
+          critique: aiItem.critique,
+          idealAnswerPointers: aiItem.idealAnswerPointers,
+          reflectionPrompts: aiItem.reflectionPrompts,
+          rating: 0,
+          ratingJustification: "",
+          suggestedScore: 0,
+          tags: [],
+          idealAnswerCharacteristics: input.questions.find(q => q.id === aiItem.questionId)?.idealAnswerCharacteristics || [],
+        })),
+        overallSummary: draftFeedback.overallSummary,
+      },
+      interviewContext: {
+        interviewType: input.interviewType,
+        interviewStyle: input.interviewStyle,
+        faangLevel: input.faangLevel,
+        jobTitle: input.jobTitle,
+        interviewFocus: input.interviewFocus,
+        timeWasTracked: input.answers.some(a => a.timeTakenMs !== undefined),
+      }
+    };
+
+    const finalFeedbackOutput = await refineInterviewFeedback(refinementInput, { apiKey: options?.apiKey });
+
+    return {
+      feedbackItems: finalFeedbackOutput.feedbackItems.map(item => ({
+        ...item,
+        questionId: item.questionId.toString(),
+      })),
+      overallSummary: finalFeedbackOutput.overallSummary,
+    };
+  } catch (error) {
+    console.error("Error during feedback generation:", error);
+    throw error;
   }
-
-  let finalDraftFeedbackItems;
-  if (isTakeHomeStyle && structuredTakeHomeAnalysis) {
-      finalDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
-          const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
-          const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
-          return {
-              questionId: aiItem.questionId,
-              questionText: originalQuestion ? originalQuestion.text : "Assignment Text Not Found.",
-              answerText: originalAnswer ? originalAnswer.answerText : "Submission Not Found.",
-              critique: aiItem.critique || structuredTakeHomeAnalysis!.overallAssessment,
-              strengths: aiItem.strengths && aiItem.strengths.length > 0 ? aiItem.strengths : structuredTakeHomeAnalysis!.strengthsOfSubmission,
-              areasForImprovement: aiItem.areasForImprovement && aiItem.areasForImprovement.length > 0 ? aiItem.areasForImprovement : structuredTakeHomeAnalysis!.areasForImprovementInSubmission,
-              specificSuggestions: aiItem.specificSuggestions && aiItem.specificSuggestions.length > 0 ? aiItem.specificSuggestions : structuredTakeHomeAnalysis!.actionableSuggestionsForRevision,
-              idealAnswerPointers: originalQuestion?.idealAnswerCharacteristics || [],
-              timeTakenMs: originalAnswer?.timeTakenMs,
-              confidenceScore: originalAnswer?.confidenceScore,
-              reflectionPrompts: aiItem.reflectionPrompts || [],
-          };
-      });
-  } else {
-       finalDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
-          const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
-          const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
-          return {
-              questionId: aiItem.questionId,
-              questionText: originalQuestion ? originalQuestion.text : "Question text not found.",
-              answerText: originalAnswer ? originalAnswer.answerText : "Answer text not found.",
-              strengths: aiItem.strengths || [],
-              areasForImprovement: aiItem.areasForImprovement || [],
-              specificSuggestions: aiItem.specificSuggestions || [],
-              critique: aiItem.critique || "",
-              idealAnswerPointers: aiItem.idealAnswerPointers || [],
-              timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
-              confidenceScore: originalAnswer ? originalAnswer.confidenceScore : undefined,
-              reflectionPrompts: aiItem.reflectionPrompts || [],
-          };
-      });
-  }
-
-  const draftFeedbackForRefiner: GenerateInterviewFeedbackOutput = {
-      feedbackItems: finalDraftFeedbackItems,
-      overallSummary: draftAiOutput.overallSummary
-  };
-
-  const refineInput: RefineInterviewFeedbackInput = {
-    draftFeedback: draftFeedbackForRefiner,
-    interviewContext: {
-      interviewType: input.interviewType,
-      interviewStyle: input.interviewStyle,
-      faangLevel: input.faangLevel,
-      jobTitle: input.jobTitle,
-      interviewFocus: input.interviewFocus,
-      timeWasTracked: input.answers.some(a => a.timeTakenMs !== undefined)
-    },
-  };
-
-  // Call refineInterviewFeedback with the correct AI instance
-  const refinedOutput = await refineInterviewFeedback(refineInput, { aiInstance: activeAI });
-
-  if (!refinedOutput) {
-      throw new Error('Feedback refinement process failed.');
-  }
-
-  return refinedOutput;
 }

@@ -14,11 +14,15 @@ import {z} from 'genkit';
 import type { InterviewSetupData } from '@/lib/types'; 
 import { INTERVIEWER_PERSONAS } from '@/lib/constants';
 
+// Extended type for interview context that includes previousConversation
+type InterviewContextWithConversation = InterviewSetupData & {
+  previousConversation?: string;
+};
 
 const ClarifyInterviewQuestionInputSchema = z.object({
   interviewQuestionText: z.string().describe("The original interview question posed by the AI that the user wants clarification on."),
   userClarificationRequest: z.string().describe("The user's specific question asking for clarification about the AI's interview question."),
-  interviewContext: z.custom<InterviewSetupData>().describe("The overall context of the interview (type, level, focus, persona, etc.)."),
+  interviewContext: z.custom<InterviewContextWithConversation>().describe("The overall context of the interview (type, level, focus, persona, etc.)."),
 });
 export type ClarifyInterviewQuestionInput = z.infer<typeof ClarifyInterviewQuestionInputSchema>;
 
@@ -32,7 +36,7 @@ Your current interview type is '{{{interviewContext.interviewType}}}' at '{{{int
 {{#if interviewContext.interviewFocus}}The specific focus is '{{{interviewContext.interviewFocus}}}'.{{/if}}
 
 {{#if interviewContext.previousConversation}}
-Briefly review the conversation history if the candidate\'s request seems to reference earlier parts of the dialogue:
+Briefly review the conversation history if the candidate's request seems to reference earlier parts of the dialogue:
 Previous Conversation Snippets:
 {{{interviewContext.previousConversation}}} 
 ---
@@ -61,6 +65,46 @@ Provide a helpful and concise clarification.
 
 Begin your clarification directly.
 `;
+
+// Template customization function to replace placeholders with actual values
+const customizeClarifyPromptText = (template: string, input: ClarifyInterviewQuestionInput): string => {
+  let promptText = template;
+  
+  // Replace basic placeholders
+  promptText = promptText.replace(/{{{interviewContext\.interviewerPersona}}}/g, input.interviewContext.interviewerPersona || 'standard');
+  promptText = promptText.replace(/{{{interviewContext\.interviewType}}}/g, input.interviewContext.interviewType);
+  promptText = promptText.replace(/{{{interviewContext\.faangLevel}}}/g, input.interviewContext.faangLevel);
+  promptText = promptText.replace(/{{{interviewQuestionText}}}/g, input.interviewQuestionText);
+  promptText = promptText.replace(/{{{userClarificationRequest}}}/g, input.userClarificationRequest);
+  
+  // Handle optional fields with conditional blocks
+  if (input.interviewContext.interviewFocus) {
+    promptText = promptText.replace(
+      /{{#if interviewContext\.interviewFocus}}The specific focus is '{{{interviewContext\.interviewFocus}}}'.{{\/if}}/g,
+      `The specific focus is '${input.interviewContext.interviewFocus}'.`
+    );
+  } else {
+    promptText = promptText.replace(
+      /{{#if interviewContext\.interviewFocus}}The specific focus is '{{{interviewContext\.interviewFocus}}}'.{{\/if}}/g,
+      ''
+    );
+  }
+  
+  // Handle previousConversation
+  if (input.interviewContext.previousConversation) {
+    promptText = promptText.replace(
+      /{{#if interviewContext\.previousConversation}}[\s\S]*?{{{interviewContext\.previousConversation}}}[\s\S]*?{{\/if}}/g,
+      `Briefly review the conversation history if the candidate's request seems to reference earlier parts of the dialogue:\nPrevious Conversation Snippets:\n${input.interviewContext.previousConversation}\n---`
+    );
+  } else {
+    promptText = promptText.replace(
+      /{{#if interviewContext\.previousConversation}}[\s\S]*?{{\/if}}/g,
+      ''
+    );
+  }
+  
+  return promptText;
+};
 
 const clarifyInterviewQuestionPromptObj = globalAi.definePrompt({
   name: 'clarifyInterviewQuestionPrompt',
@@ -105,7 +149,7 @@ export async function clarifyInterviewQuestion(
     if (isByokPath) {
       console.log("[BYOK] clarifyInterviewQuestion: Using userKit.generate()");
       const result = await activeAI.generate<typeof ClarifyInterviewQuestionOutputSchema>({
-        prompt: CLARIFY_INTERVIEW_QUESTION_PROMPT_TEMPLATE,
+        prompt: customizeClarifyPromptText(CLARIFY_INTERVIEW_QUESTION_PROMPT_TEMPLATE, saneInput),
         context: saneInput,
         model: googleAI.model('gemini-1.5-flash-latest'),
         output: { schema: ClarifyInterviewQuestionOutputSchema },
@@ -120,7 +164,7 @@ export async function clarifyInterviewQuestion(
       // output = ClarifyInterviewQuestionOutputSchema.parse(resultFromRun); // Ensure parsing
 
       const result = await globalAi.generate<typeof ClarifyInterviewQuestionOutputSchema>({
-        prompt: CLARIFY_INTERVIEW_QUESTION_PROMPT_TEMPLATE,
+        prompt: customizeClarifyPromptText(CLARIFY_INTERVIEW_QUESTION_PROMPT_TEMPLATE, saneInput),
         context: saneInput,
         model: googleAI.model('gemini-1.5-flash-latest'), // Specify model for global path too
         output: { schema: ClarifyInterviewQuestionOutputSchema },

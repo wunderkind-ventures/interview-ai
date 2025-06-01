@@ -38,11 +38,6 @@ export type GenerateInitialCaseSetupOutput = z.infer<
   typeof GenerateInitialCaseSetupOutputSchema
 >;
 
-// Schema for AI output when it's expected to be a stringified JSON object
-const AIServiceOutputSchemaCaseSetup = z.object({
-  jsonString: z.string().describe("A JSON string that can be parsed into GenerateInitialCaseSetupOutputSchema.")
-});
-
 const INITIAL_CASE_SETUP_PROMPT_TEMPLATE_STRING = `Generate an initial case study interview setup.
 You are an **Expert Case Study Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**. You excel at designing compelling, realistic, and thought-provoking case study interviews.
 Your task is to design the **initial setup** for a case study. This means crafting a compelling problem scenario and an insightful first question that kickstarts a deep analytical discussion.
@@ -144,8 +139,7 @@ End of Amazon-specific considerations.
 {{/if}}
 
 **Final Output Format:**
-Your response will be a JSON object with a single key "jsonString".
-The value of "jsonString" MUST be a valid JSON string that can be parsed into an object with the following fields:
+Output a valid JSON object with the following fields:
 - 'caseTitle': (string) A concise, engaging title.
 - 'fullScenarioDescription': (string) The detailed narrative of the case study problem.
 - 'firstQuestionToAsk': (string) The specific first question for the candidate.
@@ -216,24 +210,19 @@ export async function generateInitialCaseSetup(
     if (isByokPath) {
       console.log("[BYOK] generateInitialCaseSetup: Using .generate() for BYOK path.");
       const customizedPromptText = initialCaseSetupCustomizeFn(INITIAL_CASE_SETUP_PROMPT_TEMPLATE_STRING, saneInput);
-      // Expect AIServiceOutputSchemaCaseSetup from the AI
-      const generateResult = await aiInstanceToUse.generate<typeof AIServiceOutputSchemaCaseSetup>({
+      // Generate output directly without wrapper
+      const generateResult = await aiInstanceToUse.generate<typeof GenerateInitialCaseSetupOutputSchema>({
         model: googleAI.model('gemini-1.5-flash-latest') as ModelReference<any>,
         prompt: customizedPromptText,
         context: saneInput,
         tools: toolsForInstance,
-        // Update output schema to AIServiceOutputSchemaCaseSetup
-        output: { schema: AIServiceOutputSchemaCaseSetup },
+        // Use the direct output schema
+        output: { schema: GenerateInitialCaseSetupOutputSchema },
         config: { responseMimeType: "application/json" },
       });
       
-      if (generateResult.output?.jsonString) {
-        // Parse the inner jsonString
-        outputFromAI = GenerateInitialCaseSetupOutputSchema.parse(JSON.parse(generateResult.output.jsonString));
-      } else {
-        console.error("[BYOK] generateInitialCaseSetup: AI output did not contain jsonString.");
-        outputFromAI = null; // Or throw error
-      }
+      // Directly use the output without parsing jsonString
+      outputFromAI = generateResult.output || null;
     } else {
       console.log("[BYOK] generateInitialCaseSetup: Using .run() for globalAI path.");
       const result: unknown = await globalAI.run(initialCaseSetupPromptGlobalConfig.name, async () => saneInput);

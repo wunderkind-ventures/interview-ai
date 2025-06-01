@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to generate a sample answer for a given interview question.
@@ -28,11 +27,7 @@ const GenerateSampleAnswerOutputSchemaInternal = z.object({
 });
 export type GenerateSampleAnswerOutput = z.infer<typeof GenerateSampleAnswerOutputSchemaInternal>;
 
-const generateSampleAnswerPromptObj = globalAi.definePrompt({
-  name: 'generateSampleAnswerPrompt',
-  input: {schema: GenerateSampleAnswerInputSchemaInternal},
-  output: {schema: GenerateSampleAnswerOutputSchemaInternal},
-  prompt: `You are an expert Interview Coach AI. Your task is to generate a high-quality, well-structured sample answer for the following interview question.
+const GENERATE_SAMPLE_ANSWER_PROMPT_TEMPLATE = `You are an expert Interview Coach AI. Your task is to generate a high-quality, well-structured sample answer for the following interview question.
 The answer should be appropriate for the specified interview type, FAANG level, and any given focus or targeted skills.
 It should embody the "ideal answer characteristics" if they are provided.
 
@@ -61,7 +56,66 @@ If the question is behavioral, structure the sample answer using the STAR method
 If it's a technical or product question, ensure the answer is logical, covers key considerations, and explains trade-offs where appropriate.
 The answer should be comprehensive yet concise.
 Begin the answer directly, without introductory phrases like "Here's a sample answer:".
-`,
+`;
+
+// Template customization function to replace placeholders with actual values
+const customizeSampleAnswerPromptText = (template: string, input: GenerateSampleAnswerInput): string => {
+  let promptText = template;
+  
+  // Replace basic placeholders
+  promptText = promptText.replace(/{{{interviewType}}}/g, input.interviewType);
+  promptText = promptText.replace(/{{{faangLevel}}}/g, input.faangLevel);
+  promptText = promptText.replace(/{{{questionText}}}/g, input.questionText);
+  
+  // Handle optional interviewFocus
+  if (input.interviewFocus) {
+    promptText = promptText.replace(
+      /{{#if interviewFocus}}- Specific Focus: {{{interviewFocus}}}{{\/if}}/g,
+      `- Specific Focus: ${input.interviewFocus}`
+    );
+  } else {
+    promptText = promptText.replace(
+      /{{#if interviewFocus}}- Specific Focus: {{{interviewFocus}}}{{\/if}}/g,
+      ''
+    );
+  }
+  
+  // Handle targetedSkills array
+  if (input.targetedSkills && input.targetedSkills.length > 0) {
+    const skillsList = input.targetedSkills.map(skill => `  - ${skill}`).join('\n');
+    promptText = promptText.replace(
+      /{{#if targetedSkills\.length}}[\s\S]*?{{#each targetedSkills}}[\s\S]*?{{{this}}}[\s\S]*?{{\/each}}[\s\S]*?{{\/if}}/g,
+      `- Targeted Skills:\n${skillsList}`
+    );
+  } else {
+    promptText = promptText.replace(
+      /{{#if targetedSkills\.length}}[\s\S]*?{{\/if}}/g,
+      ''
+    );
+  }
+  
+  // Handle idealAnswerCharacteristics array
+  if (input.idealAnswerCharacteristics && input.idealAnswerCharacteristics.length > 0) {
+    const characteristicsList = input.idealAnswerCharacteristics.map(char => `  - ${char}`).join('\n');
+    promptText = promptText.replace(
+      /{{#if idealAnswerCharacteristics\.length}}[\s\S]*?{{#each idealAnswerCharacteristics}}[\s\S]*?{{{this}}}[\s\S]*?{{\/each}}[\s\S]*?{{\/if}}/g,
+      `- Ideal Answer Characteristics for this question (use these as a guide for your sample answer):\n${characteristicsList}`
+    );
+  } else {
+    promptText = promptText.replace(
+      /{{#if idealAnswerCharacteristics\.length}}[\s\S]*?{{\/if}}/g,
+      ''
+    );
+  }
+  
+  return promptText;
+};
+
+const generateSampleAnswerPromptObj = globalAi.definePrompt({
+  name: 'generateSampleAnswerPrompt',
+  input: {schema: GenerateSampleAnswerInputSchemaInternal},
+  output: {schema: GenerateSampleAnswerOutputSchemaInternal},
+  prompt: GENERATE_SAMPLE_ANSWER_PROMPT_TEMPLATE,
 });
 
 export async function generateSampleAnswer(
@@ -70,33 +124,51 @@ export async function generateSampleAnswer(
 ): Promise<GenerateSampleAnswerOutput> {
   let activeAI = globalAi;
   const flowNameForLogging = 'generateSampleAnswer';
+  let isByokPath = false;
 
   if (options?.aiInstance) {
     activeAI = options.aiInstance;
+    isByokPath = true;
     console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance.`);
   } else if (options?.apiKey) {
     try {
       activeAI = genkit({
         plugins: [googleAI({ apiKey: options.apiKey })],
-        model: globalAi.getModel().name,
+        // No model here, it will be specified in generate call
       });
+      isByokPath = true;
       console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
     } catch (e) {
       console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
+      // activeAI remains globalAi
     }
   } else {
     console.log(`[BYOK] ${flowNameForLogging}: No specific API key or AI instance provided; using default global AI instance.`);
   }
   
   try {
-    const {output} = await activeAI.run(generateSampleAnswerPromptObj, input);
+    const customizedPrompt = customizeSampleAnswerPromptText(GENERATE_SAMPLE_ANSWER_PROMPT_TEMPLATE, input);
+    
+    const result = await activeAI.generate<typeof GenerateSampleAnswerOutputSchemaInternal>({
+      prompt: customizedPrompt,
+      context: input,
+      model: googleAI.model('gemini-1.5-flash-latest'),
+      output: { schema: GenerateSampleAnswerOutputSchemaInternal },
+      config: { responseMimeType: "application/json" },
+    });
+    
+    const output = result.output;
+    
     if (!output || !output.sampleAnswerText) {
         return { sampleAnswerText: `Sorry, I couldn't generate a sample answer for the question: "${input.questionText}" at this moment. Consider the key concepts and try to structure your response logically.` };
     }
     return output;
   } catch (error) {
     console.error(`Error in ${flowNameForLogging}:`, error);
-    throw error;
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+    return { 
+      sampleAnswerText: `Unable to generate sample answer due to an error: ${errorMsg}. Please try again later.` 
+    };
   }
 }
 

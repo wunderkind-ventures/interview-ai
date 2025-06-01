@@ -19,6 +19,7 @@ import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema } from '../sc
 import type { GenerateInterviewFeedbackOutput } from '../schemas';
 import { analyzeTakeHomeSubmission } from './analyze-take-home-submission'; 
 import type { AnalyzeTakeHomeSubmissionInput, AnalyzeTakeHomeSubmissionOutput, AnalyzeTakeHomeSubmissionContext } from '@/lib/types'; 
+import { defineGetTechnologyBriefTool } from '@/ai/tools/technology-tools';
 
 // Input schema for the data needed by the initial prompt template
 const DraftPromptInputSchema = z.object({
@@ -122,14 +123,8 @@ const GenerateInterviewFeedbackInputSchema = z.object({ // Not exported
 });
 export type GenerateInterviewFeedbackInput = z.infer<typeof GenerateInterviewFeedbackInputSchema>;
 
-
-// Define draftPrompt with globalAI
-const draftPromptObj = globalAi.definePrompt({
-  name: 'generateDraftInterviewFeedbackPrompt',
-  tools: [getTechnologyBriefTool],
-  input: {schema: DraftPromptInputSchema},
-  output: {schema: AIDraftOutputSchema},
-  prompt: `You are an expert career coach and interviewer, providing detailed, structured DRAFT feedback for a mock interview session.
+// Extract the prompt template as a constant
+const DRAFT_FEEDBACK_PROMPT_TEMPLATE = `You are an expert career coach and interviewer, providing detailed, structured DRAFT feedback for a mock interview session.
 This is the first pass; the feedback will be polished by another specialized AI agent later.
 
 The user has just completed a mock interview of type "{{interviewType}}" targeting a "{{faangLevel}}" level.
@@ -231,23 +226,192 @@ Your task is to provide a DRAFT of:
 
 Output the DRAFT feedback in the specified JSON format.
 Make sure each item in 'feedbackItems' includes the 'questionId' it refers to.
-`,
-});
+`;
+
+// Template customization function to replace placeholders with actual values
+const customizeDraftFeedbackPromptText = (template: string, input: z.infer<typeof DraftPromptInputSchema>): string => {
+  let promptText = template;
+  
+  // Replace basic placeholders
+  promptText = promptText.replace(/{{interviewType}}/g, input.interviewType);
+  promptText = promptText.replace(/{{faangLevel}}/g, input.faangLevel);
+  
+  // Handle optional fields with conditional blocks
+  if (input.jobTitle) {
+    promptText = promptText.replace(
+      /{{#if jobTitle}}[\s\S]*?{{{jobTitle}}}[\s\S]*?{{\/if}}/,
+      `The interview was for the role of: ${input.jobTitle}`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if jobTitle}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  if (input.jobDescription) {
+    promptText = promptText.replace(
+      /{{#if jobDescription}}[\s\S]*?{{{jobDescription}}}[\s\S]*?{{\/if}}/,
+      `The interview was for a role with the following job description:\n${input.jobDescription}`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if jobDescription}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  if (input.resume) {
+    promptText = promptText.replace(
+      /{{#if resume}}[\s\S]*?{{{resume}}}[\s\S]*?{{\/if}}/,
+      `The candidate's resume is as follows:\n${input.resume}`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if resume}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  if (input.interviewFocus) {
+    promptText = promptText.replace(
+      /{{#if interviewFocus}}[\s\S]*?{{{interviewFocus}}}[\s\S]*?{{\/if}}/,
+      `The specific focus for this interview was: ${input.interviewFocus}`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if interviewFocus}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  // Handle conditional sections for interview styles
+  if (input.isTakeHomeStyle) {
+    // Extract and process only the take-home section
+    const takeHomeMatch = promptText.match(/{{#if isTakeHomeStyle}}([\s\S]*?){{\/if}}/);
+    const simpleQAMatch = promptText.match(/{{#if isSimpleQAOrCaseStudyStyle}}([\s\S]*?){{\/if}}/);
+    
+    if (takeHomeMatch && simpleQAMatch) {
+      let takeHomeContent = takeHomeMatch[1];
+      
+      // Process take-home specific placeholders
+      if (input.questionsAndAnswers && input.questionsAndAnswers.length > 0) {
+        const firstQ = input.questionsAndAnswers[0];
+        takeHomeContent = takeHomeContent.replace(/{{{questionsAndAnswers\.0\.questionText}}}/g, firstQ.questionText);
+        takeHomeContent = takeHomeContent.replace(/{{{questionsAndAnswers\.0\.answerText}}}/g, firstQ.answerText);
+        takeHomeContent = takeHomeContent.replace(/{{questionsAndAnswers\.0\.questionId}}/g, firstQ.questionId);
+        
+        // Handle ideal answer characteristics
+        if (firstQ.idealAnswerCharacteristics && firstQ.idealAnswerCharacteristics.length > 0) {
+          const charList = firstQ.idealAnswerCharacteristics.map(char => `- ${char}`).join('\n');
+          takeHomeContent = takeHomeContent.replace(
+            /{{#if questionsAndAnswers\.0\.idealAnswerCharacteristics\.length}}[\s\S]*?{{#each questionsAndAnswers\.0\.idealAnswerCharacteristics}}[\s\S]*?{{{this}}}[\s\S]*?{{\/each}}[\s\S]*?{{\/if}}/,
+            `Ideal Submission Characteristics for this Assignment (from assignment design):\n${charList}`
+          );
+        } else {
+          takeHomeContent = takeHomeContent.replace(
+            /{{#if questionsAndAnswers\.0\.idealAnswerCharacteristics\.length}}[\s\S]*?{{\/if}}/g,
+            ''
+          );
+        }
+        
+        // Handle structured analysis
+        if (input.structuredTakeHomeAnalysis) {
+          const analysis = input.structuredTakeHomeAnalysis;
+          takeHomeContent = takeHomeContent.replace(/{{{structuredTakeHomeAnalysis\.overallAssessment}}}/g, analysis.overallAssessment);
+          
+          // Replace strengths
+          const strengthsList = analysis.strengthsOfSubmission.map(s => `  - ${s}`).join('\n');
+          takeHomeContent = takeHomeContent.replace(
+            /{{#each structuredTakeHomeAnalysis\.strengthsOfSubmission}}[\s\S]*?{{{this}}}[\s\S]*?{{\/each}}/,
+            strengthsList
+          );
+          
+          // Replace areas for improvement
+          const improvementsList = analysis.areasForImprovementInSubmission.map(a => `  - ${a}`).join('\n');
+          takeHomeContent = takeHomeContent.replace(
+            /{{#each structuredTakeHomeAnalysis\.areasForImprovementInSubmission}}[\s\S]*?{{{this}}}[\s\S]*?{{\/each}}/,
+            improvementsList
+          );
+          
+          // Replace suggestions
+          const suggestionsList = analysis.actionableSuggestionsForRevision.map(s => `  - ${s}`).join('\n');
+          takeHomeContent = takeHomeContent.replace(
+            /{{#each structuredTakeHomeAnalysis\.actionableSuggestionsForRevision}}[\s\S]*?{{{this}}}[\s\S]*?{{\/each}}/,
+            suggestionsList
+          );
+        }
+      }
+      
+      // Replace both sections with only the processed take-home content
+      promptText = promptText.replace(/{{#if isTakeHomeStyle}}[\s\S]*?{{\/if}}/, takeHomeContent);
+      promptText = promptText.replace(/{{#if isSimpleQAOrCaseStudyStyle}}[\s\S]*?{{\/if}}/, '');
+    }
+  } else if (input.isSimpleQAOrCaseStudyStyle) {
+    // Extract and process only the simple Q&A section
+    const takeHomeMatch = promptText.match(/{{#if isTakeHomeStyle}}([\s\S]*?){{\/if}}/);
+    const simpleQAMatch = promptText.match(/{{#if isSimpleQAOrCaseStudyStyle}}([\s\S]*?){{\/if}}/);
+    
+    if (takeHomeMatch && simpleQAMatch) {
+      let simpleQAContent = simpleQAMatch[1];
+      
+      // Process questions and answers
+      if (input.questionsAndAnswers && input.questionsAndAnswers.length > 0) {
+        const qaList = input.questionsAndAnswers.map(qa => {
+          let qaText = `Question ${qa.indexPlusOne} (ID: ${qa.questionId}): ${qa.questionText}`;
+          
+          if (qa.idealAnswerCharacteristics && qa.idealAnswerCharacteristics.length > 0) {
+            qaText += '\nIdeal Answer Characteristics for this Question:\n';
+            qaText += qa.idealAnswerCharacteristics.map(char => `- ${char}`).join('\n');
+          }
+          
+          qaText += `\nAnswer: ${qa.answerText}`;
+          
+          if (qa.timeTakenMs !== undefined) {
+            qaText += `\n(Time taken: ${qa.timeTakenMs} ms)`;
+          }
+          
+          if (qa.confidenceScore !== undefined) {
+            qaText += `\nUser Confidence (1-5 stars): ${qa.confidenceScore}`;
+          }
+          
+          qaText += '\n---';
+          return qaText;
+        }).join('\n');
+        
+        simpleQAContent = simpleQAContent.replace(
+          /{{#each questionsAndAnswers}}[\s\S]*?{{\/each}}/,
+          qaList
+        );
+      }
+      
+      // Replace both sections with only the processed simple Q&A content
+      promptText = promptText.replace(/{{#if isTakeHomeStyle}}[\s\S]*?{{\/if}}/, '');
+      promptText = promptText.replace(/{{#if isSimpleQAOrCaseStudyStyle}}[\s\S]*?{{\/if}}/, simpleQAContent);
+    }
+  }
+  
+  return promptText;
+};
+
+// No longer need the definePrompt since we're using generate() with customized prompts
+// const draftPromptObj = globalAi.definePrompt({
+//   name: 'generateDraftInterviewFeedbackPrompt',
+//   tools: [getTechnologyBriefTool],
+//   input: {schema: DraftPromptInputSchema},
+//   output: {schema: AIDraftOutputSchema},
+//   prompt: DRAFT_FEEDBACK_PROMPT_TEMPLATE,
+// });
 
 export async function generateInterviewFeedback(
   input: z.infer<typeof GenerateInterviewFeedbackInputSchema>,
   options?: { apiKey?: string }
 ): Promise<GenerateInterviewFeedbackOutput> {
   let activeAI = globalAi;
+  let isByokPath = false;
+  let userTechTool = null;
+  
   if (options?.apiKey) {
     try {
       activeAI = genkit({
         plugins: [googleAI({ apiKey: options.apiKey })],
-        model: globalAi.getModel().name,
+        // No model here, it will be specified in generate call
       });
+      isByokPath = true;
+      // Define the tool on the user's AI instance
+      userTechTool = await defineGetTechnologyBriefTool(activeAI);
       console.log("[BYOK] generateInterviewFeedback: Using user-provided API key.");
     } catch (e) {
       console.warn(`[BYOK] generateInterviewFeedback: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
+      // activeAI remains globalAi
     }
   } else {
     console.log("[BYOK] generateInterviewFeedback: No user API key provided; using default global AI instance.");
@@ -326,25 +490,80 @@ export async function generateInterviewFeedback(
   };
 
   try {
-    console.log(`[BYOK] generateInterviewFeedback: Generating DRAFT feedback with AI. Input: ${JSON.stringify(draftPromptInput, null, 2)}`);
+    console.log(`[BYOK] generateInterviewFeedback: Generating DRAFT feedback with AI.`);
+    console.log(`[DEBUG] Interview style: ${input.interviewStyle}, Questions count: ${input.questions.length}`);
     
     let draftFeedback: z.infer<typeof AIDraftOutputSchema>;
 
-    if (activeAI === globalAi) {
-      // Global path: use run with prompt name and input data provider, then parse.
-      const outputFromRun = await globalAi.run(draftPromptObj.name, async () => draftPromptInput);
-      draftFeedback = AIDraftOutputSchema.parse(outputFromRun);
+    if (isByokPath) {
+      // BYOK path: use generate() with interpolated prompt
+      const customizedPrompt = customizeDraftFeedbackPromptText(DRAFT_FEEDBACK_PROMPT_TEMPLATE, draftPromptInput);
+      
+      // Debug: Check if individual feedback section is in the prompt
+      if (input.interviewStyle === 'simple-qa' || input.interviewStyle === 'case-study') {
+        const hasIndividualFeedback = customizedPrompt.includes('For each question and answer pair, provide structured feedback');
+        console.log(`[DEBUG] Customized prompt includes individual feedback instructions: ${hasIndividualFeedback}`);
+        if (!hasIndividualFeedback) {
+          console.error('[DEBUG] WARNING: Individual feedback section missing from prompt!');
+        }
+      }
+      
+      const result = await activeAI.generate<typeof AIDraftOutputSchema>({
+        prompt: customizedPrompt,
+        context: draftPromptInput,
+        model: googleAI.model('gemini-1.5-flash-latest'),
+        output: { schema: AIDraftOutputSchema },
+        config: { responseMimeType: "application/json" },
+        tools: userTechTool ? [userTechTool] : [],
+      });
+      
+      if (!result.output) {
+        throw new Error("AI returned null for draft feedback generation.");
+      }
+      
+      draftFeedback = result.output;
     } else {
-      // BYOK path: This is a NON-FUNCTIONAL placeholder for generateInterviewFeedback's draft prompt.
-      // It requires userKit.generate() with the full prompt template, tools, schemas, etc.
-      // The current call will likely fail at runtime as draftPromptObj.name is not on userKit.
-      console.warn("[BYOK] generateInterviewFeedback: BYOK path for draft feedback prompt is NOT fully implemented and will likely fail. Requires refactoring to use userKit.generate().");
-      const tempOutput = await activeAI.run(draftPromptObj.name, async () => draftPromptInput); // This line is problematic for BYOK
-      draftFeedback = AIDraftOutputSchema.parse(tempOutput); 
+      // Global path: use generate() with interpolated prompt and global AI tools
+      const customizedPrompt = customizeDraftFeedbackPromptText(DRAFT_FEEDBACK_PROMPT_TEMPLATE, draftPromptInput);
+      
+      // Debug: Check if individual feedback section is in the prompt
+      if (input.interviewStyle === 'simple-qa' || input.interviewStyle === 'case-study') {
+        const hasIndividualFeedback = customizedPrompt.includes('For each question and answer pair, provide structured feedback');
+        console.log(`[DEBUG] Customized prompt includes individual feedback instructions: ${hasIndividualFeedback}`);
+        if (!hasIndividualFeedback) {
+          console.error('[DEBUG] WARNING: Individual feedback section missing from prompt!');
+        }
+      }
+      
+      const result = await globalAi.generate<typeof AIDraftOutputSchema>({
+        prompt: customizedPrompt,
+        context: draftPromptInput,
+        model: googleAI.model('gemini-1.5-flash-latest'),
+        output: { schema: AIDraftOutputSchema },
+        config: { responseMimeType: "application/json" },
+        tools: [getTechnologyBriefTool], // Use the global tool
+      });
+      
+      if (!result.output) {
+        throw new Error("AI returned null for draft feedback generation.");
+      }
+      
+      draftFeedback = result.output;
     }
 
     if (!draftFeedback || !draftFeedback.feedbackItems || !draftFeedback.overallSummary) {
       throw new Error("AI draft feedback is missing essential parts.");
+    }
+    
+    console.log(`[DEBUG] Draft feedback generated with ${draftFeedback.feedbackItems.length} feedback items`);
+    
+    // More detailed debug logging
+    if (draftFeedback.feedbackItems.length === 0) {
+      console.error('[DEBUG] WARNING: No feedback items generated!');
+      console.log('[DEBUG] Questions provided:', input.questions.length);
+      console.log('[DEBUG] Answers provided:', input.answers.length);
+    } else {
+      console.log('[DEBUG] Feedback items question IDs:', draftFeedback.feedbackItems.map(item => item.questionId));
     }
 
     // Prepare input for refinement step
@@ -381,6 +600,12 @@ export async function generateInterviewFeedback(
     };
 
     const finalFeedbackOutput = await refineInterviewFeedback(refinementInput, { apiKey: options?.apiKey });
+    
+    // Debug logging for final output
+    console.log(`[DEBUG] Final feedback after refinement: ${finalFeedbackOutput.feedbackItems.length} items`);
+    if (finalFeedbackOutput.feedbackItems.length === 0) {
+      console.error('[DEBUG] WARNING: Refinement removed all feedback items!');
+    }
 
     return {
       feedbackItems: finalFeedbackOutput.feedbackItems.map(item => ({

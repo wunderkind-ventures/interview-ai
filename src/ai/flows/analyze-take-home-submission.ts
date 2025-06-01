@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Analyzes a user's submission for a take-home assignment.
@@ -40,12 +39,8 @@ const AnalyzeTakeHomeSubmissionOutputSchema = z.object({
 // Using AnalyzeTakeHomeSubmissionOutputType for the exported function type
 export type AnalyzeTakeHomeSubmissionOutput = AnalyzeTakeHomeSubmissionOutputType;
 
-
-const analyzeTakeHomeSubmissionPromptObj = globalAi.definePrompt({
-  name: 'analyzeTakeHomeSubmissionPrompt',
-  input: { schema: AnalyzeTakeHomeSubmissionInputSchema },
-  output: { schema: AnalyzeTakeHomeSubmissionOutputSchema },
-  prompt: `You are an Expert Interview Reviewer AI, specializing in evaluating take-home assignments.
+// Extract the prompt template as a constant
+const ANALYZE_TAKE_HOME_PROMPT_TEMPLATE = `You are an Expert Interview Reviewer AI, specializing in evaluating take-home assignments.
 A candidate has submitted their response to a take-home assignment. Your task is to provide a structured and insightful analysis.
 
 **Interview Context:**
@@ -91,24 +86,75 @@ Carefully review the candidate's submission in light of the original assignment 
     *   Example: "Revisit the section on 'Trade-offs' to explicitly compare Approach A vs. Approach B in terms of cost and implementation time."
 
 Ensure your feedback is constructive, professional, and directly relevant to the submitted work.
-`,
-});
+`;
+
+// Template customization function
+const customizeAnalyzeTakeHomePromptText = (template: string, input: z.infer<typeof AnalyzeTakeHomeSubmissionInputSchema>): string => {
+  let promptText = template;
+  
+  // Replace interview context
+  promptText = promptText.replace(/{{interviewContext\.interviewType}}/g, input.interviewContext.interviewType);
+  promptText = promptText.replace(/{{interviewContext\.faangLevel}}/g, input.interviewContext.faangLevel);
+  
+  // Handle optional jobTitle
+  if (input.interviewContext.jobTitle) {
+    promptText = promptText.replace(
+      /{{#if interviewContext\.jobTitle}}- Job Title: {{interviewContext\.jobTitle}}{{\/if}}/g,
+      `- Job Title: ${input.interviewContext.jobTitle}`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if interviewContext\.jobTitle}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  // Handle optional interviewFocus
+  if (input.interviewContext.interviewFocus) {
+    promptText = promptText.replace(
+      /{{#if interviewContext\.interviewFocus}}- Focus: {{interviewContext\.interviewFocus}}{{\/if}}/g,
+      `- Focus: ${input.interviewContext.interviewFocus}`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if interviewContext\.interviewFocus}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  // Replace assignment text and user submission
+  promptText = promptText.replace(/{{{assignmentText}}}/g, input.assignmentText);
+  promptText = promptText.replace(/{{{userSubmissionText}}}/g, input.userSubmissionText);
+  
+  // Handle ideal submission characteristics
+  if (input.idealSubmissionCharacteristics && input.idealSubmissionCharacteristics.length > 0) {
+    const charList = input.idealSubmissionCharacteristics.map(char => `- ${char}`).join('\n');
+    promptText = promptText.replace(
+      /{{#if idealSubmissionCharacteristics\.length}}[\s\S]*?{{#each idealSubmissionCharacteristics}}[\s\S]*?{{{this}}}[\s\S]*?{{\/each}}[\s\S]*?{{else}}[\s\S]*?{{\/if}}/g,
+      charList
+    );
+  } else {
+    promptText = promptText.replace(
+      /{{#if idealSubmissionCharacteristics\.length}}[\s\S]*?{{else}}([\s\S]*?){{\/if}}/g,
+      '$1'
+    );
+  }
+  
+  return promptText;
+};
 
 export async function analyzeTakeHomeSubmission(
   input: AnalyzeTakeHomeSubmissionInput,
   options?: { aiInstance?: any; apiKey?: string } // Changed to accept aiInstance or apiKey
 ): Promise<AnalyzeTakeHomeSubmissionOutput> {
   let activeAI = globalAi; // Default to global instance
+  let isByokPath = false;
 
   if (options?.aiInstance) {
     activeAI = options.aiInstance;
+    isByokPath = true;
     console.log("[BYOK] analyzeTakeHomeSubmission: Using provided aiInstance.");
   } else if (options?.apiKey) {
     try {
       activeAI = genkit({
         plugins: [googleAI({ apiKey: options.apiKey })],
-        model: globalAi.getModel().name, // Use model name from global config
+        // No model here, it will be specified in generate call
       });
+      isByokPath = true;
       console.log("[BYOK] analyzeTakeHomeSubmission: Using user-provided API key.");
     } catch (e) {
       console.warn(`[BYOK] analyzeTakeHomeSubmission: Failed to initialize Genkit with user-provided API key: ${(e as Error).message}. Falling back to default.`);
@@ -121,7 +167,45 @@ export async function analyzeTakeHomeSubmission(
   try {
     // Ensure the input matches the Zod schema for the prompt
     const validatedInput = AnalyzeTakeHomeSubmissionInputSchema.parse(input);
-    const { output } = await activeAI.run(analyzeTakeHomeSubmissionPromptObj, validatedInput);
+    
+    let output: AnalyzeTakeHomeSubmissionOutput | null | undefined;
+    
+    if (isByokPath) {
+      // BYOK path: use generate() with interpolated prompt
+      const customizedPrompt = customizeAnalyzeTakeHomePromptText(ANALYZE_TAKE_HOME_PROMPT_TEMPLATE, validatedInput);
+      
+      const result = await activeAI.generate<typeof AnalyzeTakeHomeSubmissionOutputSchema>({
+        prompt: customizedPrompt,
+        context: validatedInput,
+        model: googleAI.model('gemini-1.5-flash-latest'),
+        output: { schema: AnalyzeTakeHomeSubmissionOutputSchema },
+        config: { responseMimeType: "application/json" },
+      });
+      
+      if (!result.output) {
+        throw new Error('AI did not return a submission analysis.');
+      }
+      
+      output = result.output;
+    } else {
+      // Global path: use generate() with interpolated prompt
+      const customizedPrompt = customizeAnalyzeTakeHomePromptText(ANALYZE_TAKE_HOME_PROMPT_TEMPLATE, validatedInput);
+      
+      const result = await activeAI.generate<typeof AnalyzeTakeHomeSubmissionOutputSchema>({
+        prompt: customizedPrompt,
+        context: validatedInput,
+        model: googleAI.model('gemini-1.5-flash-latest'),
+        output: { schema: AnalyzeTakeHomeSubmissionOutputSchema },
+        config: { responseMimeType: "application/json" },
+      });
+      
+      if (!result.output) {
+        throw new Error('AI did not return a submission analysis.');
+      }
+      
+      output = result.output;
+    }
+    
     if (!output) {
       throw new Error('AI did not return a submission analysis.');
     }

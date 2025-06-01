@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A specialized AI flow to refine draft interview feedback.
@@ -38,12 +37,8 @@ export type RefineInterviewFeedbackInput = z.infer<
 
 export type RefineInterviewFeedbackOutput = GenerateInterviewFeedbackOutput; 
 
-// Define the prompt with globalAI for registration
-const refinePromptObj = globalAi.definePrompt({
-  name: 'refineInterviewFeedbackPrompt',
-  input: {schema: RefineInterviewFeedbackInputSchema}, 
-  output: {schema: GenerateInterviewFeedbackOutputSchema}, 
-  prompt: `You are an Expert Feedback Polisher AI. Your task is to review and refine DRAFT interview feedback to make it exceptionally clear, concise, actionable, and supportive.
+// Extract the prompt template as a constant
+const REFINE_FEEDBACK_PROMPT_TEMPLATE = `You are an Expert Feedback Polisher AI. Your task is to review and refine DRAFT interview feedback to make it exceptionally clear, concise, actionable, and supportive.
 Pay special attention to polishing the 'reflectionPrompts'.
 
 **Original Interview Context:**
@@ -113,24 +108,137 @@ Do NOT simply repeat the draft. Provide tangible improvements.
     *   The output must conform to the same JSON structure as the input 'draftFeedback'.
 
 Return ONLY the refined JSON object.
-`,
-});
+`;
+
+// Template customization function to replace placeholders with actual values
+const customizeRefineFeedbackPromptText = (template: string, input: RefineInterviewFeedbackInput): string => {
+  let promptText = template;
+  
+  // Replace interview context fields
+  promptText = promptText.replace(/{{interviewContext\.interviewType}}/g, input.interviewContext.interviewType);
+  promptText = promptText.replace(/{{interviewContext\.interviewStyle}}/g, input.interviewContext.interviewStyle);
+  promptText = promptText.replace(/{{interviewContext\.faangLevel}}/g, input.interviewContext.faangLevel);
+  
+  // Handle optional jobTitle
+  if (input.interviewContext.jobTitle) {
+    promptText = promptText.replace(
+      /{{#if interviewContext\.jobTitle}}- Job Title: {{interviewContext\.jobTitle}}{{\/if}}/g,
+      `- Job Title: ${input.interviewContext.jobTitle}`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if interviewContext\.jobTitle}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  // Handle optional interviewFocus
+  if (input.interviewContext.interviewFocus) {
+    promptText = promptText.replace(
+      /{{#if interviewContext\.interviewFocus}}- Specific Focus: {{interviewContext\.interviewFocus}}{{\/if}}/g,
+      `- Specific Focus: ${input.interviewContext.interviewFocus}`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if interviewContext\.interviewFocus}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  // Handle timeWasTracked
+  if (input.interviewContext.timeWasTracked) {
+    promptText = promptText.replace(
+      /{{#if interviewContext\.timeWasTracked}}\(Note: Time taken for answers was tracked and may be present in the draft feedback items\.\){{\/if}}/g,
+      '(Note: Time taken for answers was tracked and may be present in the draft feedback items.)'
+    );
+  } else {
+    promptText = promptText.replace(/{{#if interviewContext\.timeWasTracked}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  // Replace overall summary
+  promptText = promptText.replace(/{{draftFeedback\.overallSummary}}/g, input.draftFeedback.overallSummary);
+  
+  // Handle feedback items
+  const feedbackItemsText = input.draftFeedback.feedbackItems.map(item => {
+    let itemText = `---
+Question ID: ${item.questionId}
+Question: "${item.questionText}"
+Answer: "${item.answerText}"`;
+    
+    if (item.timeTakenMs !== undefined) {
+      itemText += `\n(Time taken: ${item.timeTakenMs} ms)`;
+    }
+    
+    if (item.confidenceScore !== undefined) {
+      itemText += `\n(User Confidence: ${item.confidenceScore}/5)`;
+    }
+    
+    itemText += `\n\nCritique (Draft): "${item.critique || 'None provided.'}"`;
+    
+    // Strengths
+    if (item.strengths && item.strengths.length > 0) {
+      itemText += '\nStrengths (Draft): ';
+      itemText += item.strengths.map(s => `\n- "${s}"`).join('');
+    } else {
+      itemText += '\nStrengths (Draft): None listed.';
+    }
+    
+    // Areas for Improvement
+    if (item.areasForImprovement && item.areasForImprovement.length > 0) {
+      itemText += '\nAreas for Improvement (Draft): ';
+      itemText += item.areasForImprovement.map(a => `\n- "${a}"`).join('');
+    } else {
+      itemText += '\nAreas for Improvement (Draft): None listed.';
+    }
+    
+    // Specific Suggestions
+    if (item.specificSuggestions && item.specificSuggestions.length > 0) {
+      itemText += '\nSpecific Suggestions (Draft): ';
+      itemText += item.specificSuggestions.map(s => `\n- "${s}"`).join('');
+    } else {
+      itemText += '\nSpecific Suggestions (Draft): None listed.';
+    }
+    
+    // Ideal Answer Pointers
+    if (item.idealAnswerPointers && item.idealAnswerPointers.length > 0) {
+      itemText += '\nIdeal Answer Pointers (Draft): ';
+      itemText += item.idealAnswerPointers.map(p => `\n- "${p}"`).join('');
+    } else {
+      itemText += '\nIdeal Answer Pointers (Draft): None listed.';
+    }
+    
+    // Reflection Prompts
+    if (item.reflectionPrompts && item.reflectionPrompts.length > 0) {
+      itemText += '\nReflection Prompts (Draft): ';
+      itemText += item.reflectionPrompts.map(r => `\n- "${r}"`).join('');
+    } else {
+      itemText += '\nReflection Prompts (Draft): None listed.';
+    }
+    
+    itemText += '\n---';
+    return itemText;
+  }).join('\n');
+  
+  promptText = promptText.replace(
+    /{{#each draftFeedback\.feedbackItems}}[\s\S]*?{{\/each}}/g,
+    feedbackItemsText
+  );
+  
+  return promptText;
+};
 
 export async function refineInterviewFeedback(
   input: RefineInterviewFeedbackInput,
   options?: { aiInstance?: any; apiKey?: string } // Allow passing AI instance or API key
 ): Promise<RefineInterviewFeedbackOutput> {
   let activeAI = globalAi; // Default to global instance
+  let isByokPath = false;
 
   if (options?.aiInstance) {
     activeAI = options.aiInstance;
+    isByokPath = true;
     console.log("[BYOK] refineInterviewFeedback: Using provided aiInstance.");
   } else if (options?.apiKey) {
     try {
       activeAI = genkit({
         plugins: [googleAI({ apiKey: options.apiKey })],
-        model: globalAi.getModel().name, // Use model name from global config
+        // No model here, it will be specified in generate call
       });
+      isByokPath = true;
       console.log("[BYOK] refineInterviewFeedback: Using user-provided API key.");
     } catch (e) {
       console.warn(`[BYOK] refineInterviewFeedback: Failed to initialize Genkit with user-provided API key: ${(e as Error).message}. Falling back to default.`);
@@ -152,21 +260,65 @@ export async function refineInterviewFeedback(
     }))
   };
 
-  const {output} = await activeAI.run(refinePromptObj, { ...input, draftFeedback: processedDraftFeedback });
-  if (!output) {
-    throw new Error('AI did not return refined feedback.');
+  const processedInput = { ...input, draftFeedback: processedDraftFeedback };
+
+  try {
+    let output: GenerateInterviewFeedbackOutput | null | undefined;
+    
+    if (isByokPath) {
+      // BYOK path: use generate() with interpolated prompt
+      const customizedPrompt = customizeRefineFeedbackPromptText(REFINE_FEEDBACK_PROMPT_TEMPLATE, processedInput);
+      
+      const result = await activeAI.generate<typeof GenerateInterviewFeedbackOutputSchema>({
+        prompt: customizedPrompt,
+        context: processedInput,
+        model: googleAI.model('gemini-1.5-flash-latest'),
+        output: { schema: GenerateInterviewFeedbackOutputSchema },
+        config: { responseMimeType: "application/json" },
+      });
+      
+      if (!result.output) {
+        throw new Error('AI did not return refined feedback.');
+      }
+      
+      output = result.output;
+    } else {
+      // Global path: use generate() with interpolated prompt
+      const customizedPrompt = customizeRefineFeedbackPromptText(REFINE_FEEDBACK_PROMPT_TEMPLATE, processedInput);
+      
+      const result = await activeAI.generate<typeof GenerateInterviewFeedbackOutputSchema>({
+        prompt: customizedPrompt,
+        context: processedInput,
+        model: googleAI.model('gemini-1.5-flash-latest'),
+        output: { schema: GenerateInterviewFeedbackOutputSchema },
+        config: { responseMimeType: "application/json" },
+      });
+      
+      if (!result.output) {
+        throw new Error('AI did not return refined feedback.');
+      }
+      
+      output = result.output;
+    }
+    
+    if (!output) {
+      throw new Error('AI did not return refined feedback.');
+    }
+    
+    const validatedOutput: RefineInterviewFeedbackOutput = {
+        overallSummary: output.overallSummary,
+        feedbackItems: output.feedbackItems.map(item => ({
+            ...item,
+            strengths: item.strengths || [],
+            areasForImprovement: item.areasForImprovement || [],
+            specificSuggestions: item.specificSuggestions || [],
+            idealAnswerPointers: item.idealAnswerPointers || [],
+            reflectionPrompts: item.reflectionPrompts || [],
+        })),
+    };
+    return validatedOutput;
+  } catch (error) {
+    console.error("Error during feedback refinement:", error);
+    throw error;
   }
-  
-  const validatedOutput: RefineInterviewFeedbackOutput = {
-      overallSummary: output.overallSummary,
-      feedbackItems: output.feedbackItems.map(item => ({
-          ...item,
-          strengths: item.strengths || [],
-          areasForImprovement: item.areasForImprovement || [],
-          specificSuggestions: item.specificSuggestions || [],
-          idealAnswerPointers: item.idealAnswerPointers || [],
-          reflectionPrompts: item.reflectionPrompts || [],
-      })),
-  };
-  return validatedOutput;
 }

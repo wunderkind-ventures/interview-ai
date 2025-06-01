@@ -49,9 +49,10 @@ const flowMap: Record<string, Function> = {
 
 export async function POST(
   req: NextRequest,
-  context: { params: { flowName: string } }
+  context: { params: Promise<{ flowName: string }> }
 ) {
-  const { flowName } = context.params;
+  const params = await context.params;
+  const { flowName } = params;
   const apiKey = req.headers.get('X-Internal-API-Key');
   const apiKeySource = req.headers.get('X-API-Key-Source'); // For logging, sent by Go backend
 

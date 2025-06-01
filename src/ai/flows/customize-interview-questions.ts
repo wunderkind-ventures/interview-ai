@@ -280,6 +280,174 @@ Resume Details (if used for context):
 
 `;
 
+// Template customization function to replace placeholders with actual values
+const customizeSimpleQAPromptText = (template: string, input: SimpleQAPromptInput): string => {
+  let promptText = template;
+  
+  // Step 1: Replace all triple-brace placeholders first
+  const replacements: Record<string, string> = {
+    '{{{interviewerPersona}}}': input.interviewerPersona || 'standard',
+    '{{{interviewType}}}': input.interviewType,
+    '{{{interviewStyle}}}': input.interviewStyle,
+    '{{{faangLevel}}}': input.faangLevel || 'Not specified',
+    '{{{targetCompany}}}': input.targetCompany || 'Not specified',
+    '{{{interviewFocus}}}': input.interviewFocus || 'None specified',
+    '{{{jobTitle}}}': input.jobTitle || 'Not specified',
+    '{{{jobDescription}}}': input.jobDescription || '',
+    '{{{resume}}}': input.resume || '',
+  };
+  
+  // Apply simple replacements
+  for (const [placeholder, value] of Object.entries(replacements)) {
+    promptText = promptText.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+  }
+  
+  // Step 2: Handle conditional blocks with a function-based approach
+  
+  // Handle job title conditional
+  promptText = promptText.replace(/{{#if jobTitle}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/g, 
+    input.jobTitle ? '$1' : '$2'
+  );
+  
+  // Handle job description conditional and section
+  if (input.jobDescription) {
+    promptText = promptText.replace(/{{#if jobDescription}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/g, '$1');
+    // Replace the job description section
+    promptText = promptText.replace(
+      /{{#if jobDescription}}\s*---\s*Job Description Details[\s\S]*?---\s*{{\/if}}/g,
+      `---\nJob Description Details (if tailoring):\n${input.jobDescription}\n---`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if jobDescription}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/g, '$2');
+    promptText = promptText.replace(/{{#if jobDescription}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  // Handle resume conditional and section
+  if (input.resume) {
+    promptText = promptText.replace(/{{#if resume}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/g, '$1');
+    // Replace the resume section
+    promptText = promptText.replace(
+      /{{#if resume}}\s*---\s*Resume Details[\s\S]*?---\s*{{\/if}}/g,
+      `---\nResume Details (if used for context):\n${input.resume}\n---`
+    );
+  } else {
+    promptText = promptText.replace(/{{#if resume}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/g, '$2');
+    promptText = promptText.replace(/{{#if resume}}[\s\S]*?{{\/if}}/g, '');
+  }
+  
+  // Handle other simple conditionals
+  promptText = promptText.replace(/{{#if faangLevel}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/g, 
+    input.faangLevel ? '$1' : '$2'
+  );
+  promptText = promptText.replace(/{{#if targetCompany}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/g, 
+    input.targetCompany ? '$1' : '$2'
+  );
+  promptText = promptText.replace(/{{#if interviewerPersona}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/g, 
+    input.interviewerPersona ? '$1' : '$2'
+  );
+  promptText = promptText.replace(/{{#if interviewFocus}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/g, 
+    input.interviewFocus ? '$1' : '$2'
+  );
+  
+  // Handle targeted skills array
+  if (input.targetedSkills && input.targetedSkills.length > 0) {
+    const skillsList = input.targetedSkills.map(skill => `- ${skill}`).join('\n');
+    // Look for the targeted skills section and replace it
+    promptText = promptText.replace(
+      /{{#if targetedSkills\.length}}[\s\S]*?{{#each targetedSkills}}[\s\S]*?- {{{this}}}[\s\S]*?{{\/each}}[\s\S]*?{{else}}([\s\S]*?){{\/if}}/g,
+      skillsList
+    );
+  } else {
+    promptText = promptText.replace(
+      /{{#if targetedSkills\.length}}[\s\S]*?{{#each targetedSkills}}[\s\S]*?{{\/each}}[\s\S]*?{{else}}([\s\S]*?){{\/if}}/g,
+      '$1'
+    );
+  }
+  
+  // Step 3: Handle the complex interview type conditionals
+  // Extract the style-specific section
+  const styleMatch = promptText.match(/\*\*Style-Specific Question Generation Logic[\s\S]*?\*\*:([\s\S]*)/);
+  if (styleMatch) {
+    let styleSection = styleMatch[1];
+    let selectedContent = '';
+    
+    if (input.isBehavioral) {
+      // Extract behavioral section
+      const behavioralMatch = styleSection.match(/{{#if isBehavioral}}([\s\S]*?)(?={{else if|{{\/if}})/);
+      if (behavioralMatch) {
+        selectedContent = behavioralMatch[1];
+        
+        // Handle nested Amazon condition
+        if (input.isAmazonTarget) {
+          const amazonMatch = selectedContent.match(/{{#if isAmazonTarget}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/);
+          if (amazonMatch) {
+            selectedContent = selectedContent.replace(/{{#if isAmazonTarget}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/, amazonMatch[1]);
+            // Replace Amazon LPs placeholder
+            const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
+            selectedContent = selectedContent.replace(/{{{AMAZON_LPS_LIST}}}/g, lpList);
+          }
+        } else {
+          const amazonMatch = selectedContent.match(/{{#if isAmazonTarget}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/);
+          if (amazonMatch) {
+            selectedContent = selectedContent.replace(/{{#if isAmazonTarget}}([\s\S]*?){{else}}([\s\S]*?){{\/if}}/, amazonMatch[2]);
+          }
+        }
+      }
+    } else if (input.isProductSense) {
+      const productMatch = styleSection.match(/{{else if isProductSense}}([\s\S]*?)(?={{else if|{{else}})/);
+      if (productMatch) {
+        selectedContent = productMatch[1];
+      }
+    } else if (input.isTechnicalSystemDesign) {
+      const techMatch = styleSection.match(/{{else if isTechnicalSystemDesign}}([\s\S]*?)(?={{else if|{{else}})/);
+      if (techMatch) {
+        selectedContent = techMatch[1];
+      }
+    } else if (input.isMachineLearning) {
+      const mlMatch = styleSection.match(/{{else if isMachineLearning}}([\s\S]*?)(?={{else if|{{else}})/);
+      if (mlMatch) {
+        selectedContent = mlMatch[1];
+      }
+    } else if (input.isDSA) {
+      const dsaMatch = styleSection.match(/{{else if isDSA}}([\s\S]*?)(?={{else if|{{else}})/);
+      if (dsaMatch) {
+        selectedContent = dsaMatch[1];
+      }
+    } else if (input.isGeneralInterviewType) {
+      const generalMatch = styleSection.match(/{{else if isGeneralInterviewType}}([\s\S]*?)(?={{else}})/);
+      if (generalMatch) {
+        selectedContent = generalMatch[1];
+      }
+    } else {
+      // Extract fallback content
+      const fallbackMatch = styleSection.match(/{{else}}([\s\S]*?){{\/if}}/);
+      if (fallbackMatch) {
+        selectedContent = fallbackMatch[1];
+      }
+    }
+    
+    // Replace the entire style section with the selected content
+    promptText = promptText.substring(0, promptText.indexOf('**Style-Specific Question Generation Logic')) + 
+                 '**Style-Specific Question Generation Logic (for \'simple-qa\' ONLY):**\n\n' + 
+                 selectedContent.trim();
+  }
+  
+  // Step 4: Final cleanup - remove any remaining template syntax
+  promptText = promptText.replace(/{{#if[\s\S]*?{{\/if}}/g, '');
+  promptText = promptText.replace(/{{else if[\s\S]*?}}/g, '');
+  promptText = promptText.replace(/{{else}}/g, '');
+  promptText = promptText.replace(/{{\/if}}/g, '');
+  promptText = promptText.replace(/{{#each[\s\S]*?{{\/each}}/g, '');
+  
+  // Remove any triple braces that might have been missed
+  promptText = promptText.replace(/{{{[^}]+}}}/g, (match) => {
+    console.warn(`[DEBUG] Unresolved placeholder found: ${match}`);
+    return '[UNRESOLVED]';
+  });
+  
+  return promptText;
+};
+
 const customizeSimpleQAInterviewQuestionsPrompt = globalAI.definePrompt({
   name: 'customizeSimpleQAInterviewQuestionsPrompt',
   tools: [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool],
@@ -317,17 +485,31 @@ async function customizeSimpleQAInterviewQuestionsFlow(
         isGeneralInterviewType: !['behavioral', 'product sense', 'technical system design', 'machine learning', 'data structures & algorithms'].includes(baseInput.interviewType),
     };
 
-    let currentPromptText = SIMPLE_QA_PROMPT_TEMPLATE_STRING;
-    if (promptInput.isBehavioral && promptInput.isAmazonTarget) {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
-      currentPromptText = currentPromptText.replace('{{{AMAZON_LPS_LIST}}} ', lpList);
+    // Use the template customization function to replace all placeholders
+    const customizedPrompt = customizeSimpleQAPromptText(SIMPLE_QA_PROMPT_TEMPLATE_STRING, promptInput);
+    
+    // Debug: Check if placeholders were replaced
+    const hasUnreplacedPlaceholders = customizedPrompt.includes('{{{') || customizedPrompt.includes('{{#if');
+    if (hasUnreplacedPlaceholders) {
+        console.error('[DEBUG] WARNING: Customized prompt still contains unreplaced placeholders!');
+        // Find and log any remaining placeholders
+        const remainingPlaceholders = customizedPrompt.match(/{{{[^}]+}}}|{{#[^}]+}}|{{\/[^}]+}}/g);
+        if (remainingPlaceholders) {
+            console.error('[DEBUG] Remaining placeholders:', remainingPlaceholders.slice(0, 5));
+        }
+        console.log('[DEBUG] Sample of prompt:', customizedPrompt.substring(0, 500));
     } else {
-      currentPromptText = currentPromptText.replace('{{{AMAZON_LPS_LIST}}} ', 'Not applicable for this company or interview type.');
+        console.log('[DEBUG] Template interpolation successful. All placeholders replaced.');
+        // Log the interview type specific section that was selected
+        const styleSection = customizedPrompt.match(/\*\*Style-Specific Question Generation Logic[\s\S]*?\*\*:\n\n([\s\S]{0,200})/);
+        if (styleSection) {
+            console.log('[DEBUG] Selected style section preview:', styleSection[1].replace(/\n/g, ' ').substring(0, 150) + '...');
+        }
     }
 
     const generateOptions = {
         model: googleAI.model('gemini-1.5-flash-latest') as ModelReference<any>,
-        prompt: currentPromptText,
+        prompt: customizedPrompt,
         context: promptInput,
         tools: toolsToUse,
         output: { schema: SimpleQAQuestionsOutputSchema },
@@ -366,7 +548,74 @@ async function customizeSimpleQAInterviewQuestionsFlow(
         if (e instanceof z.ZodError) {
             console.error("Zod validation error in customizeSimpleQAInterviewQuestionsFlow:", e.errors);
         }
-        return { customizedQuestions: [{ questionText: `Fallback (Error): ... Original error: ${errorMsg}`, idealAnswerCharacteristics: ["Error..."] }] };
+        // Provide more specific fallback questions based on interview type
+        const fallbackQuestions = getFallbackQuestions(baseInput.interviewType, baseInput.faangLevel);
+        return { customizedQuestions: fallbackQuestions };
+    }
+}
+
+// Helper function to provide better fallback questions
+function getFallbackQuestions(interviewType: string, faangLevel?: string): any[] {
+    const level = faangLevel || 'L4';
+    
+    switch (interviewType) {
+        case 'behavioral':
+            return [
+                {
+                    questionText: "Tell me about a time when you had to work with a difficult team member. How did you handle the situation?",
+                    idealAnswerCharacteristics: [
+                        "Clear use of STAR method",
+                        "Demonstrates empathy and professionalism",
+                        "Shows conflict resolution skills",
+                        "Describes positive outcome or learning"
+                    ]
+                },
+                {
+                    questionText: "Describe a situation where you failed to meet a deadline. What happened and what did you learn?",
+                    idealAnswerCharacteristics: [
+                        "Takes ownership of the failure",
+                        "Explains root cause analysis",
+                        "Shows lessons learned",
+                        "Demonstrates process improvements made"
+                    ]
+                }
+            ];
+        case 'technical system design':
+            return [
+                {
+                    questionText: "Design a distributed cache system that can handle millions of requests per second.",
+                    idealAnswerCharacteristics: [
+                        "Clarifies requirements and constraints",
+                        "Proposes high-level architecture",
+                        "Discusses consistency models",
+                        "Addresses scalability and fault tolerance"
+                    ]
+                }
+            ];
+        case 'product sense':
+            return [
+                {
+                    questionText: "How would you improve the onboarding experience for a B2B SaaS product?",
+                    idealAnswerCharacteristics: [
+                        "Identifies user personas and pain points",
+                        "Proposes data-driven solutions",
+                        "Defines success metrics",
+                        "Considers implementation trade-offs"
+                    ]
+                }
+            ];
+        default:
+            return [
+                {
+                    questionText: `Given your background, what unique value would you bring to a ${level} role?`,
+                    idealAnswerCharacteristics: [
+                        "Highlights relevant experience",
+                        "Shows understanding of role expectations",
+                        "Demonstrates growth potential",
+                        "Provides specific examples"
+                    ]
+                }
+            ];
     }
 }
 

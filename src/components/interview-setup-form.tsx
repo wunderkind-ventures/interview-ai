@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,8 +36,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 
-import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, type InterviewType, type FaangLevel, INTERVIEW_STYLES, type InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, type Skill, THEMED_INTERVIEW_PACKS, type ThemedInterviewPack, type ThemedInterviewPackConfig, INTERVIEWER_PERSONAS, type InterviewerPersona } from "@/lib/constants";
-import type { InterviewSetupData, SavedResume, SavedJobDescription, SavedInterviewSetup } from "@/lib/types";
+import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, type InterviewType, type FaangLevel, INTERVIEW_STYLES, type InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, type Skill, THEMED_INTERVIEW_PACKS, INTERVIEWER_PERSONAS, type InterviewerPersona, ROLE_TYPES, type RoleType } from "@/lib/constants";
+import type { InterviewSetupData, SavedResume, SavedJobDescription, SavedInterviewSetup, ThemedInterviewPack, ThemedInterviewPackConfig } from "@/lib/types";
 import { summarizeResume } from "@/ai/flows/summarize-resume";
 import type { SummarizeResumeOutput } from "@/ai/flows/summarize-resume";
 import { useToast } from "@/hooks/use-toast";
@@ -55,6 +54,9 @@ const formSchema = z.object({
   faangLevel: z.custom<FaangLevel>((val) => FAANG_LEVELS.some(fl => fl.value === val), {
     message: "Please select a FAANG level.",
   }),
+  roleType: z.custom<RoleType>((val) => ROLE_TYPES.some(rt => rt.value === val), {
+    message: "Please select a role type.",
+  }).optional(),
   jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
   resume: z.string().optional(),
@@ -110,6 +112,7 @@ export default function InterviewSetupForm() {
       interviewType: INTERVIEW_TYPES[0].value,
       interviewStyle: INTERVIEW_STYLES[0].value,
       faangLevel: FAANG_LEVELS[1].value,
+      roleType: undefined,
       jobTitle: "",
       jobDescription: "",
       resume: "",
@@ -229,6 +232,7 @@ export default function InterviewSetupForm() {
         interviewType: config.interviewType || INTERVIEW_TYPES[0].value,
         interviewStyle: config.interviewStyle || INTERVIEW_STYLES[0].value,
         faangLevel: config.faangLevel || FAANG_LEVELS[1].value,
+        roleType: config.roleType || undefined,
         jobTitle: config.jobTitle || "",
         jobDescription: config.jobDescription || currentJobDescriptionFromForm,
         targetedSkills: [],
@@ -907,6 +911,34 @@ export default function InterviewSetupForm() {
                       </Select>
                       <FormDescription>
                         Select the difficulty level for your interview.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="roleType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role Type (Optional)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""} >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role type (optional)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {ROLE_TYPES.map((role) => (
+                            <SelectItem key={role.value} value={role.value}>
+                              {role.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Selecting a role can help tailor questions and feedback (optional).
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

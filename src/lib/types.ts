@@ -1,4 +1,4 @@
-import type { InterviewType, FaangLevel, InterviewStyle, Skill, InterviewerPersona } from './constants';
+import type { InterviewType, FaangLevel, InterviewStyle, Skill, InterviewerPersona, RoleType } from './constants';
 import type { Timestamp } from 'firebase/firestore';
 
 
@@ -6,6 +6,7 @@ export interface InterviewSetupData {
   interviewType: InterviewType;
   interviewStyle: InterviewStyle;
   faangLevel: FaangLevel;
+  roleType?: RoleType;
   jobTitle?: string;
   jobDescription?: string;
   resume?: string;
@@ -17,9 +18,10 @@ export interface InterviewSetupData {
   caseStudyNotes?: string | null;
 }
 
-export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId'>> {
+export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId' | 'roleType'>> {
   targetedSkills?: string[];
   interviewerPersona?: InterviewerPersona | string;
+  roleType?: RoleType;
 }
 
 export interface ThemedInterviewPack {
@@ -102,7 +104,7 @@ export interface InterviewSessionData extends InterviewSetupData {
   firestoreDocId?: string;
   completedAt?: Timestamp | any;
   adminFeedback?: AdminFeedbackItem[];
-  userId?: string; // Added to explicitly store user ID with session data
+  userId?: string;
 }
 
 export interface Achievement {

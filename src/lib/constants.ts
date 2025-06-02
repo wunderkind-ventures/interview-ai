@@ -1,4 +1,3 @@
-
 import type { InterviewSetupData, ThemedInterviewPack } from './types';
 
 export const INTERVIEW_TYPES = [
@@ -41,6 +40,47 @@ export const INTERVIEWER_PERSONAS = [
 
 export type InterviewerPersona = typeof INTERVIEWER_PERSONAS[number]['value'];
 
+export const ROLE_TYPES = [
+  { value: "product_manager", label: "Product Manager" },
+  { value: "product_manager_technical", label: "Product Manager Technical" },
+  { value: "backend_software_engineer", label: "Backend Software Engineer" },
+  { value: "data_scientist", label: "Data Scientist" },
+  { value: "machine_learning_engineer", label: "Machine Learning Engineer" },
+] as const;
+
+export type RoleType = typeof ROLE_TYPES[number]['value'];
+
+export const SKILLS_BY_ROLE: Record<RoleType, Skill[]> = {
+  "product_manager": [], // Placeholder
+  "product_manager_technical": [
+    { value: "feature_delivery_roadmap_tradeoffs", label: "Feature Delivery & Roadmap Tradeoffs" },
+    { value: "stakeholder_management", label: "Stakeholder Management" },
+    { value: "technical_depth", label: "Technical Depth" },
+    { value: "data_driven_decision_making", label: "Data-Driven Decision Making" },
+    { value: "product_insights_strategy", label: "Product Insights & Strategy" },
+  ],
+  "backend_software_engineer": [
+    { value: "system_design", label: "System Design" },
+    { value: "scalability", label: "Scalability" },
+    { value: "api_design", label: "API Design" },
+    { value: "data_modeling", label: "Data Modeling" },
+    { value: "distributed_systems", label: "Distributed Systems" },
+  ],
+  "data_scientist": [
+    { value: "feature_engineering", label: "Feature Engineering" },
+    { value: "machine_learning", label: "Machine Learning" },
+    { value: "statistics", label: "Statistics & Probability" },
+    { value: "data_visualization", label: "Data Visualization" },
+    { value: "data_pipelines", label: "Data Pipelines" },
+    { value: "data_analytics", label: "Data Analytics" },
+  ],
+  "machine_learning_engineer": [
+    { value: "ml_model_fundamentals", label: "ML Model Fundamentals" },
+    { value: "ml_system_design", label: "ML System Design" },
+    { value: "ml_evaluation_iteration", label: "ML Evaluation & Iteration" },
+    { value: "ml_ethics_fairness", label: "ML Ethics & Fairness" },
+  ],
+};
 
 export const LOCAL_STORAGE_KEYS = {
   INTERVIEW_SETUP: 'interviewAI_setup',
@@ -106,7 +146,7 @@ export const AMAZON_LEADERSHIP_PRINCIPLES = [
   "Dive Deep",
   "Have Backbone; Disagree and Commit",
   "Deliver Results",
-  "Strive to be Earth’s Best Employer",
+  "Strive to be Earth's Best Employer",
   "Success and Scale Bring Broad Responsibility",
 ] as const;
 

@@ -13,7 +13,7 @@ import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { ai as globalAI } from '@/ai/genkit';
 import {z} from 'genkit';
-import type { InterviewSetupData } from '@/lib/types'; 
+import type { InterviewSetupData } from '@/lib/types';
 import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
 
 const GenerateDynamicCaseFollowUpInputSchema = z.object({
@@ -29,8 +29,12 @@ const GenerateDynamicCaseFollowUpInputSchema = z.object({
   conversationHistory: z
     .array(z.object({ questionText: z.string(), answerText: z.string() }))
     .optional()
-    .describe("The history of questions and answers in this case study so far, to provide context and avoid repetition. DEPRECATED: Use interviewContext.previousConversation instead."),
-  interviewContext: z.custom<InterviewSetupData>() 
+    .describe("The history of questions and answers in this case study so far, to provide context and avoid repetition."),
+  previousConversation: z // Added to ensure the full string transcript can be passed
+    .string()
+    .optional()
+    .describe("The full string transcript of the conversation so far, including any clarifications."),
+  interviewContext: z.custom<InterviewSetupData>()
     .describe("The overall context of the interview (type, level, focus, job title, etc.)."),
   currentTurnNumber: z
     .number()
@@ -64,7 +68,7 @@ Your adopted interviewer persona for this interaction is: '{{{interviewContext.i
 - 'skeptical_hiring_manager': Follow-up might directly challenge an assumption made, or ask for stronger justification of a point.
 - 'time_pressed_technical_lead': Follow-up will be very direct, focusing on core logic or a key trade-off.
 - 'behavioral_specialist': If the case has behavioral elements, probe deeper into decision-making rationale or interpersonal dynamics.
-- 'antagonistic_challenger': Vigorously probe the candidate's last response, question their assumptions, or introduce a difficult constraint to test their thinking under pressure.
+- 'antagonistic_challenger': Vigorously probe the candidate\'s last response, question their assumptions, or introduce a difficult constraint to test their thinking under pressure.
 - 'apathetic_business_lead': Ask a somewhat general follow-up that requires the candidate to re-engage you and demonstrate the value of their continued thought process.
 
 **Overall Case Context (from initial setup):**
@@ -77,15 +81,17 @@ Your adopted interviewer persona for this interaction is: '{{{interviewContext.i
 {{#if interviewContext.interviewFocus}}- Specific Focus: {{interviewContext.interviewFocus}}{{/if}}
 {{#if interviewContext.targetCompany}}- Target Company: {{interviewContext.targetCompany}}{{/if}}
 
-{{#if interviewContext.previousConversation}}
+{{#if previousConversation}}
 **Full Conversation Transcript (including any clarifications):**
-{{{interviewContext.previousConversation}}}
-{{else}}
-**Conversation History (Most Recent First - legacy field, prefer previousConversation if available):**
+{{{previousConversation}}}
+{{else if conversationHistory}}
+**Conversation History (Turns - Most Recent First):**
 {{#each conversationHistory}}
   Interviewer: "{{this.questionText}}"
   Candidate: "{{this.answerText}}"
 {{/each}}
+{{else}}
+**No conversation history provided yet.**
 {{/if}}
 ---
 Last Question Asked to Candidate: "{{previousQuestionText}}"
@@ -93,16 +99,16 @@ Candidate's Last Answer: "{{previousUserAnswerText}}"
 ---
 
 **Your Task (Turn {{currentTurnNumber}} of follow-ups):**
-1.  **Analyze Context:** Review the 'Overall Case Context', the 'Interview Setup', the full 'Conversation Transcript' (or 'Conversation History'), and especially the 'Candidate's Last Answer'.
+1.  **Analyze Context:** Review the 'Overall Case Context', the 'Interview Setup', the full 'Conversation Transcript' (or 'Conversation History'), and especially the 'Candidate\'s Last Answer'.
 2.  **Generate ONE Follow-up Question:**
-    *   The question should be a natural continuation of the discussion, probing deeper into an aspect of the candidate's last answer or introducing a new, relevant dimension/constraint to the case.
+    *   The question should be a natural continuation of the discussion, probing deeper into an aspect of the candidate\'s last answer or introducing a new, relevant dimension/constraint to the case.
     *   It must be relevant to the 'Overall Case Context' and the 'Interview Setup' (especially 'faangLevel' and 'interviewFocus').
     *   Avoid simple yes/no questions. Aim for questions that require critical thinking, trade-off analysis, or further problem decomposition.
     *   Do not repeat questions already asked.
 3.  **Define Ideal Answer Characteristics:** For your generated follow-up question, list 2-3 brief key characteristics of a strong answer.
 4.  **Assess if Final Follow-up:**
     *   Based on the 'currentTurnNumber' (you are generating the question for this turn) and the depth of the conversation, decide if this is likely a good point to conclude the case.
-    *   Typically, a case study might have 3-5 follow-up questions in total after the initial question. Set 'isLikelyFinalFollowUp' to true if 'currentTurnNumber' is >= ${MAX_CASE_FOLLOW_UPS} OR if the candidate's last answer suggests a natural resolution or comprehensive coverage of the main problem. Otherwise, set it to false.
+    *   Typically, a case study might have 3-5 follow-up questions in total after the initial question. Set 'isLikelyFinalFollowUp' to true if 'currentTurnNumber' is >= ${MAX_CASE_FOLLOW_UPS} OR if the candidate\'s last answer suggests a natural resolution or comprehensive coverage of the main problem. Otherwise, set it to false.
 
 **Example Areas to Probe (depending on case type and prior answers):**
 - Clarification of assumptions made by the candidate.
@@ -116,7 +122,7 @@ Candidate's Last Answer: "{{previousUserAnswerText}}"
 {{#if interviewContext.targetCompany}}
 If the interviewContext.targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
 **Amazon-Specific Considerations:**
-Frame your follow-up to provide opportunities to demonstrate Amazon's Leadership Principles.
+Frame your follow-up to provide opportunities to demonstrate Amazon\'s Leadership Principles.
 The Amazon Leadership Principles are:
 {{{AMAZON_LPS_LIST}}}
 End of Amazon-specific considerations.
@@ -129,7 +135,7 @@ Output a JSON object matching the GenerateDynamicCaseFollowUpOutputSchema.
 const customizeDynamicCaseFollowUpPromptText = (template: string, callInput: GenerateDynamicCaseFollowUpInput): string => {
   let promptText = template;
   if (callInput.interviewContext?.targetCompany && callInput.interviewContext.targetCompany.toLowerCase() === 'amazon') {
-    const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
+    const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\\n');
     promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
   } else {
     promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
@@ -165,7 +171,7 @@ export async function generateDynamicCaseFollowUp(
      console.log("[BYOK] generateDynamicCaseFollowUp: No specific API key or AI instance provided; using default global AI instance.");
   }
 
-  if (input.currentTurnNumber > MAX_CASE_FOLLOW_UPS + 2) {
+  if (input.currentTurnNumber > MAX_CASE_FOLLOW_UPS + 2) { // Add a little buffer
       return {
           followUpQuestionText: "Thank you, that concludes this case study.",
           idealAnswerCharacteristicsForFollowUp: [],
@@ -173,7 +179,7 @@ export async function generateDynamicCaseFollowUp(
       };
   }
 
-  const saneInput = {
+  const saneInput = { // Ensure all parts of input are well-defined before passing to context/prompt
     ...input,
     interviewContext: {
       ...input.interviewContext,
@@ -187,7 +193,7 @@ export async function generateDynamicCaseFollowUp(
     const result = await activeAI.generate<typeof GenerateDynamicCaseFollowUpOutputSchema>({
         prompt: customizedPrompt,
         model: googleAI.model('gemini-1.5-flash-latest'), // Ensure model is specified
-        context: saneInput,
+        context: saneInput, // Pass the whole saneInput which includes top-level previousConversation
         output: { schema: GenerateDynamicCaseFollowUpOutputSchema },
         config: { responseMimeType: "application/json" },
         // tools: [], // No tools currently defined for this specific prompt
@@ -197,7 +203,7 @@ export async function generateDynamicCaseFollowUp(
 
     if (!output || !output.followUpQuestionText) {
         let fallbackText = "Could you elaborate on the potential risks of your proposed approach?";
-        if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS) {
+        if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS) { // Check original input turn number
             fallbackText = "Thanks for walking me through your thoughts. What would be your key success metrics for this initiative?";
         }
          return {
@@ -208,6 +214,7 @@ export async function generateDynamicCaseFollowUp(
     }
 
     let finalOutput = { ...output };
+    // If AI didn't mark it as final but we are at/over the max turns, mark it as final.
     if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS && !output.isLikelyFinalFollowUp) {
         finalOutput.isLikelyFinalFollowUp = true;
     }

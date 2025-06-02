@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-questions";
-import type { CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
+import type { CustomizeInterviewQuestionsOutput, CustomizeInterviewQuestionsInput } from "@/ai/flows/customize-interview-questions";
 import { executeBYOKFlow } from "@/lib/byok-flows-api";
 import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-follow-up";
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
@@ -27,14 +27,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical, UserCheck2, MessageCircleQuestion } from "lucide-react";
-import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEWER_PERSONAS, type InterviewStyle, type InterviewerPersona } from "@/lib/constants";
-import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, Answer } from "@/lib/types";
+import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEWER_PERSONAS, type InterviewStyle, type InterviewerPersona, type RoleType, SKILLS_BY_ROLE, SKILLS_BY_INTERVIEW_TYPE } from "@/lib/constants";
+import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
 const MAX_CASE_FOLLOW_UPS = 4;
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, interviewerPersona?: InterviewerPersona | string, caseStudyNotes?: string, previousConversation?: string } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, roleType?: RoleType, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, interviewerPersona?: InterviewerPersona | string, caseStudyNotes?: string, previousConversation?: string } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -269,26 +269,36 @@ export default function InterviewSession() {
 
 
   const loadInterview = useCallback(async (setupData: InterviewSetupData) => {
-     const saneInput: CustomizeInterviewQuestionsInput = {
+    let skillsForPrompt: string[] = [];
+    if (setupData.roleType && SKILLS_BY_ROLE[setupData.roleType] && SKILLS_BY_ROLE[setupData.roleType].length > 0) {
+      skillsForPrompt = SKILLS_BY_ROLE[setupData.roleType].map(skill => skill.value);
+    } else if (setupData.targetedSkills && setupData.targetedSkills.length > 0) {
+      skillsForPrompt = setupData.targetedSkills;
+    } else if (setupData.interviewType && SKILLS_BY_INTERVIEW_TYPE[setupData.interviewType]) {
+      skillsForPrompt = SKILLS_BY_INTERVIEW_TYPE[setupData.interviewType].map(skill => skill.value);
+    }
+
+    const saneInput: CustomizeInterviewQuestionsInput = {
         jobTitle: setupData.jobTitle || "",
         jobDescription: setupData.jobDescription || "",
         resume: setupData.resume || "",
         interviewType: setupData.interviewType,
         interviewStyle: setupData.interviewStyle,
         faangLevel: setupData.faangLevel,
-        targetedSkills: setupData.targetedSkills || [],
+        targetedSkills: skillsForPrompt,
         targetCompany: setupData.targetCompany || "",
         interviewFocus: setupData.interviewFocus || "",
         interviewerPersona: setupData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         previousConversation: "", 
         currentQuestion: "",    
         caseStudyNotes: setupData.interviewStyle === 'case-study' ? (sessionData?.caseStudyNotes || "") : "",
-      };
+    };
 
     setSessionData(prev => ({
       ...(prev || setupData),
       ...setupData,
       ...initialSessionState, 
+      roleType: setupData.roleType,
       isLoading: true,
       interviewStarted: true,
       currentQuestionStartTime: Date.now(),
@@ -383,7 +393,6 @@ export default function InterviewSession() {
       currentSession.sampleAnswers = currentSession.sampleAnswers ?? {};
       currentSession.previousConversation = currentSession.previousConversation ?? "";
 
-
       setSessionData(currentSession);
       if (currentSession.interviewStarted && !currentSession.interviewFinished && !currentSession.currentQuestionStartTime && currentSession.questions.length > 0) {
         setSessionData(prev => {
@@ -392,13 +401,18 @@ export default function InterviewSession() {
           localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
           return updatedSession;
         });
-      }
-
-      if (currentSession.interviewStarted && currentSession.questions.length === 0 && !currentSession.error && !currentSession.isLoading) {
-         const setupData: InterviewSetupData = {
+      } else if (currentSession.interviewStarted && 
+                 ( (currentSession.questions.length === 0 && !currentSession.error && !currentSession.isLoading) || 
+                   (currentSession.isLoading && !currentSession.error) ) ) {
+        // This block executes if the interview has started but questions are missing/still loading.
+        // We need to re-trigger loadInterview with the setup data derived from currentSession.
+        
+        // Since we are inside the if (currentSession) block, currentSession is not null here.
+        const setupDataForReload: InterviewSetupData = {
           interviewType: currentSession.interviewType,
           interviewStyle: currentSession.interviewStyle,
           faangLevel: currentSession.faangLevel,
+          roleType: currentSession.roleType, 
           jobTitle: currentSession.jobTitle,
           jobDescription: currentSession.jobDescription,
           resume: currentSession.resume,
@@ -406,22 +420,10 @@ export default function InterviewSession() {
           targetCompany: currentSession.targetCompany,
           interviewFocus: currentSession.interviewFocus,
           interviewerPersona: currentSession.interviewerPersona,
+          selectedThemeId: currentSession.selectedThemeId,
+          caseStudyNotes: currentSession.caseStudyNotes,
         };
-        loadInterview(setupData);
-      } else if (currentSession.isLoading && currentSession.interviewStarted && !currentSession.error) {
-         const setupData: InterviewSetupData = {
-          interviewType: currentSession.interviewType,
-          interviewStyle: currentSession.interviewStyle,
-          faangLevel: currentSession.faangLevel,
-          jobTitle: currentSession.jobTitle,
-          jobDescription: currentSession.jobDescription,
-          resume: currentSession.resume,
-          targetedSkills: currentSession.targetedSkills,
-          targetCompany: currentSession.targetCompany,
-          interviewFocus: currentSession.interviewFocus,
-          interviewerPersona: currentSession.interviewerPersona,
-        };
-        loadInterview(setupData);
+        loadInterview(setupDataForReload);
       }
     } else {
       const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
@@ -499,6 +501,7 @@ export default function InterviewSession() {
               interviewType: sessionData.interviewType,
               interviewStyle: sessionData.interviewStyle,
               faangLevel: sessionData.faangLevel,
+              roleType: sessionData.roleType,
               jobTitle: sessionData.jobTitle,
               jobDescription: sessionData.jobDescription,
               resume: sessionData.resume,
@@ -506,12 +509,16 @@ export default function InterviewSession() {
               targetCompany: sessionData.targetCompany,
               interviewFocus: sessionData.interviewFocus,
               interviewerPersona: sessionData.interviewerPersona,
-              previousConversation: updatedPreviousConversation,
             },
             currentTurnNumber: updatedCurrentCaseTurnNumber,
           };
 
-          const followUpResponse: GenerateDynamicCaseFollowUpOutput = await generateDynamicCaseFollowUp(followUpInput);
+          const flowActualInput = {
+            ...followUpInput,
+            previousConversation: updatedPreviousConversation,
+          };
+
+          const followUpResponse: GenerateDynamicCaseFollowUpOutput = await generateDynamicCaseFollowUp(flowActualInput);
 
           const newFollowUpQ: InterviewQuestion = {
             id: `q-${Date.now()}-fu-${updatedCurrentCaseTurnNumber}`,
@@ -753,6 +760,7 @@ export default function InterviewSession() {
           interviewType: sessionData.interviewType,
           interviewStyle: sessionData.interviewStyle,
           faangLevel: sessionData.faangLevel,
+          roleType: sessionData.roleType,
           jobTitle: sessionData.jobTitle,
           jobDescription: sessionData.jobDescription,
           resume: sessionData.resume,

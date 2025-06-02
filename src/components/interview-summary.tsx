@@ -180,10 +180,10 @@ function InterviewSummaryContent() {
         sampleAnswers: dataToLog.sampleAnswers ? { ...dataToLog.sampleAnswers } : {},
         adminFeedback: (dataToLog.adminFeedback || []).map(fb => ({
           adminId: fb.adminId,
-          adminEmail: fb.adminEmail ?? null,
+          adminEmail: fb.adminEmail ?? undefined,
           feedbackText: fb.feedbackText,
           targetType: fb.targetType,
-          targetQuestionId: fb.targetQuestionId ?? null,
+          targetQuestionId: fb.targetQuestionId ?? undefined,
           createdAt: fb.createdAt instanceof Timestamp ? fb.createdAt : Timestamp.now(),
         })),
         caseConversationHistory: dataToLog.caseConversationHistory && dataToLog.caseConversationHistory.length > 0 ? dataToLog.caseConversationHistory : [],
@@ -261,13 +261,15 @@ function InterviewSummaryContent() {
         interviewType: currentSession.interviewType,
         interviewStyle: currentSession.interviewStyle,
         faangLevel: currentSession.faangLevel,
-        jobTitle: currentSession.jobTitle,
-        jobDescription: currentSession.jobDescription,
-        resume: currentSession.resume,
-        interviewFocus: currentSession.interviewFocus,
+        roleType: currentSession.roleType,
+        targetedSkills: currentSession.targetedSkills ?? [],
+        jobTitle: currentSession.jobTitle === null || currentSession.jobTitle === undefined ? undefined : currentSession.jobTitle,
+        jobDescription: currentSession.jobDescription === null || currentSession.jobDescription === undefined ? undefined : currentSession.jobDescription,
+        resume: currentSession.resume === null || currentSession.resume === undefined ? undefined : currentSession.resume,
+        interviewFocus: currentSession.interviewFocus === null || currentSession.interviewFocus === undefined ? undefined : currentSession.interviewFocus,
       };
 
-      const feedbackResult = await generateInterviewFeedback(feedbackInput);
+      const feedbackResult = await generateInterviewFeedback(feedbackInput, { apiKey: undefined });
 
       setSessionData(prev => {
         if (!prev) return null;
@@ -729,7 +731,7 @@ function InterviewSummaryContent() {
         const db = getFirestore();
         const newFeedback: AdminFeedbackItem = {
             adminId: authUser.uid,
-            adminEmail: authUser.email || undefined,
+            adminEmail: authUser.email === null ? undefined : authUser.email,
             feedbackText: adminFeedbackText,
             targetType: adminFeedbackTargetType,
             targetQuestionId: (adminFeedbackTargetType !== 'overall_session' && adminFeedbackTargetQuestionId) ? adminFeedbackTargetQuestionId : undefined,

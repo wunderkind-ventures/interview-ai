@@ -472,18 +472,26 @@ export async function generateInterviewFeedback(
     jobDescription: input.jobDescription,
     resume: input.resume,
     interviewFocus: input.interviewFocus,
-    questionsAndAnswers: input.questions.map((q, index) => {
-      const answer = input.answers.find(a => a.questionId === q.id);
-      return {
-        questionId: q.id.toString(), // Ensure string
-        questionText: q.text,
-        answerText: answer?.answerText || "No answer provided.",
-        timeTakenMs: answer?.timeTakenMs,
-        indexPlusOne: index + 1,
-        idealAnswerCharacteristics: q.idealAnswerCharacteristics,
-        confidenceScore: answer?.confidenceScore,
-      };
-    }),
+    questionsAndAnswers: (() => {
+      let mappedQuestionsAndAnswers = input.questions.map((q, index) => {
+        const answer = input.answers.find(a => a.questionId === q.id);
+        return {
+          questionId: q.id.toString(),
+          questionText: q.text,
+          answerText: answer?.answerText || "", // Use empty string for no answer initially
+          timeTakenMs: answer?.timeTakenMs,
+          indexPlusOne: index + 1,
+          idealAnswerCharacteristics: q.idealAnswerCharacteristics,
+          confidenceScore: answer?.confidenceScore,
+        };
+      });
+
+      // For Simple Q&A, only include questions that have been answered.
+      if (input.interviewStyle === 'simple-qa') {
+        mappedQuestionsAndAnswers = mappedQuestionsAndAnswers.filter(qa => qa.answerText && qa.answerText.trim() !== "");
+      }
+      return mappedQuestionsAndAnswers;
+    })(),
     isTakeHomeStyle,
     isSimpleQAOrCaseStudyStyle,
     structuredTakeHomeAnalysis: isTakeHomeStyle ? structuredTakeHomeAnalysis : undefined,

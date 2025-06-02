@@ -211,32 +211,21 @@ export async function generateInitialCaseSetup(
       console.log("[BYOK] generateInitialCaseSetup: Using .generate() for BYOK path.");
       const customizedPromptText = initialCaseSetupCustomizeFn(INITIAL_CASE_SETUP_PROMPT_TEMPLATE_STRING, saneInput);
       
-      const generateResult = await aiInstanceToUse.generate<z.Schema<string>>({ // Expect a string
+      const generateResult = await aiInstanceToUse.generate<typeof GenerateInitialCaseSetupOutputSchema>({ 
         model: googleAI.model('gemini-1.5-flash-latest') as ModelReference<any>,
         prompt: customizedPromptText,
         context: saneInput,
         tools: toolsForInstance,
-        output: { schema: z.string() }, // AI should output a JSON string
-        config: { responseMimeType: "text/plain" }, // Get raw text
+        output: { schema: GenerateInitialCaseSetupOutputSchema }, 
+        config: { responseMimeType: "application/json" }, 
       });
       
-      const rawJsonString = generateResult.output;
+      outputFromAI = generateResult.output;
 
-      if (typeof rawJsonString === 'string' && rawJsonString.trim()) {
-        try {
-          // Attempt to clean the string if it's not perfect JSON (e.g., remove markdown fences)
-          const cleanedJsonString = rawJsonString.replace(/^```json\n?|```$/g, '').trim();
-          const parsedJson = JSON.parse(cleanedJsonString);
-          outputFromAI = GenerateInitialCaseSetupOutputSchema.parse(parsedJson);
-        } catch (e) {
-          console.error("[BYOK] generateInitialCaseSetup: Failed to parse or validate AI's JSON response.", e);
-          console.error("[BYOK] Raw AI Response String (after basic cleaning attempt):", rawJsonString.replace(/^```json\n?|```$/g, '').trim());
-          outputFromAI = null; // Ensure fallback is triggered
-        }
-      } else {
-        console.warn("[BYOK] generateInitialCaseSetup: AI response was not a string or was empty. Raw output:", rawJsonString);
-        outputFromAI = null; // Ensure fallback is triggered
+      if (!outputFromAI) {
+        console.warn("[BYOK] generateInitialCaseSetup: AI response was null or undefined even after requesting direct JSON.");
       }
+      
     } else {
       console.log("[BYOK] generateInitialCaseSetup: Using .run() for globalAI path.");
       const result: unknown = await globalAI.run(initialCaseSetupPromptGlobalConfig.name, async () => saneInput);

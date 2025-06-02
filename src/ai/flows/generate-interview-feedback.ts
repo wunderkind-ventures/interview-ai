@@ -18,7 +18,7 @@ import type { RefineInterviewFeedbackInput } from './refine-interview-feedback';
 import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema } from '../schemas'; 
 import type { GenerateInterviewFeedbackOutput } from '../schemas';
 import { analyzeTakeHomeSubmission } from './analyze-take-home-submission'; 
-import type { AnalyzeTakeHomeSubmissionInput, AnalyzeTakeHomeSubmissionOutput, AnalyzeTakeHomeSubmissionContext } from '@/lib/types';
+import type { AnalyzeTakeHomeSubmissionInput, AnalyzeTakeHomeSubmissionOutput, AnalyzeTakeHomeSubmissionContext } from '@/lib/types'; 
 import { defineGetTechnologyBriefTool } from '@/ai/tools/technology-tools';
 import { INTERVIEW_TYPES, FAANG_LEVELS, INTERVIEW_STYLES, SKILLS_BY_ROLE, RoleType as RoleTypeFromConstants } from '@/lib/constants';
 
@@ -534,7 +534,7 @@ export async function generateInterviewFeedback(
         console.error('[BYOK] AI generation returned null output.');
         throw new Error("AI generation failed to produce an output.");
     }
-    
+
     if (!aiOutput.feedbackItems || !aiOutput.overallSummary) {
       console.error('[BYOK] AI output is missing essential parts (feedbackItems or overallSummary).', aiOutput);
       throw new Error("AI draft feedback is missing essential parts.");

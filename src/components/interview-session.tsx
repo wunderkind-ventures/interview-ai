@@ -278,7 +278,7 @@ export default function InterviewSession() {
       skillsForPrompt = SKILLS_BY_INTERVIEW_TYPE[setupData.interviewType].map(skill => skill.value);
     }
 
-    const saneInput: CustomizeInterviewQuestionsInput = {
+     const saneInput: CustomizeInterviewQuestionsInput = {
         jobTitle: setupData.jobTitle || "",
         jobDescription: setupData.jobDescription || "",
         resume: setupData.resume || "",
@@ -292,7 +292,7 @@ export default function InterviewSession() {
         previousConversation: "", 
         currentQuestion: "",    
         caseStudyNotes: setupData.interviewStyle === 'case-study' ? (sessionData?.caseStudyNotes || "") : "",
-    };
+      };
 
     setSessionData(prev => ({
       ...(prev || setupData),

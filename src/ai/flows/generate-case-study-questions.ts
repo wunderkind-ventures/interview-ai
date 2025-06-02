@@ -217,7 +217,7 @@ export async function generateInitialCaseSetup(
         context: saneInput,
         tools: toolsForInstance,
         output: { schema: GenerateInitialCaseSetupOutputSchema }, 
-        config: { responseMimeType: "application/json" }, 
+        config: { responseMimeType: "application/json" },
       });
       
       outputFromAI = generateResult.output;

@@ -22,6 +22,7 @@ func main() {
 		cfg := config.New(ctx, "byot-gcp-infra")
 
 		// encryptionKey := cfg.RequireSecret("ENCRYPTION_KEY") // For secrets
+		environment := cfg.Require("environment") // Added: Read environment name
 
 		gcpProject := cfg.Require("gcpProject")
 		gcpRegion := cfg.Require("gcpRegion")
@@ -33,16 +34,17 @@ func main() {
 		openapiSpecPath := "../backends/byot-go-backend/openapi-spec.yaml"
 
 		// --- Service Account for Cloud Functions ---
-		functionsServiceAccount, err := serviceaccount.NewAccount(ctx, "byot-functions-sa", &serviceaccount.AccountArgs{
-			AccountId:   pulumi.String("byot-functions-sa"),
-			DisplayName: pulumi.String("Service Account for BYOT Cloud Functions"),
+		functionsServiceAccountName := fmt.Sprintf("byot-functions-sa-%s", environment)
+		functionsServiceAccount, err := serviceaccount.NewAccount(ctx, functionsServiceAccountName, &serviceaccount.AccountArgs{
+			AccountId:   pulumi.String(functionsServiceAccountName),
+			DisplayName: pulumi.Sprintf("Service Account for BYOT Cloud Functions (%s)", environment),
 			Project:     pulumi.String(gcpProject),
 		})
 		if err != nil {
 			return err
 		}
 
-		_, err = projects.NewIAMMember(ctx, "functionsSaSecretAccessor", &projects.IAMMemberArgs{
+		_, err = projects.NewIAMMember(ctx, fmt.Sprintf("functionsSaSecretAccessor-%s", environment), &projects.IAMMemberArgs{
 			Project: pulumi.String(gcpProject),
 			Role:    pulumi.String("roles/secretmanager.secretAccessor"),
 			Member:  pulumi.Sprintf("serviceAccount:%s", functionsServiceAccount.Email),
@@ -52,7 +54,7 @@ func main() {
 		}
 
 		// Add Secret Manager Admin role to allow creating and managing secrets
-		_, err = projects.NewIAMMember(ctx, "functionsSaSecretVersionManager", &projects.IAMMemberArgs{
+		_, err = projects.NewIAMMember(ctx, fmt.Sprintf("functionsSaSecretVersionManager-%s", environment), &projects.IAMMemberArgs{
 			Project: pulumi.String(gcpProject),
 			Role:    pulumi.String("roles/secretmanager.secretVersionManager"),
 			Member:  pulumi.Sprintf("serviceAccount:%s", functionsServiceAccount.Email),
@@ -62,9 +64,11 @@ func main() {
 		}
 
 		// --- Cloud Functions ---
-		deploymentBucket, err := storage.NewBucket(ctx, "functions-deployment-bucket", &storage.BucketArgs{
+		deploymentBucketName := fmt.Sprintf("functions-deployment-bucket-%s", environment)
+		deploymentBucket, err := storage.NewBucket(ctx, deploymentBucketName, &storage.BucketArgs{
 			Project:  pulumi.String(gcpProject),
 			Location: pulumi.String(gcpRegion),
+			Name:     pulumi.String(deploymentBucketName), // Explicitly set bucket name for uniqueness
 			// UniformBucketLevelAccess: pulumi.Bool(true), // Recommended
 		})
 		if err != nil {
@@ -76,10 +80,11 @@ func main() {
 		}
 
 		createCloudFunction := func(name, entryPoint, sourceDir string, specificEnvVars pulumi.StringMap) (*cloudfunctions.Function, error) {
+			functionResourceName := fmt.Sprintf("%s-%s", name, environment)
 			archive := pulumi.NewFileArchive(sourceDir)
-			sourceObject, err := storage.NewBucketObject(ctx, name+"-source", &storage.BucketObjectArgs{
+			sourceObject, err := storage.NewBucketObject(ctx, functionResourceName+"-source", &storage.BucketObjectArgs{
 				Bucket: deploymentBucket.Name,
-				Name:   pulumi.String(name + "-source.zip"),
+				Name:   pulumi.String(functionResourceName + "-source.zip"),
 				Source: archive,
 			})
 			if err != nil {
@@ -95,7 +100,7 @@ func main() {
 			}
 
 			functionArgs := &cloudfunctions.FunctionArgs{
-				Name:                 pulumi.String(name),
+				Name:                 pulumi.String(functionResourceName),
 				EntryPoint:           pulumi.String(entryPoint),
 				Runtime:              pulumi.String("go121"), // Ensure this matches your Go version
 				AvailableMemoryMb:    pulumi.Int(256),
@@ -113,12 +118,12 @@ func main() {
 				pulumi.ReplaceOnChanges([]string{"name", "entryPoint", "runtime", "serviceAccountEmail"}),
 			}
 
-			function, err := cloudfunctions.NewFunction(ctx, name, functionArgs, resourceOpts...)
+			function, err := cloudfunctions.NewFunction(ctx, functionResourceName, functionArgs, resourceOpts...)
 			if err != nil {
 				return nil, err
 			}
 
-			_, err = cloudfunctions.NewFunctionIamMember(ctx, fmt.Sprintf("%s-invoker", name), &cloudfunctions.FunctionIamMemberArgs{
+			_, err = cloudfunctions.NewFunctionIamMember(ctx, fmt.Sprintf("%s-invoker-%s", name, environment), &cloudfunctions.FunctionIamMemberArgs{
 				Project:       function.Project,
 				Region:        function.Region,
 				CloudFunction: function.Name,
@@ -163,8 +168,9 @@ func main() {
 		}
 
 		// --- API Gateway ---
-		api, err := apigateway.NewApi(ctx, "byot-backend-api", &apigateway.ApiArgs{
-			ApiId:   pulumi.String("byot-backend-api"),
+		apiName := fmt.Sprintf("byot-backend-api-%s", environment)
+		api, err := apigateway.NewApi(ctx, apiName, &apigateway.ApiArgs{
+			ApiId:   pulumi.String(apiName),
 			Project: pulumi.String(gcpProject),
 		})
 		if err != nil {
@@ -196,10 +202,11 @@ func main() {
 			return finalContent, nil
 		}).(pulumi.StringOutput)
 
-		apiConfig, err := apigateway.NewApiConfig(ctx, "byot-api-config-v1", &apigateway.ApiConfigArgs{
+		apiConfigName := fmt.Sprintf("byot-api-config-v1-%s", environment)
+		apiConfig, err := apigateway.NewApiConfig(ctx, apiConfigName, &apigateway.ApiConfigArgs{
 			Api:         api.ApiId,
 			Project:     pulumi.String(gcpProject),
-			DisplayName: pulumi.String("BYOT API Config v1"),
+			DisplayName: pulumi.Sprintf("BYOT API Config v1 (%s)", environment),
 			OpenapiDocuments: apigateway.ApiConfigOpenapiDocumentArray{
 				&apigateway.ApiConfigOpenapiDocumentArgs{
 					Document: &apigateway.ApiConfigOpenapiDocumentDocumentArgs{
@@ -217,11 +224,12 @@ func main() {
 			return err
 		}
 
-		gateway, err := apigateway.NewGateway(ctx, "byot-backend-gateway", &apigateway.GatewayArgs{
+		gatewayName := fmt.Sprintf("byot-backend-gateway-%s", environment)
+		gateway, err := apigateway.NewGateway(ctx, gatewayName, &apigateway.GatewayArgs{
 			ApiConfig: apiConfig.ID(),
 			Project:   pulumi.String(gcpProject),
 			Region:    pulumi.String(gcpRegion),
-			GatewayId: pulumi.String("byot-backend-gateway"),
+			GatewayId: pulumi.String(gatewayName),
 		})
 		if err != nil {
 			return err
@@ -230,8 +238,9 @@ func main() {
 		// --- Cloud Monitoring & Logging ---
 
 		// 1. Create a Notification Channel (Email)
-		emailChannel, err := monitoring.NewNotificationChannel(ctx, "emailNotificationChannel", &monitoring.NotificationChannelArgs{
-			DisplayName: pulumi.String("Email Alert Channel"),
+		emailChannelName := fmt.Sprintf("emailNotificationChannel-%s", environment)
+		emailChannel, err := monitoring.NewNotificationChannel(ctx, emailChannelName, &monitoring.NotificationChannelArgs{
+			DisplayName: pulumi.Sprintf("Email Alert Channel (%s)", environment),
 			Type:        pulumi.String("email"),
 			Labels: pulumi.StringMap{
 				"email_address": pulumi.String(alertEmail),
@@ -245,10 +254,11 @@ func main() {
 		// 2. Create a Log-Based Metric for Critical Errors in Cloud Functions
 		filter := `resource.type="cloud_function" severity>=ERROR textPayload:"CRITICAL_ERROR"`
 
-		criticalErrorLogMetric, err := logging.NewMetric(ctx, "criticalErrorLogMetric", &logging.MetricArgs{
+		criticalErrorLogMetricName := fmt.Sprintf("cloud-function-critical-errors-%s", environment)
+		criticalErrorLogMetric, err := logging.NewMetric(ctx, criticalErrorLogMetricName, &logging.MetricArgs{
 			Project:     pulumi.String(gcpProject),
-			Name:        pulumi.String("cloud-function-critical-errors"),
-			Description: pulumi.String("Counts critical errors logged by Cloud Functions."),
+			Name:        pulumi.String(criticalErrorLogMetricName),
+			Description: pulumi.Sprintf("Counts critical errors logged by Cloud Functions in %s environment.", environment),
 			Filter:      pulumi.String(filter),
 			MetricDescriptor: &logging.MetricMetricDescriptorArgs{
 				MetricKind: pulumi.String("DELTA"),
@@ -271,9 +281,10 @@ func main() {
 		}
 
 		// 3. Create an Alert Policy for the Log-Based Metric
-		_, err = monitoring.NewAlertPolicy(ctx, "criticalErrorAlertPolicy", &monitoring.AlertPolicyArgs{
+		alertPolicyName := fmt.Sprintf("criticalErrorAlertPolicy-%s", environment)
+		_, err = monitoring.NewAlertPolicy(ctx, alertPolicyName, &monitoring.AlertPolicyArgs{
 			Project:     pulumi.String(gcpProject),
-			DisplayName: pulumi.String("Critical Errors in Cloud Functions Alert"),
+			DisplayName: pulumi.Sprintf("Critical Errors in Cloud Functions Alert (%s)", environment),
 			Combiner:    pulumi.String("OR"),
 			Conditions: monitoring.AlertPolicyConditionArray{
 				&monitoring.AlertPolicyConditionArgs{
@@ -296,7 +307,7 @@ func main() {
 				emailChannel.ID(),
 			},
 			Documentation: &monitoring.AlertPolicyDocumentationArgs{
-				Content:  pulumi.String("One or more Cloud Functions have logged a CRITICAL_ERROR message. Please investigate the logs for details."),
+				Content:  pulumi.Sprintf("One or more Cloud Functions in the %s environment have logged a CRITICAL_ERROR message. Please investigate the logs for details.", environment),
 				MimeType: pulumi.String("text/markdown"),
 			},
 		})
@@ -311,6 +322,10 @@ func main() {
 		ctx.Export("getApiKeyStatusFunctionUrl", getApiKeyStatusFunction.HttpsTriggerUrl)
 		ctx.Export("proxyToGenkitFunctionUrl", proxyToGenkitFunction.HttpsTriggerUrl)
 		ctx.Export("apiGatewayDefaultHostname", gateway.DefaultHostname)
+		ctx.Export("apiGatewayId", api.ApiId)                     // Added for clarity
+		ctx.Export("apiConfigId", apiConfig.ID())                 // Added for clarity
+		ctx.Export("gatewayId", gateway.GatewayId)                // Added for clarity
+		ctx.Export("deploymentBucketName", deploymentBucket.Name) // Added for clarity
 		ctx.Export("emailNotificationChannelId", emailChannel.ID())
 		ctx.Export("criticalErrorLogMetricName", criticalErrorLogMetric.Name)
 

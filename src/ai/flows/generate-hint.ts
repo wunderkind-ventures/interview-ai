@@ -30,25 +30,25 @@ export type GenerateHintOutput = z.infer<typeof GenerateHintOutputSchemaInternal
 const GENERATE_HINT_PROMPT_TEMPLATE_STRING = `You are an expert Interview Coach AI. A user is stuck on the following interview question and needs a hint.
 Provide a subtle hint, a guiding question, or suggest an area to focus on.
 The hint should help them think in the right direction without giving away the answer or being too obvious.
-Tailor the hint based on the interview type, FAANG level, the question itself, and any partial answer they\\'ve provided.
+Tailor the hint based on the interview type, FAANG level, the question itself, and any partial answer they\\\'ve provided.
 
-Interview Type: {{{interviewType}}}
-FAANG Level: {{{faangLevel}}}
-{{#if interviewFocus}}Specific Interview Focus: {{{interviewFocus}}}{{/if}}
-{{#if targetedSkills.length}}Targeted Skills: {{#each targetedSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
+Interview Type: {{interviewType}}
+FAANG Level: {{faangLevel}}
+{{#if interviewFocus}}Specific Interview Focus: {{interviewFocus}}{{/if}}
+{{#if targetedSkills.length}}Targeted Skills: {{#each targetedSkills}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
 
 Question:
-"{{{questionText}}}"
+"{{questionText}}"
 
 {{#if userAnswerAttempt}}
-User\\'s current answer attempt (if any):
-"{{{userAnswerAttempt}}}"
+User\\\'s current answer attempt (if any):
+"{{userAnswerAttempt}}"
 {{/if}}
 
 Generate a concise hint (1-2 sentences).
 
 Examples of good hints:
-- For a system design question: "Consider how you would handle a large number of concurrent users." or "What are the primary components you\\'d need to consider for this system?"
+- For a system design question: "Consider how you would handle a large number of concurrent users." or "What are the primary components you\\\'d need to consider for this system?"
 - For a product sense question: "What user problem are you primarily trying to solve here?" or "How would you measure the success of this feature?"
 - For a behavioral question: "Try to structure your answer using a common framework like STAR."
 - For a DSA question: "Think about what data structure would be most efficient for lookups in this scenario." or "Have you considered edge cases like an empty input?"
@@ -95,6 +95,7 @@ export async function generateHint(
     // Uniform logic for both BYOK and global paths using .generate()
     // Genkit's generate method will handle templating for a string prompt if context is provided.
     console.log(`[BYOK] ${flowNameForLogging}: Using activeAI.generate() path.`);
+    console.log('[BYOK] generateHint input:', JSON.stringify(input, null, 2));
     const generateResult = await activeAI.generate<typeof GenerateHintOutputSchemaInternal>({
       prompt: GENERATE_HINT_PROMPT_TEMPLATE_STRING,
       model: googleAI.model('gemini-1.5-flash-latest'), // Ensure a model is specified
@@ -106,6 +107,7 @@ export async function generateHint(
     const output = generateResult.output;
 
     if (!output || !output.hintText) {
+        console.log('[BYOK] generateHint: Output was null or hintText missing, using fallback.');
         let fallback = "Consider breaking the problem down into smaller pieces. What\\'s the core challenge?";
         if (input.interviewType === "behavioral") {
             fallback = "Think about a specific past experience that illustrates this. How can you structure your story clearly?";

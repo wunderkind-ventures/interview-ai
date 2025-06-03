@@ -19,7 +19,7 @@ import (
 func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
 		// --- Configuration ---
-		cfg := config.New(ctx, "byot-gcp-infra")
+		cfg := config.New(ctx, "catalyst-gcp-infra")
 
 		// encryptionKey := cfg.RequireSecret("ENCRYPTION_KEY") // For secrets
 		environment := cfg.Require("environment") // Added: Read environment name
@@ -31,13 +31,13 @@ func main() {
 		defaultGeminiApiKey := cfg.RequireSecret("defaultGeminiApiKey")
 		nextjsBaseUrl := cfg.Require("nextjsBaseUrl")
 
-		openapiSpecPath := "../backends/byot-go-backend/openapi-spec.yaml"
+		openapiSpecPath := "../backends/catalyst-go-backend/openapi-spec.yaml"
 
 		// --- Service Account for Cloud Functions ---
-		functionsServiceAccountName := fmt.Sprintf("byot-functions-sa-%s", environment)
+		functionsServiceAccountName := fmt.Sprintf("catalyst-functions-sa-%s", environment)
 		functionsServiceAccount, err := serviceaccount.NewAccount(ctx, functionsServiceAccountName, &serviceaccount.AccountArgs{
 			AccountId:   pulumi.String(functionsServiceAccountName),
-			DisplayName: pulumi.Sprintf("Service Account for BYOT Cloud Functions (%s)", environment),
+			DisplayName: pulumi.Sprintf("Service Account for catalyst Cloud Functions (%s)", environment),
 			Project:     pulumi.String(gcpProject),
 		})
 		if err != nil {
@@ -137,28 +137,28 @@ func main() {
 		}
 
 		setApiKeyFunction, err := createCloudFunction("SetAPIKeyGCF", "SetAPIKeyGCF",
-			"../backends/byot-go-backend/functions/setapikey",
+			"../backends/catalyst-go-backend/functions/setapikey",
 			pulumi.StringMap{})
 		if err != nil {
 			return err
 		}
 
 		removeApiKeyFunction, err := createCloudFunction("RemoveAPIKeyGCF", "RemoveAPIKeyGCF",
-			"../backends/byot-go-backend/functions/removeapikey",
+			"../backends/catalyst-go-backend/functions/removeapikey",
 			pulumi.StringMap{})
 		if err != nil {
 			return err
 		}
 
 		getApiKeyStatusFunction, err := createCloudFunction("GetAPIKeyStatusGCF", "GetAPIKeyStatusGCF",
-			"../backends/byot-go-backend/functions/getapikeystatus",
+			"../backends/catalyst-go-backend/functions/getapikeystatus",
 			pulumi.StringMap{})
 		if err != nil {
 			return err
 		}
 
 		proxyToGenkitFunction, err := createCloudFunction("ProxyToGenkitGCF", "ProxyToGenkitGCF",
-			"../backends/byot-go-backend/functions/proxytogenkit",
+			"../backends/catalyst-go-backend/functions/proxytogenkit",
 			pulumi.StringMap{
 				"NEXTJS_BASE_URL":        pulumi.String(nextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": defaultGeminiApiKey,
@@ -168,7 +168,7 @@ func main() {
 		}
 
 		// --- API Gateway ---
-		apiName := fmt.Sprintf("byot-backend-api-%s", environment)
+		apiName := fmt.Sprintf("catalyst-backend-api-%s", environment)
 		api, err := apigateway.NewApi(ctx, apiName, &apigateway.ApiArgs{
 			ApiId:   pulumi.String(apiName),
 			Project: pulumi.String(gcpProject),
@@ -202,11 +202,11 @@ func main() {
 			return finalContent, nil
 		}).(pulumi.StringOutput)
 
-		apiConfigName := fmt.Sprintf("byot-api-config-v1-%s", environment)
+		apiConfigName := fmt.Sprintf("catalyst-api-config-v1-%s", environment)
 		apiConfig, err := apigateway.NewApiConfig(ctx, apiConfigName, &apigateway.ApiConfigArgs{
 			Api:         api.ApiId,
 			Project:     pulumi.String(gcpProject),
-			DisplayName: pulumi.Sprintf("BYOT API Config v1 (%s)", environment),
+			DisplayName: pulumi.Sprintf("catalyst API Config v1 (%s)", environment),
 			OpenapiDocuments: apigateway.ApiConfigOpenapiDocumentArray{
 				&apigateway.ApiConfigOpenapiDocumentArgs{
 					Document: &apigateway.ApiConfigOpenapiDocumentDocumentArgs{
@@ -224,7 +224,7 @@ func main() {
 			return err
 		}
 
-		gatewayName := fmt.Sprintf("byot-backend-gateway-%s", environment)
+		gatewayName := fmt.Sprintf("catalyst-backend-gateway-%s", environment)
 		gateway, err := apigateway.NewGateway(ctx, gatewayName, &apigateway.GatewayArgs{
 			ApiConfig: apiConfig.ID(),
 			Project:   pulumi.String(gcpProject),
@@ -353,7 +353,7 @@ func main() {
 		// }
 
 		// --- Outputs ---
-		ctx.Export("byotFunctionsServiceAccountEmail", functionsServiceAccount.Email)
+		ctx.Export("catalystFunctionsServiceAccountEmail", functionsServiceAccount.Email)
 		ctx.Export("setApiKeyFunctionUrl", setApiKeyFunction.HttpsTriggerUrl)
 		ctx.Export("removeApiKeyFunctionUrl", removeApiKeyFunction.HttpsTriggerUrl)
 		ctx.Export("getApiKeyStatusFunctionUrl", getApiKeyStatusFunction.HttpsTriggerUrl)

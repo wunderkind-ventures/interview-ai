@@ -8,6 +8,9 @@
 import { getAuth } from 'firebase/auth';
 import { getApp } from 'firebase/app';
 
+// Import the specific types needed
+import type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
+
 // Get the backend URL from environment variable
 const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || '';
 
@@ -29,14 +32,7 @@ export async function executeBYOKFlow<TInput, TOutput>(
 ): Promise<TOutput> {
   // Check if BYOK is enabled
   if (!GO_BACKEND_URL) {
-    console.log('[BYOK] No backend URL configured, using direct flow execution');
-    // Fall back to direct execution
-    const flowModule = await import(`@/ai/flows/${flowName.replace(/([A-Z])/g, '-$1').toLowerCase()}`);
-    const flowFunction = flowModule[flowName];
-    if (!flowFunction) {
-      throw new Error(`Flow ${flowName} not found`);
-    }
-    return flowFunction(input);
+    throw new Error('[BYOK] Backend URL (NEXT_PUBLIC_GO_BACKEND_URL) is not configured. Cannot execute flow.');
   }
 
   // Get the current user's auth token
@@ -155,18 +151,28 @@ export async function hasUserApiKey(): Promise<boolean> {
 /**
  * Wrapper for customizeInterviewQuestions that handles BYOK
  */
-export async function customizeInterviewQuestionsBYOK(input: any) {
-  // Ensure all required fields are properly set
-  const sanitizedInput = {
-    ...input,
-    // Ensure these fields are never null/undefined
+export async function customizeInterviewQuestionsBYOK(input: CustomizeInterviewQuestionsInput): Promise<CustomizeInterviewQuestionsOutput> {
+  // Ensure all required fields are properly set according to CustomizeInterviewQuestionsInputSchema
+  const sanitizedInput: CustomizeInterviewQuestionsInput = {
+    // Fields from CustomizeInterviewQuestionsInputSchema
+    interviewType: input.interviewType, // This is required by schema
+    interviewStyle: input.interviewStyle, // This is required by schema
+    faangLevel: input.faangLevel, // This is required by schema
+    
+    jobTitle: input.jobTitle || "",
+    jobDescription: input.jobDescription || "",
+    resume: input.resume || "", // resume is in the schema
+    targetCompany: input.targetCompany || "",
+    targetedSkills: input.targetedSkills || [],
+    interviewFocus: input.interviewFocus || "",
+    interviewerPersona: input.interviewerPersona || "neutral", // schema has interviewerPersona
     previousConversation: input.previousConversation || "",
     currentQuestion: input.currentQuestion || "",
     caseStudyNotes: input.caseStudyNotes || "",
-    targetedSkills: input.targetedSkills || [],
-    targetCompany: input.targetCompany || "",
-    interviewFocus: input.interviewFocus || "",
+
+    // Fields NOT in CustomizeInterviewQuestionsInputSchema are removed here.
+    // If they are needed by the flow, the schema in src/ai/schemas.ts must be updated.
   };
 
-  return executeBYOKFlow('customizeInterviewQuestions', sanitizedInput);
+  return executeBYOKFlow<CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput>('customizeInterviewQuestions', sanitizedInput);
 } 

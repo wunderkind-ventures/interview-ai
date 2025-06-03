@@ -1,4 +1,4 @@
-module byot-gcp-infra
+module catalyst-gcp-infra
 
 go 1.23.0
 

@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	"interview-ai/byot-go-backend/middleware"
+	"interview-ai/catalyst-go-backend/middleware"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"

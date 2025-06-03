@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"interview-ai/byot-go-backend/handlers"
-	"interview-ai/byot-go-backend/middleware"
+	"interview-ai/catalyst-go-backend/handlers"
+	"interview-ai/catalyst-go-backend/middleware"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	firebase "firebase.google.com/go/v4"
@@ -74,7 +74,7 @@ func main() {
 	{
 		userRoutes := api.Group("/user")
 		// Apply Firebase Auth middleware to routes that require user authentication
-		// For BYOT, key management should be authenticated.
+		// For catalyst, key management should be authenticated.
 		if firebaseApp != nil {
 			userRoutes.Use(middleware.FirebaseAuth(firebaseApp, gcpProjectID))
 		}

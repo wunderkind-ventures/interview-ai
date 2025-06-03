@@ -1,10 +1,10 @@
 swagger: '2.0'
 info:
-  title: InterviewAI BYOT Backend API
+  title: InterviewAI Catalyst Backend API
   description: API for managing user-provided API keys and proxying AI requests for InterviewAI.
   version: '1.0.0'
 # The host will be automatically generated when you deploy your API Gateway.
-# Example: byot-gateway-xxxxxx-uc.a.run.app
+# Example: catalyst-gateway-xxxxxx-uc.a.run.app
 # You can update this field later after deployment if needed.
 host: your-gateway-id.uc.gateway.dev 
 schemes:

@@ -2,20 +2,13 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-questions";
 import type { CustomizeInterviewQuestionsOutput, CustomizeInterviewQuestionsInput } from "@/ai/flows/customize-interview-questions";
-import { executeBYOKFlow } from "@/lib/byok-flows-api";
-import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-follow-up";
+import { executeBYOKFlow, customizeInterviewQuestionsBYOK } from "@/lib/catalyst-flows-api";
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
-import { explainConcept } from "@/ai/flows/explain-concept";
 import type { ExplainConceptInput, ExplainConceptOutput } from "@/ai/flows/explain-concept";
-import { generateHint } from "@/ai/flows/generate-hint";
 import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint";
-import { generateSampleAnswer } from "@/ai/flows/generate-sample-answer";
 import type { GenerateSampleAnswerInput, GenerateSampleAnswerOutput } from "@/ai/flows/generate-sample-answer";
-import { clarifyInterviewQuestion } from "@/ai/flows/clarify-interview-question";
 import type { ClarifyInterviewQuestionInput, ClarifyInterviewQuestionOutput } from "@/ai/flows/clarify-interview-question";
-
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -319,7 +312,7 @@ export default function InterviewSession() {
       // Use BYOK flow if backend URL is configured, otherwise use direct flow
       const response: CustomizeInterviewQuestionsOutput = process.env.NEXT_PUBLIC_GO_BACKEND_URL
         ? await executeBYOKFlow<any, CustomizeInterviewQuestionsOutput>('customizeInterviewQuestions', saneInput)
-        : await customizeInterviewQuestions(saneInput);
+        : await customizeInterviewQuestionsBYOK(saneInput);
 
       if (!response.customizedQuestions || response.customizedQuestions.length === 0) {
         throw new Error("AI did not return any questions. Please try again.");
@@ -518,7 +511,7 @@ export default function InterviewSession() {
             previousConversation: updatedPreviousConversation,
           };
 
-          const followUpResponse: GenerateDynamicCaseFollowUpOutput = await generateDynamicCaseFollowUp(flowActualInput);
+          const followUpResponse: GenerateDynamicCaseFollowUpOutput = await executeBYOKFlow<GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput>('generateDynamicCaseFollowUp', flowActualInput);
 
           const newFollowUpQ: InterviewQuestion = {
             id: `q-${Date.now()}-fu-${updatedCurrentCaseTurnNumber}`,
@@ -640,12 +633,13 @@ export default function InterviewSession() {
     try {
       const input: ExplainConceptInput = {
         term: termToExplainInput,
-        interviewContext: sessionData.interviewType,
+        interviewContext: sessionData.questions[sessionData.currentQuestionIndex]?.text || "general context"
       };
-      const result: ExplainConceptOutput = await explainConcept(input);
+      const result = await executeBYOKFlow<ExplainConceptInput, ExplainConceptOutput>('explainConcept', input);
       setExplanation(result.explanation);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to get explanation.";
+    } catch (error: any) {
+      console.error("Error explaining term:", error);
+      const errorMsg = error instanceof Error ? error.message : "Failed to get explanation.";
       setExplainTermError(errorMsg);
       toast({ title: "Explanation Error", description: errorMsg, variant: "destructive" });
     } finally {
@@ -661,26 +655,25 @@ export default function InterviewSession() {
   };
 
   const handleFetchHint = async () => {
-    if (!sessionData || !sessionData.questions || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
-
+    if (!sessionData || sessionData.questions.length === 0) return;
     setIsFetchingHint(true);
-    setHintText(null);
     setHintError(null);
-
-    const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
+    setHintText(null);
     try {
+      const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
       const input: GenerateHintInput = {
-        questionText: currentQ.text,
+        questionText: currentQuestion.text,
         interviewType: sessionData.interviewType,
         faangLevel: sessionData.faangLevel,
-        userAnswerAttempt: currentAnswer,
-        interviewFocus: sessionData.interviewFocus,
-        targetedSkills: sessionData.targetedSkills,
+        userAnswerAttempt: currentAnswer || "",
+        interviewFocus: sessionData.interviewFocus || "",
+        targetedSkills: sessionData.targetedSkills || [],
       };
-      const result: GenerateHintOutput = await generateHint(input);
+      const result = await executeBYOKFlow<GenerateHintInput, GenerateHintOutput>('generateHint', input);
       setHintText(result.hintText);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to get hint.";
+    } catch (error: any) {
+      console.error("Error generating hint:", error);
+      const errorMsg = error instanceof Error ? error.message : "Failed to get hint.";
       setHintError(errorMsg);
       toast({ title: "Hint Error", description: errorMsg, variant: "destructive" });
     } finally {
@@ -695,41 +688,32 @@ export default function InterviewSession() {
   };
 
   const handleFetchSampleAnswer = async () => {
-    if (!sessionData || !sessionData.questions || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
-    
-    const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
-    if (sessionData.sampleAnswers && sessionData.sampleAnswers[currentQ.id]) {
-      setSampleAnswerText(sessionData.sampleAnswers[currentQ.id]);
-      setIsSampleAnswerDialogOpen(true);
-      return;
-    }
-
+    if (!sessionData || sessionData.questions.length === 0) return;
     setIsFetchingSampleAnswer(true);
-    setSampleAnswerText(null);
     setSampleAnswerError(null);
-    setIsSampleAnswerDialogOpen(true); 
+    setSampleAnswerText(null);
 
     try {
+      const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
       const input: GenerateSampleAnswerInput = {
-        questionText: currentQ.text,
+        questionText: currentQuestion.text,
         interviewType: sessionData.interviewType,
         faangLevel: sessionData.faangLevel,
-        interviewFocus: sessionData.interviewFocus,
-        targetedSkills: sessionData.targetedSkills,
-        idealAnswerCharacteristics: currentQ.idealAnswerCharacteristics,
+        interviewFocus: sessionData.interviewFocus || "",
+        targetedSkills: sessionData.targetedSkills || [],
+        idealAnswerCharacteristics: currentQuestion.idealAnswerCharacteristics || [],
       };
-      const result: GenerateSampleAnswerOutput = await generateSampleAnswer(input);
+      const result = await executeBYOKFlow<GenerateSampleAnswerInput, GenerateSampleAnswerOutput>('generateSampleAnswer', input);
       setSampleAnswerText(result.sampleAnswerText);
-      setSessionData(prev => {
-        if (!prev) return null;
-        const updatedSampleAnswers = { ...(prev.sampleAnswers || {}), [currentQ.id]: result.sampleAnswerText };
-        const updatedSession = { ...prev, sampleAnswers: updatedSampleAnswers };
-        localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
-        return updatedSession;
-      });
-
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to get sample answer.";
+      if (sessionData && currentQuestion.id) {
+        setSessionData(prev => prev ? ({
+          ...prev,
+          sampleAnswers: { ...(prev.sampleAnswers || {}), [currentQuestion.id]: result.sampleAnswerText },
+        }) : null);
+      }
+    } catch (error: any) {
+      console.error("Error generating sample answer:", error);
+      const errorMsg = error instanceof Error ? error.message : "Failed to get sample answer.";
       setSampleAnswerError(errorMsg);
       toast({ title: "Sample Answer Error", description: errorMsg, variant: "destructive" });
     } finally {
@@ -745,38 +729,41 @@ export default function InterviewSession() {
   };
 
   const handleFetchQuestionClarification = async () => {
-    if (!userClarifyingQuestionInput.trim() || !sessionData || !sessionData.questions || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
-    
-    setIsFetchingQuestionClarification(true);
-    setClarificationForQuestion(null);
-    setQuestionClarificationError(null);
+    if (!userClarifyingQuestionInput.trim() || !sessionData || sessionData.questions.length === 0) return;
 
-    const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
+    setIsFetchingQuestionClarification(true);
+    setQuestionClarificationError(null);
+    setClarificationForQuestion(null);
+
     try {
+      const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
       const input: ClarifyInterviewQuestionInput = {
-        interviewQuestionText: currentQ.text,
+        interviewQuestionText: currentQuestion.text,
         userClarificationRequest: userClarifyingQuestionInput,
         interviewContext: {
           interviewType: sessionData.interviewType,
           interviewStyle: sessionData.interviewStyle,
           faangLevel: sessionData.faangLevel,
           roleType: sessionData.roleType,
-          jobTitle: sessionData.jobTitle,
-          jobDescription: sessionData.jobDescription,
-          resume: sessionData.resume,
-          targetedSkills: sessionData.targetedSkills,
-          targetCompany: sessionData.targetCompany,
-          interviewFocus: sessionData.interviewFocus,
-          interviewerPersona: sessionData.interviewerPersona,
-          previousConversation: sessionData.previousConversation,
-        },
+          jobTitle: sessionData.jobTitle || "",
+          jobDescription: sessionData.jobDescription || "",
+          resume: sessionData.resume || "",
+          targetedSkills: sessionData.targetedSkills || [],
+          targetCompany: sessionData.targetCompany || "",
+          interviewFocus: sessionData.interviewFocus || "",
+          selectedThemeId: sessionData.selectedThemeId,
+          interviewerPersona: sessionData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+          caseStudyNotes: sessionData.caseStudyNotes || "",
+          previousConversation: sessionData.previousConversation || "",
+        }
       };
-      const result: ClarifyInterviewQuestionOutput = await clarifyInterviewQuestion(input);
+      const result = await executeBYOKFlow<ClarifyInterviewQuestionInput, ClarifyInterviewQuestionOutput>('clarifyInterviewQuestion', input);
+
       setClarificationForQuestion(result.clarificationText);
-      
-      // Update previousConversation with the clarification exchange
+
+      // Append to previousConversation
       const updatedPreviousConversation = (sessionData.previousConversation || "") + 
-        `\n\n[USER ASKS FOR CLARIFICATION ON: "${currentQ.text}"]\nUser's request: ${userClarifyingQuestionInput}` +
+        `\n\n[USER ASKS FOR CLARIFICATION ON: "${currentQuestion.text}"]\nUser's request: ${userClarifyingQuestionInput}` +
         `\n[AI CLARIFIES]: ${result.clarificationText}`;
         
       // Update session data with the new previousConversation

@@ -53,6 +53,15 @@ func main() {
 			return err
 		}
 
+		_, err = projects.NewIAMMember(ctx, fmt.Sprintf("functionsSaSecretAdmin-%s", environment), &projects.IAMMemberArgs{
+			Project: pulumi.String(gcpProject),
+			Role:    pulumi.String("roles/secretmanager.admin"),
+			Member:  pulumi.Sprintf("serviceAccount:%s", functionsServiceAccount.Email),
+		})
+		if err != nil {
+			return err
+		}
+
 		// Add Secret Manager Admin role to allow creating and managing secrets
 		_, err = projects.NewIAMMember(ctx, fmt.Sprintf("functionsSaSecretVersionManager-%s", environment), &projects.IAMMemberArgs{
 			Project: pulumi.String(gcpProject),

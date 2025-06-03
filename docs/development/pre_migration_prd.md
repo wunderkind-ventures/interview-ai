@@ -1,3 +1,80 @@
+# InterviewAI Pre-Migration Product Requirements Document (PRD)
+
+## Current State (as of June 2024)
+
+### Application Overview
+- **Frontend:**
+  - Built with Next.js (React), located in `/src/`
+  - Handles all user interaction, interview session management, and UI logic
+  - Communicates with backend via RESTful API endpoints
+
+- **Backend:**
+  - Primary backend in Go, located in `/backends/catalyst-go-backend/`
+  - Deployed as Google Cloud Functions and API Gateway (via Pulumi)
+  - Handles business logic for interview flows, user API key management, and AI orchestration
+  - Some prompt logic is currently embedded in Go code
+
+- **Infrastructure:**
+  - Managed with Pulumi (YAML and Go), in `/pulumi-gcp-catalyst-backend/`
+  - Deploys GCP resources: Cloud Functions, API Gateway, IAM, Secret Manager, Monitoring, etc.
+
+- **AI Model Integration:**
+  - Currently uses Gemini (Google) as the primary LLM provider
+  - API keys managed per user via Secret Manager
+
+---
+
+## Roadmap: Backend Modernization & Prompt Optimization
+
+### 1. **Migrate Backend Logic to Go Genkit**
+- Refactor all business logic and AI orchestration into modular Go Genkit flows
+- Each flow encapsulates a single interview or AI operation (e.g., question generation, follow-up, hints)
+- Flows are stateless and API-driven, enabling easy scaling and testing
+- Expose flows as RESTful endpoints via a Go HTTP server (for Cloud Run) and as Cloud Functions for event-driven tasks
+
+### 2. **Prompt Optimization & dotprompt Migration**
+- Abstract all prompt templates from Go code into versioned `.prompt` files using [dotprompt](https://github.com/dotprompt/dotprompt)
+- Prompts are parameterized, version-controlled, and can be updated without code changes
+- Enable non-engineers (product/content teams) to iterate on prompt design
+- Document all prompt variables and structure for maintainability
+
+### 3. **A/B Testing of Prompts and Flows**
+- Implement infrastructure to support A/B testing of prompts and Genkit flows
+- Route a percentage of users to different prompt versions or flow logic
+- Collect and analyze metrics (e.g., user feedback, completion rates) to optimize performance
+
+### 4. **Multi-Provider Model Support**
+- Refactor backend to support pluggable LLM providers (e.g., Gemini, OpenAI, Anthropic)
+- Abstract model invocation logic to allow dynamic selection based on user, experiment, or feature flag
+- Store and manage API keys securely for each provider
+
+### 5. **API-First, Modular Architecture**
+- Maintain a clean separation between frontend and backend via OpenAPI-documented REST endpoints
+- Backend is stateless and does not assume any specific client (web, mobile, CLI, etc.)
+- All business logic, prompt orchestration, and AI integration reside in the backend
+- Frontend(s) can be swapped or extended with minimal changes
+
+---
+
+## Migration Steps (High-Level)
+1. Audit and extract all prompt logic into dotprompt files
+2. Refactor Go backend to use Genkit flows and dotprompt for prompt management
+3. Modularize backend API layer and document with OpenAPI
+4. Add support for multiple LLM providers and A/B testing infrastructure
+5. Update frontend to consume new API endpoints as needed
+6. Test, document, and monitor the new architecture
+
+---
+
+## Future Considerations
+- Add a prompt management UI for non-technical team members
+- Expand analytics and feedback collection for continuous improvement
+- Explore serverless and containerized deployment strategies for cost and performance optimization
+
+---
+
+*This document reflects the current state and planned evolution of InterviewAI as of June 2024. For questions or suggestions, contact the engineering team.*
+
 Product Requirements Document: InterviewAI
 1. Introduction
 
@@ -186,6 +263,67 @@ Why: Streamlines the quality control and AI improvement process.
 What: An AI-guided conversational wizard to help users verbally describe experiences and have the AI structure them into the STAR format for the Achievements Log.
 
 Why: Lowers the barrier to documenting achievements and helps users articulate impact.
+
+5.8. Amazon L7 PMT Mock Interview Experience (Detailed)
+
+Purpose: To provide a high-fidelity, role-specific mock interview simulation for Amazon L7 Principal Product Management Technical (PMT) candidates, reflecting the unique expectations, rigor, and structure of Amazon's senior-level interview process.
+
+User Stories:
+- As a senior PMT candidate, I want to practice with realistic, multi-turn scenario-based questions that reflect the ambiguity, scope, and cross-functional impact expected at L7.
+- As a user, I want the AI interviewer to simulate a Bar Raiser, Hiring Manager, and Peer PMT, so I can experience a panel-style interview.
+- As a candidate, I want to receive feedback on how well my answers align with Amazon's Leadership Principles (LPs), especially at the L7 bar.
+- As a user, I want to track which LPs have been covered and which are missing during my session.
+- As a candidate, I want to be guided to structure my answers in the STAR format, with prompts for depth and scope appropriate for L7.
+- As a user, I want to experience realistic follow-up questions, ambiguity, and pivots, as would occur in a real Amazon L7 PMT interview.
+
+Key Features:
+
+**1. Role-Specific Question Generation**
+- Scenario-based, multi-turn questions tailored to L7 PMT responsibilities (e.g., product vision, cross-org influence, technical depth, ambiguity handling).
+- Dynamic follow-ups that probe for scope, impact, and leadership.
+- Option to select or randomize scenario themes (e.g., new product launch, crisis management, scaling challenges).
+
+**2. Panel Interview Simulation**
+- Simulate a panel with multiple AI interviewers:
+  - Bar Raiser: Focuses on LPs, ambiguity, and raising the bar.
+  - Hiring Manager: Focuses on business impact, team fit, and execution.
+  - Peer PMT: Focuses on collaboration, technical depth, and stakeholder management.
+- Each interviewer can ask questions, follow-ups, and provide feedback in their own style.
+
+**3. Leadership Principle (LP) Tracking & Feedback**
+- Real-time tracking of which LPs have been addressed in the session.
+- After each answer, AI provides feedback on LP alignment, depth, and L7 calibration.
+- End-of-session LP heatmap showing strengths and gaps.
+
+**4. STAR Story Builder & Guidance**
+- Interactive prompts to help users structure answers in the STAR format (Situation, Task, Action, Result).
+- AI suggestions for increasing depth, scope, and cross-functional impact in responses.
+- Option to save and review STAR stories for future reference.
+
+**5. Realistic Interview Dynamics**
+- Time-boxed questions and simulated interruptions.
+- Ambiguity injection: AI may intentionally provide incomplete information, requiring the candidate to ask clarifying questions.
+- "Curveball" follow-ups to test adaptability and critical thinking.
+
+**6. Feedback & Calibration**
+- Per-question and overall feedback calibrated to L7 expectations (scope, ambiguity, leadership, technical depth).
+- AI-generated summary with actionable suggestions for improvement.
+- Option for users to request deeper dives on specific LPs or competencies.
+
+**7. Session Analytics & Progression**
+- LP/competency heatmap for the session and over time.
+- Track progress across multiple L7 PMT mock interviews.
+- Personalized learning roadmap based on performance.
+
+**8. Admin/Coach Tools (Future)**
+- Option for a human coach or admin to join the session, observe, and provide additional feedback.
+- Ability to flag AI questions or feedback for quality review.
+
+**9. Export & Review**
+- Downloadable session summary, including all questions, answers, feedback, and LP analysis.
+- Option to share session results with mentors or peers for additional review.
+
+---
 
 6. Style Guidelines
 

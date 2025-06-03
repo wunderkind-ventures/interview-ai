@@ -3,8 +3,6 @@
 # secrets
 /backends/byot-go-backend/serviceAccountKey.json
 /backends/byot-go-backend/interviewai-byot.json
-/pulumi-gcp-byot-backend/Pulumi.*.yaml
-/pulumi-gcp-byot-backend/main
 .env
 .env.local
 

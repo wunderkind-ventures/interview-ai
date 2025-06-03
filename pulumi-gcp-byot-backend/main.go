@@ -315,6 +315,43 @@ func main() {
 			return err
 		}
 
+		// --- Firebase Storage Bucket (using Google Cloud Storage) ---
+		firebaseStorageBucketName := fmt.Sprintf("catalyst-firebase-storage-%s", environment)
+		firebaseStorageBucket, err := storage.NewBucket(ctx, firebaseStorageBucketName, &storage.BucketArgs{
+			Project:                  pulumi.String(gcpProject),
+			Name:                     pulumi.String(firebaseStorageBucketName), // Bucket names must be globally unique
+			Location:                 pulumi.String(gcpRegion),                 // Or your preferred multi-region like "US"
+			UniformBucketLevelAccess: pulumi.Bool(true),
+			StorageClass:             pulumi.String("STANDARD"),
+			// Optional: Add lifecycle rules, versioning, etc. as needed
+			// LifecycleRules: storage.BucketLifecycleRuleArray{
+			// 	&storage.BucketLifecycleRuleArgs{
+			// 		Action: &storage.BucketLifecycleRuleActionArgs{
+			// 			Type: pulumi.String("Delete"),
+			// 		},
+			// 		Condition: &storage.BucketLifecycleRuleConditionArgs{
+			// 			Age: pulumi.Int(7), // Delete objects older than 7 days
+			// 		},
+			// 	},
+			// },
+		})
+		if err != nil {
+			return err
+		}
+
+		// Optional: If you need to grant Firebase services (or other services) access to this bucket,
+		// you might add IAM bindings here. For example, granting the Firebase service agent roles.
+		// The specific roles and members would depend on your Firebase project setup.
+		// firebaseAdminSdkServiceAccountEmail := "firebase-adminsdk-xxxx@<YOUR_PROJECT_ID>.iam.gserviceaccount.com"
+		// _, err = storage.NewBucketIAMMember(ctx, fmt.Sprintf("firebase-storage-bucket-firebase-admin-%s", environment), &storage.BucketIAMMemberArgs{
+		// 	Bucket: firebaseStorageBucket.Name,
+		// 	Role:   pulumi.String("roles/storage.objectAdmin"), // Or other appropriate roles
+		// 	Member: pulumi.Sprintf("serviceAccount:%s", firebaseAdminSdkServiceAccountEmail),
+		// })
+		// if err != nil {
+		// 	return err
+		// }
+
 		// --- Outputs ---
 		ctx.Export("byotFunctionsServiceAccountEmail", functionsServiceAccount.Email)
 		ctx.Export("setApiKeyFunctionUrl", setApiKeyFunction.HttpsTriggerUrl)
@@ -328,6 +365,8 @@ func main() {
 		ctx.Export("deploymentBucketName", deploymentBucket.Name) // Added for clarity
 		ctx.Export("emailNotificationChannelId", emailChannel.ID())
 		ctx.Export("criticalErrorLogMetricName", criticalErrorLogMetric.Name)
+		ctx.Export("firebaseStorageBucketName", firebaseStorageBucket.Name)
+		ctx.Export("firebaseStorageBucketUrl", firebaseStorageBucket.Url)
 
 		return nil
 	})

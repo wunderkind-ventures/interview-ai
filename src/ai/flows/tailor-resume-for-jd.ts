@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Provides AI-driven suggestions for tailoring a resume to a specific job description.
@@ -12,6 +11,7 @@ import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { ai as globalAi } from '@/ai/genkit';
 import { z } from 'genkit';
+import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
 
 const TailorResumeForJDInputSchema = z.object({
   resumeText: z.string().min(100, "Resume text must be at least 100 characters."),
@@ -28,66 +28,69 @@ const TailorResumeForJDOutputSchema = z.object({
 });
 export type TailorResumeForJDOutput = z.infer<typeof TailorResumeForJDOutputSchema>;
 
-const tailorResumeForJDPromptObj = globalAi.definePrompt({
-  name: 'tailorResumeForJDPrompt',
-  input: { schema: TailorResumeForJDInputSchema },
-  output: { schema: TailorResumeForJDOutputSchema },
-  prompt: `You are an expert career coach specializing in resume optimization and job application strategy.
-A user has provided their resume and a job description. Your task is to provide specific, actionable advice on how to tailor their resume to this job description.
-
-Job Description:
-{{{jobDescriptionText}}}
-
-User's Resume:
-{{{resumeText}}}
-
-Please provide the following:
-1.  **Keywords from JD**: List 5-7 key skills, technologies, or qualifications explicitly mentioned or strongly implied in the job description.
-2.  **Missing Keywords in Resume**: Identify 2-4 important keywords/skills from the JD that appear to be missing or significantly underrepresented in the provided resume.
-3.  **Relevant Experiences to Highlight**: Point out 2-3 specific experiences, projects, or sections from the user's resume that are particularly relevant to this job description and should be emphasized or elaborated upon.
-4.  **Suggestions for Tailoring**: Offer 3-5 concrete, actionable suggestions for how the user can tailor their resume. Examples:
-    *   "Rephrase the bullet point under 'Project X' to highlight its relevance to [JD Requirement Y] by mentioning [Specific Detail/Metric]."
-    *   "Consider adding a brief summary statement at the top that directly addresses your experience with [Key Technology from JD]."
-    *   "Quantify your achievement in 'Role Z' using metrics that align with the impact sought in the JD (e.g., 'improved efficiency by X%')."
-5.  **Overall Fit Assessment**: Provide a brief (2-3 sentences) assessment of how well the current resume aligns with the job description and general advice to improve this alignment.
-
-Focus on providing practical, targeted advice. Avoid generic suggestions.
-`,
-});
-
 export async function tailorResumeForJD(
   input: TailorResumeForJDInput,
   options?: { apiKey?: string }
 ): Promise<TailorResumeForJDOutput> {
   let activeAI = globalAi;
+  const flowNameForLogging = 'tailorResumeForJD';
+
   if (options?.apiKey) {
     try {
       activeAI = genkit({
         plugins: [googleAI({ apiKey: options.apiKey })],
-        model: globalAi.getModel().name,
       });
-      console.log("[BYOK] tailorResumeForJD: Using user-provided API key.");
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
     } catch (e) {
-      console.warn(`[BYOK] tailorResumeForJD: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
+      activeAI = globalAi;
     }
   } else {
-    console.log("[BYOK] tailorResumeForJD: No user API key provided; using default global AI instance.");
+    console.log(`[BYOK] ${flowNameForLogging}: No user API key provided; using default global AI instance.`);
   }
   
   try {
-    const { output } = await activeAI.run(tailorResumeForJDPromptObj, input);
+    const RAW_TAILOR_PROMPT = loadPromptFile("tailor-resume-for-jd.prompt");
+    if (!RAW_TAILOR_PROMPT) {
+      console.error(`[${flowNameForLogging}] Critical: Could not load tailor-resume-for-jd.prompt. Falling back to error response.`);
+      return {
+        keywordsFromJD: ["Error: Could not load prompt file."],
+        missingKeywordsInResume: ["Error: Could not load prompt file."],
+        relevantExperiencesToHighlight: ["Error: Could not load prompt file."],
+        suggestionsForTailoring: ["Error: Could not load prompt file."],
+        overallFitAssessment: "An error occurred while preparing tailoring advice due to a missing prompt file. Please contact support.",
+      };
+    }
+    const renderedPrompt = renderPromptTemplate(RAW_TAILOR_PROMPT, input);
+    console.log(`[${flowNameForLogging}] Rendered Prompt:\n${renderedPrompt}`);
+
+    const result = await activeAI.generate<typeof TailorResumeForJDOutputSchema>({
+        prompt: renderedPrompt,
+        model: googleAI.model('gemini-1.5-flash-latest'),
+        output: { schema: TailorResumeForJDOutputSchema },
+        config: { responseMimeType: "application/json" },
+      });
+
+    const output = result.output; 
     if (!output) {
-      throw new Error('AI did not return resume tailoring suggestions.');
+      console.error(`[${flowNameForLogging}] AI did not return tailoring suggestions or failed to parse.`);
+      return {
+        keywordsFromJD: ["Error: AI returned no data."],
+        missingKeywordsInResume: ["Error: AI returned no data."],
+        relevantExperiencesToHighlight: ["Error: AI returned no data."],
+        suggestionsForTailoring: ["Error: AI returned no data."],
+        overallFitAssessment: "AI service did not return valid tailoring advice. Please try again.",
+      };
     }
     return output;
   } catch (error) {
-    console.error("Error in tailorResumeForJDFlow:", error);
+    console.error(`Error in ${flowNameForLogging}:`, error);
     return {
-      keywordsFromJD: ["Error: Could not extract keywords."],
-      missingKeywordsInResume: ["Error: Could not analyze missing keywords."],
-      relevantExperiencesToHighlight: ["Error: Could not identify experiences."],
-      suggestionsForTailoring: ["Error: Could not generate tailoring suggestions."],
-      overallFitAssessment: "An error occurred while generating resume tailoring advice. Please try again. Ensure both resume and job description are sufficiently detailed.",
+      keywordsFromJD: ["Error: Could not extract keywords due to an exception."],
+      missingKeywordsInResume: ["Error: Could not analyze missing keywords due to an exception."],
+      relevantExperiencesToHighlight: ["Error: Could not identify experiences due to an exception."],
+      suggestionsForTailoring: ["Error: Could not generate tailoring suggestions due to an exception."],
+      overallFitAssessment: `An error occurred while generating resume tailoring advice: ${(error as Error).message}. Please try again.`,
     };
   }
 }

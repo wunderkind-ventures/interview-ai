@@ -1,0 +1,11 @@
+Please provide a clear and concise explanation for the following term: "{{term}}".
+
+{{#if interviewContext}}
+The term is being asked in the context of a "{{interviewContext}}" interview. Tailor the explanation to be understandable and relevant for someone in such an interview.
+{{else}}
+Tailor the explanation to be understandable for someone in a professional job interview.
+{{/if}}
+
+Focus on the core meaning and its common application. Avoid overly deep technical jargon unless necessary, and if used, briefly clarify it.
+The explanation should be helpful for someone who needs a quick understanding during an interview.
+Aim for an explanation that is 2-5 sentences long. 

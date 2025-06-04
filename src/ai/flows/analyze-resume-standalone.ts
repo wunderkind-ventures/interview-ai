@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Provides AI-driven analysis for a standalone resume.
@@ -12,6 +11,7 @@ import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { ai as globalAi } from '@/ai/genkit';
 import { z } from 'genkit';
+import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
 
 const AnalyzeResumeStandaloneInputSchema = z.object({
   resumeText: z.string().min(100, "Resume text must be at least 100 characters."),
@@ -28,63 +28,72 @@ const AnalyzeResumeStandaloneOutputSchema = z.object({
 });
 export type AnalyzeResumeStandaloneOutput = z.infer<typeof AnalyzeResumeStandaloneOutputSchema>;
 
-const analyzeResumeStandalonePromptObj = globalAi.definePrompt({
-  name: 'analyzeResumeStandalonePrompt',
-  input: { schema: AnalyzeResumeStandaloneInputSchema },
-  output: { schema: AnalyzeResumeStandaloneOutputSchema },
-  prompt: `You are an expert resume reviewer and career coach.
-Analyze the following resume text thoroughly. Provide constructive feedback focusing on its strengths, areas for improvement, overall clarity, impact, and actionable suggestions.
-
-Resume Text:
-{{{resumeText}}}
-
-Your analysis should include:
-1.  **Strengths**: Identify 2-4 key strengths of the resume (e.g., well-quantified achievements, clear structure, strong action verbs).
-2.  **Areas for Improvement**: Pinpoint 2-4 specific areas that could be enhanced (e.g., vague descriptions, lack of metrics, inconsistent formatting, passive language).
-3.  **Clarity Score (1-5)**: Rate the resume's clarity and readability (1=Very Unclear, 5=Very Clear). Briefly justify.
-4.  **Impact Score (1-5)**: Assess how well the resume conveys impact and achievements (1=Low Impact, 5=High Impact). Briefly justify.
-5.  **Overall Feedback**: Provide a concise (2-3 sentences) overall assessment of the resume's current effectiveness.
-6.  **Actionable Suggestions**: Offer 2-4 specific, actionable pieces of advice the user can implement to improve their resume.
-
-Ensure your feedback is professional, supportive, and directly addresses the content of the resume provided.
-Focus on content, structure, and impact. Avoid commenting on minor typos unless they significantly hinder readability.
-`,
-});
-
 export async function analyzeResumeStandalone(
   input: AnalyzeResumeStandaloneInput,
   options?: { apiKey?: string }
 ): Promise<AnalyzeResumeStandaloneOutput> {
   let activeAI = globalAi;
+  const flowNameForLogging = 'analyzeResumeStandalone';
+
   if (options?.apiKey) {
     try {
       activeAI = genkit({
         plugins: [googleAI({ apiKey: options.apiKey })],
-        model: globalAi.getModel().name,
       });
-      console.log("[BYOK] analyzeResumeStandalone: Using user-provided API key.");
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
     } catch (e) {
-      console.warn(`[BYOK] analyzeResumeStandalone: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
+      activeAI = globalAi;
     }
   } else {
-    console.log("[BYOK] analyzeResumeStandalone: No user API key provided; using default global AI instance.");
+    console.log(`[BYOK] ${flowNameForLogging}: No user API key provided; using default global AI instance.`);
   }
 
   try {
-    const { output } = await activeAI.run(analyzeResumeStandalonePromptObj, input);
+    const RAW_ANALYZE_PROMPT = loadPromptFile("analyze-resume-standalone.prompt");
+    if (!RAW_ANALYZE_PROMPT) {
+      console.error(`[${flowNameForLogging}] Critical: Could not load analyze-resume-standalone.prompt. Falling back to error response.`);
+      return {
+        strengths: ["Error: Could not load prompt file."],
+        areasForImprovement: ["Error: Could not load prompt file."],
+        clarityScore: 1,
+        impactScore: 1,
+        overallFeedback: "An error occurred while preparing resume analysis due to a missing prompt file. Please contact support.",
+        actionableSuggestions: ["Error: Could not load prompt file."],
+      };
+    }
+    const renderedPrompt = renderPromptTemplate(RAW_ANALYZE_PROMPT, input);
+    console.log(`[${flowNameForLogging}] Rendered Prompt:\n${renderedPrompt}`);
+
+    const result = await activeAI.generate<typeof AnalyzeResumeStandaloneOutputSchema>({
+        prompt: renderedPrompt,
+        model: googleAI.model('gemini-1.5-flash-latest'),
+        output: { schema: AnalyzeResumeStandaloneOutputSchema },
+        config: { responseMimeType: "application/json" },
+      });
+
+    const output = result.output;
     if (!output) {
-      throw new Error('AI did not return resume analysis.');
+      console.error(`[${flowNameForLogging}] AI did not return resume analysis or failed to parse. Using fallback.`);
+      return {
+        strengths: ["Error: AI returned no data or failed to parse."],
+        areasForImprovement: ["Error: AI returned no data or failed to parse."],
+        clarityScore: 1,
+        impactScore: 1,
+        overallFeedback: "AI service did not return valid resume analysis. Please try again.",
+        actionableSuggestions: ["Error: AI returned no data or failed to parse."],
+      };
     }
     return output;
   } catch (error) {
-    console.error("Error in analyzeResumeStandaloneFlow:", error);
+    console.error(`Error in ${flowNameForLogging}:`, error);
     return {
-      strengths: ["Error: Could not analyze strengths."],
-      areasForImprovement: ["Error: Could not analyze areas for improvement."],
+      strengths: ["Error: Could not analyze strengths due to an exception."],
+      areasForImprovement: ["Error: Could not analyze areas for improvement due to an exception."],
       clarityScore: 1,
       impactScore: 1,
-      overallFeedback: "An error occurred while analyzing the resume. Please try again. If the problem persists, the resume text might be too complex or the AI model is temporarily unavailable.",
-      actionableSuggestions: ["Error: Could not generate suggestions."],
+      overallFeedback: `An error occurred while analyzing the resume: ${(error as Error).message}. Please try again.`,
+      actionableSuggestions: ["Error: Could not generate suggestions due to an exception."],
     };
   }
 }

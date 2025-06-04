@@ -11,6 +11,7 @@ import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
+import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
 
 const GenerateSampleAnswerInputSchemaInternal = z.object({
   questionText: z.string().describe('The text of the interview question.'),
@@ -27,96 +28,7 @@ const GenerateSampleAnswerOutputSchemaInternal = z.object({
 });
 export type GenerateSampleAnswerOutput = z.infer<typeof GenerateSampleAnswerOutputSchemaInternal>;
 
-const GENERATE_SAMPLE_ANSWER_PROMPT_TEMPLATE = `You are an expert Interview Coach AI. Your task is to generate a high-quality, well-structured sample answer for the following interview question.
-The answer should be appropriate for the specified interview type, FAANG level, and any given focus or targeted skills.
-It should embody the "ideal answer characteristics" if they are provided.
-
-Interview Context:
-- Type: {{{interviewType}}}
-- Level: {{{faangLevel}}}
-{{#if interviewFocus}}- Specific Focus: {{{interviewFocus}}}{{/if}}
-{{#if targetedSkills.length}}
-- Targeted Skills:
-{{#each targetedSkills}}
-  - {{{this}}}
-{{/each}}
-{{/if}}
-{{#if idealAnswerCharacteristics.length}}
-- Ideal Answer Characteristics for this question (use these as a guide for your sample answer):
-{{#each idealAnswerCharacteristics}}
-  - {{{this}}}
-{{/each}}
-{{/if}}
-
-Original Question:
-"{{{questionText}}}"
-
-Generate a sample answer that effectively addresses the question, demonstrates strong reasoning, and is clearly communicated.
-If the question is behavioral, structure the sample answer using the STAR method (Situation, Task, Action, Result).
-If it's a technical or product question, ensure the answer is logical, covers key considerations, and explains trade-offs where appropriate.
-The answer should be comprehensive yet concise.
-Begin the answer directly, without introductory phrases like "Here's a sample answer:".
-`;
-
-// Template customization function to replace placeholders with actual values
-const customizeSampleAnswerPromptText = (template: string, input: GenerateSampleAnswerInput): string => {
-  let promptText = template;
-  
-  // Replace basic placeholders
-  promptText = promptText.replace(/{{{interviewType}}}/g, input.interviewType);
-  promptText = promptText.replace(/{{{faangLevel}}}/g, input.faangLevel);
-  promptText = promptText.replace(/{{{questionText}}}/g, input.questionText);
-  
-  // Handle optional interviewFocus
-  if (input.interviewFocus) {
-    promptText = promptText.replace(
-      /{{#if interviewFocus}}- Specific Focus: {{{interviewFocus}}}{{\/if}}/g,
-      `- Specific Focus: ${input.interviewFocus}`
-    );
-  } else {
-    promptText = promptText.replace(
-      /{{#if interviewFocus}}- Specific Focus: {{{interviewFocus}}}{{\/if}}/g,
-      ''
-    );
-  }
-  
-  // Handle targetedSkills array
-  if (input.targetedSkills && input.targetedSkills.length > 0) {
-    const skillsList = input.targetedSkills.map(skill => `  - ${skill}`).join('\n');
-    promptText = promptText.replace(
-      /{{#if targetedSkills\.length}}[\s\S]*?{{#each targetedSkills}}[\s\S]*?{{{this}}}[\s\S]*?{{\/each}}[\s\S]*?{{\/if}}/g,
-      `- Targeted Skills:\n${skillsList}`
-    );
-  } else {
-    promptText = promptText.replace(
-      /{{#if targetedSkills\.length}}[\s\S]*?{{\/if}}/g,
-      ''
-    );
-  }
-  
-  // Handle idealAnswerCharacteristics array
-  if (input.idealAnswerCharacteristics && input.idealAnswerCharacteristics.length > 0) {
-    const characteristicsList = input.idealAnswerCharacteristics.map(char => `  - ${char}`).join('\n');
-    promptText = promptText.replace(
-      /{{#if idealAnswerCharacteristics\.length}}[\s\S]*?{{#each idealAnswerCharacteristics}}[\s\S]*?{{{this}}}[\s\S]*?{{\/each}}[\s\S]*?{{\/if}}/g,
-      `- Ideal Answer Characteristics for this question (use these as a guide for your sample answer):\n${characteristicsList}`
-    );
-  } else {
-    promptText = promptText.replace(
-      /{{#if idealAnswerCharacteristics\.length}}[\s\S]*?{{\/if}}/g,
-      ''
-    );
-  }
-  
-  return promptText;
-};
-
-const generateSampleAnswerPromptObj = globalAi.definePrompt({
-  name: 'generateSampleAnswerPrompt',
-  input: {schema: GenerateSampleAnswerInputSchemaInternal},
-  output: {schema: GenerateSampleAnswerOutputSchemaInternal},
-  prompt: GENERATE_SAMPLE_ANSWER_PROMPT_TEMPLATE,
-});
+const RAW_SAMPLE_ANSWER_PROMPT = loadPromptFile("generate-sample-answer.prompt");
 
 export async function generateSampleAnswer(
   input: GenerateSampleAnswerInput,
@@ -124,34 +36,29 @@ export async function generateSampleAnswer(
 ): Promise<GenerateSampleAnswerOutput> {
   let activeAI = globalAi;
   const flowNameForLogging = 'generateSampleAnswer';
-  let isByokPath = false;
 
   if (options?.aiInstance) {
     activeAI = options.aiInstance;
-    isByokPath = true;
     console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance.`);
   } else if (options?.apiKey) {
     try {
       activeAI = genkit({
         plugins: [googleAI({ apiKey: options.apiKey })],
-        // No model here, it will be specified in generate call
       });
-      isByokPath = true;
       console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
     } catch (e) {
       console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
-      // activeAI remains globalAi
     }
   } else {
     console.log(`[BYOK] ${flowNameForLogging}: No specific API key or AI instance provided; using default global AI instance.`);
   }
   
   try {
-    const customizedPrompt = customizeSampleAnswerPromptText(GENERATE_SAMPLE_ANSWER_PROMPT_TEMPLATE, input);
+    const renderedPrompt = renderPromptTemplate(RAW_SAMPLE_ANSWER_PROMPT, input);
+    console.log(`[BYOK] ${flowNameForLogging}: Rendered Prompt:\n`, renderedPrompt);
     
     const result = await activeAI.generate<typeof GenerateSampleAnswerOutputSchemaInternal>({
-      prompt: customizedPrompt,
-      context: input,
+      prompt: renderedPrompt,
       model: googleAI.model('gemini-1.5-flash-latest'),
       output: { schema: GenerateSampleAnswerOutputSchemaInternal },
       config: { responseMimeType: "application/json" },
@@ -160,6 +67,7 @@ export async function generateSampleAnswer(
     const output = result.output;
     
     if (!output || !output.sampleAnswerText) {
+        console.warn(`[BYOK] ${flowNameForLogging}: AI output was null or sampleAnswerText was missing. Question: "${input.questionText}"`);
         return { sampleAnswerText: `Sorry, I couldn't generate a sample answer for the question: "${input.questionText}" at this moment. Consider the key concepts and try to structure your response logically.` };
     }
     return output;

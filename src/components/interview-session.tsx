@@ -1,19 +1,14 @@
-
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { customizeInterviewQuestions } from "@/ai/flows/customize-interview-questions";
-import type { CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
-import { generateDynamicCaseFollowUp } from "@/ai/flows/generate-dynamic-case-follow-up";
+import type { CustomizeInterviewQuestionsOutput, CustomizeInterviewQuestionsInput } from "@/ai/flows/customize-interview-questions";
+import { executeBYOKFlow, customizeInterviewQuestionsBYOK } from "@/lib/catalyst-flows-api";
 import type { GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput } from "@/ai/flows/generate-dynamic-case-follow-up";
-import { explainConcept } from "@/ai/flows/explain-concept";
 import type { ExplainConceptInput, ExplainConceptOutput } from "@/ai/flows/explain-concept";
-import { generateHint } from "@/ai/flows/generate-hint";
 import type { GenerateHintInput, GenerateHintOutput } from "@/ai/flows/generate-hint";
-import { generateSampleAnswer } from "@/ai/flows/generate-sample-answer";
 import type { GenerateSampleAnswerInput, GenerateSampleAnswerOutput } from "@/ai/flows/generate-sample-answer";
-
+import type { ClarifyInterviewQuestionInput, ClarifyInterviewQuestionOutput } from "@/ai/flows/clarify-interview-question";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,15 +19,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical } from "lucide-react";
-import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES } from "@/lib/constants";
-import type { CustomizeInterviewQuestionsInput, InterviewSetupData, InterviewSessionData, InterviewQuestion, InterviewStyle, Answer } from "@/lib/types";
+import { Loader2, ArrowRight, CheckCircle, XCircle, MessageSquare, TimerIcon, Building, Briefcase, SearchCheck, Layers, Lightbulb, AlertTriangle, Star, StickyNote, Sparkles, History, Mic, MicOff, BookOpen, HelpCircle, MoreVertical, UserCheck2, MessageCircleQuestion } from "lucide-react";
+import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEWER_PERSONAS, type InterviewStyle, type InterviewerPersona, type RoleType, SKILLS_BY_ROLE, SKILLS_BY_INTERVIEW_TYPE } from "@/lib/constants";
+import type { InterviewSetupData, InterviewSessionData, InterviewQuestion, Answer } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { formatMilliseconds } from "@/lib/utils";
 
 const MAX_CASE_FOLLOW_UPS = 4;
 
-const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, caseStudyNotes?: string } = {
+const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> & { interviewStyle: InterviewStyle, roleType?: RoleType, targetedSkills?: string[], targetCompany?: string, jobTitle?: string, interviewFocus?: string, interviewerPersona?: InterviewerPersona | string, caseStudyNotes?: string, previousConversation?: string } = {
   questions: [],
   answers: [],
   currentQuestionIndex: 0,
@@ -46,10 +41,12 @@ const initialSessionState: Omit<InterviewSessionData, keyof InterviewSetupData> 
   targetCompany: undefined,
   jobTitle: undefined,
   interviewFocus: undefined,
+  interviewerPersona: INTERVIEWER_PERSONAS[0].value,
   currentCaseTurnNumber: 0,
   caseConversationHistory: [],
   caseStudyNotes: "",
   sampleAnswers: {},
+  previousConversation: "",
 };
 
 interface CustomSpeechRecognition extends SpeechRecognition {
@@ -83,8 +80,13 @@ export default function InterviewSession() {
   const [isFetchingSampleAnswer, setIsFetchingSampleAnswer] = useState(false);
   const [sampleAnswerError, setSampleAnswerError] = useState<string | null>(null);
 
+  const [isClarifyQuestionDialogOpen, setIsClarifyQuestionDialogOpen] = useState(false);
+  const [userClarifyingQuestionInput, setUserClarifyingQuestionInput] = useState("");
+  const [clarificationForQuestion, setClarificationForQuestion] = useState<string | null>(null);
+  const [isFetchingQuestionClarification, setIsFetchingQuestionClarification] = useState(false);
+  const [questionClarificationError, setQuestionClarificationError] = useState<string | null>(null);
 
-  // Speech-to-text state
+
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeechApiSupported, setIsSpeechApiSupported] = useState(false);
   const [micPermissionStatus, setMicPermissionStatus] = useState<'idle' | 'pending' | 'granted' | 'denied'>('idle');
@@ -92,7 +94,6 @@ export default function InterviewSession() {
   const [speechError, setSpeechError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for Web Speech API support
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognitionAPI) {
       setIsSpeechApiSupported(true);
@@ -145,7 +146,6 @@ export default function InterviewSession() {
     }
   }, [isSpeechApiSupported, toast]);
 
-  // Cleanup recognition on unmount
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
@@ -252,7 +252,7 @@ export default function InterviewSession() {
     if (sessionData?.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime) {
       setCurrentTime(Date.now() - sessionData.currentQuestionStartTime);
       timerInterval = setInterval(() => {
-        if (sessionData.currentQuestionStartTime) {
+        if (sessionData?.currentQuestionStartTime) { 
           setCurrentTime(Date.now() - sessionData.currentQuestionStartTime);
         }
       }, 1000);
@@ -262,6 +262,15 @@ export default function InterviewSession() {
 
 
   const loadInterview = useCallback(async (setupData: InterviewSetupData) => {
+    let skillsForPrompt: string[] = [];
+    if (setupData.roleType && SKILLS_BY_ROLE[setupData.roleType] && SKILLS_BY_ROLE[setupData.roleType].length > 0) {
+      skillsForPrompt = SKILLS_BY_ROLE[setupData.roleType].map(skill => skill.value);
+    } else if (setupData.targetedSkills && setupData.targetedSkills.length > 0) {
+      skillsForPrompt = setupData.targetedSkills;
+    } else if (setupData.interviewType && SKILLS_BY_INTERVIEW_TYPE[setupData.interviewType]) {
+      skillsForPrompt = SKILLS_BY_INTERVIEW_TYPE[setupData.interviewType].map(skill => skill.value);
+    }
+
      const saneInput: CustomizeInterviewQuestionsInput = {
         jobTitle: setupData.jobTitle || "",
         jobDescription: setupData.jobDescription || "",
@@ -269,9 +278,10 @@ export default function InterviewSession() {
         interviewType: setupData.interviewType,
         interviewStyle: setupData.interviewStyle,
         faangLevel: setupData.faangLevel,
-        targetedSkills: setupData.targetedSkills || [],
+        targetedSkills: skillsForPrompt,
         targetCompany: setupData.targetCompany || "",
         interviewFocus: setupData.interviewFocus || "",
+        interviewerPersona: setupData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         previousConversation: "", 
         currentQuestion: "",    
         caseStudyNotes: setupData.interviewStyle === 'case-study' ? (sessionData?.caseStudyNotes || "") : "",
@@ -280,23 +290,29 @@ export default function InterviewSession() {
     setSessionData(prev => ({
       ...(prev || setupData),
       ...setupData,
-      ...initialSessionState, // Resets questions, answers, etc.
+      ...initialSessionState, 
+      roleType: setupData.roleType,
       isLoading: true,
       interviewStarted: true,
       currentQuestionStartTime: Date.now(),
       interviewStyle: setupData.interviewStyle,
+      interviewerPersona: setupData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
       currentCaseTurnNumber: setupData.interviewStyle === 'case-study' ? 0 : undefined,
       caseConversationHistory: setupData.interviewStyle === 'case-study' ? [] : undefined,
-      caseStudyNotes: setupData.interviewStyle === 'case-study' ? (prev?.caseStudyNotes || "") : undefined,
+      caseStudyNotes: setupData.interviewStyle === 'case-study' ? (prev?.caseStudyNotes || "") : "",
+      previousConversation: "",
       targetedSkills: setupData.targetedSkills || [],
       targetCompany: setupData.targetCompany || "",
       jobTitle: setupData.jobTitle || "",
       interviewFocus: setupData.interviewFocus || "",
-      sampleAnswers: prev?.sampleAnswers || {}, // Preserve sample answers if reloading setup
+      sampleAnswers: prev?.sampleAnswers || {}, 
     }));
 
     try {
-      const response: CustomizeInterviewQuestionsOutput = await customizeInterviewQuestions(saneInput);
+      // Use BYOK flow if backend URL is configured, otherwise use direct flow
+      const response: CustomizeInterviewQuestionsOutput = process.env.NEXT_PUBLIC_GO_BACKEND_URL
+        ? await executeBYOKFlow<any, CustomizeInterviewQuestionsOutput>('customizeInterviewQuestions', saneInput)
+        : await customizeInterviewQuestionsBYOK(saneInput);
 
       if (!response.customizedQuestions || response.customizedQuestions.length === 0) {
         throw new Error("AI did not return any questions. Please try again.");
@@ -309,7 +325,7 @@ export default function InterviewSession() {
         isInitialCaseQuestion: q.isInitialCaseQuestion,
         fullScenarioDescription: q.fullScenarioDescription,
         internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator,
-        isLikelyFinalFollowUp: false, 
+        isLikelyFinalFollowUp: q.isLikelyFinalFollowUp || false, 
       }));
 
       setSessionData(prev => {
@@ -339,71 +355,68 @@ export default function InterviewSession() {
         return newSession;
       });
     }
-  }, [toast, sessionData?.caseStudyNotes]); // Added sessionData.caseStudyNotes as dependency
+  }, [toast, sessionData?.caseStudyNotes]);
 
   useEffect(() => {
-    let storedSession = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
+    let storedSessionJson = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
     let parsedSession: InterviewSessionData | null = null;
 
-    if (storedSession) {
+    if (storedSessionJson) {
       try {
-        parsedSession = JSON.parse(storedSession);
+        parsedSession = JSON.parse(storedSessionJson);
       } catch (e) {
         console.error("Failed to parse stored interview session:", e);
+        toast({ title: "Session Error", description: "Corrupted session data. Please configure your interview again.", variant: "destructive"});
         localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
-        storedSession = null;
-        // toast({ title: "Session Error", description: "Corrupted session data cleared. Please start over.", variant: "destructive"});
+        storedSessionJson = null; 
       }
     }
+    
+    const currentSession = parsedSession;
 
-    if (parsedSession) {
-      if (parsedSession.interviewFinished) {
+    if (currentSession) {
+      if (currentSession.interviewFinished) {
         router.replace("/feedback");
         return;
       }
-      // Ensure all fields are correctly initialized from parsedSession
-      parsedSession.currentCaseTurnNumber = parsedSession.interviewStyle === 'case-study' ? (parsedSession.currentCaseTurnNumber ?? 0) : undefined;
-      parsedSession.caseConversationHistory = parsedSession.interviewStyle === 'case-study' ? (parsedSession.caseConversationHistory ?? []) : undefined;
-      parsedSession.caseStudyNotes = parsedSession.interviewStyle === 'case-study' ? (parsedSession.caseStudyNotes ?? "") : undefined;
-      parsedSession.sampleAnswers = parsedSession.sampleAnswers ?? {};
+      currentSession.interviewerPersona = currentSession.interviewerPersona || INTERVIEWER_PERSONAS[0].value;
+      currentSession.currentCaseTurnNumber = currentSession.interviewStyle === 'case-study' ? (currentSession.currentCaseTurnNumber ?? 0) : undefined;
+      currentSession.caseConversationHistory = currentSession.interviewStyle === 'case-study' ? (currentSession.caseConversationHistory ?? []) : undefined;
+      currentSession.caseStudyNotes = currentSession.interviewStyle === 'case-study' ? (currentSession.caseStudyNotes ?? "") : "";
+      currentSession.sampleAnswers = currentSession.sampleAnswers ?? {};
+      currentSession.previousConversation = currentSession.previousConversation ?? "";
 
-
-      setSessionData(parsedSession);
-      if (parsedSession.interviewStarted && !parsedSession.interviewFinished && !parsedSession.currentQuestionStartTime && parsedSession.questions.length > 0) {
+      setSessionData(currentSession);
+      if (currentSession.interviewStarted && !currentSession.interviewFinished && !currentSession.currentQuestionStartTime && currentSession.questions.length > 0) {
         setSessionData(prev => {
           if (!prev) return null;
           const updatedSession = {...prev, currentQuestionStartTime: Date.now()};
           localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
           return updatedSession;
         });
-      }
-
-      if (parsedSession.interviewStarted && parsedSession.questions.length === 0 && !parsedSession.error && !parsedSession.isLoading) {
-         const setupData: InterviewSetupData = {
-          interviewType: parsedSession.interviewType,
-          interviewStyle: parsedSession.interviewStyle,
-          faangLevel: parsedSession.faangLevel,
-          jobTitle: parsedSession.jobTitle,
-          jobDescription: parsedSession.jobDescription,
-          resume: parsedSession.resume,
-          targetedSkills: parsedSession.targetedSkills,
-          targetCompany: parsedSession.targetCompany,
-          interviewFocus: parsedSession.interviewFocus,
+      } else if (currentSession.interviewStarted && 
+                 ( (currentSession.questions.length === 0 && !currentSession.error && !currentSession.isLoading) || 
+                   (currentSession.isLoading && !currentSession.error) ) ) {
+        // This block executes if the interview has started but questions are missing/still loading.
+        // We need to re-trigger loadInterview with the setup data derived from currentSession.
+        
+        // Since we are inside the if (currentSession) block, currentSession is not null here.
+        const setupDataForReload: InterviewSetupData = {
+          interviewType: currentSession.interviewType,
+          interviewStyle: currentSession.interviewStyle,
+          faangLevel: currentSession.faangLevel,
+          roleType: currentSession.roleType, 
+          jobTitle: currentSession.jobTitle,
+          jobDescription: currentSession.jobDescription,
+          resume: currentSession.resume,
+          targetedSkills: currentSession.targetedSkills,
+          targetCompany: currentSession.targetCompany,
+          interviewFocus: currentSession.interviewFocus,
+          interviewerPersona: currentSession.interviewerPersona,
+          selectedThemeId: currentSession.selectedThemeId,
+          caseStudyNotes: currentSession.caseStudyNotes,
         };
-        loadInterview(setupData);
-      } else if (parsedSession.isLoading && parsedSession.interviewStarted && !parsedSession.error) {
-         const setupData: InterviewSetupData = {
-          interviewType: parsedSession.interviewType,
-          interviewStyle: parsedSession.interviewStyle,
-          faangLevel: parsedSession.faangLevel,
-          jobTitle: parsedSession.jobTitle,
-          jobDescription: parsedSession.jobDescription,
-          resume: parsedSession.resume,
-          targetedSkills: parsedSession.targetedSkills,
-          targetCompany: parsedSession.targetCompany,
-          interviewFocus: parsedSession.interviewFocus,
-        };
-        loadInterview(setupData);
+        loadInterview(setupDataForReload);
       }
     } else {
       const storedSetup = localStorage.getItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP);
@@ -442,6 +455,10 @@ export default function InterviewSession() {
     let updatedAnswers = [...sessionData.answers, newAnswer];
     let newSessionData: InterviewSessionData | null = null;
 
+    // Update previousConversation with the Q&A exchange
+    const updatedPreviousConversation = (sessionData.previousConversation || "") + 
+      `\n\nInterviewer: ${currentQ.text}\nCandidate: ${currentAnswer}`;
+
     if (sessionData.interviewStyle === 'case-study') {
       setIsGeneratingFollowUp(true);
       const updatedCaseConversationHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
@@ -455,6 +472,7 @@ export default function InterviewSession() {
           answers: updatedAnswers,
           caseConversationHistory: updatedCaseConversationHistory,
           currentCaseTurnNumber: updatedCurrentCaseTurnNumber,
+          previousConversation: updatedPreviousConversation,
           isLoading: false,
           interviewFinished: true,
           currentQuestionStartTime: undefined,
@@ -476,17 +494,24 @@ export default function InterviewSession() {
               interviewType: sessionData.interviewType,
               interviewStyle: sessionData.interviewStyle,
               faangLevel: sessionData.faangLevel,
+              roleType: sessionData.roleType,
               jobTitle: sessionData.jobTitle,
               jobDescription: sessionData.jobDescription,
               resume: sessionData.resume,
               targetedSkills: sessionData.targetedSkills,
               targetCompany: sessionData.targetCompany,
               interviewFocus: sessionData.interviewFocus,
+              interviewerPersona: sessionData.interviewerPersona,
             },
             currentTurnNumber: updatedCurrentCaseTurnNumber,
           };
 
-          const followUpResponse: GenerateDynamicCaseFollowUpOutput = await generateDynamicCaseFollowUp(followUpInput);
+          const flowActualInput = {
+            ...followUpInput,
+            previousConversation: updatedPreviousConversation,
+          };
+
+          const followUpResponse: GenerateDynamicCaseFollowUpOutput = await executeBYOKFlow<GenerateDynamicCaseFollowUpInput, GenerateDynamicCaseFollowUpOutput>('generateDynamicCaseFollowUp', flowActualInput);
 
           const newFollowUpQ: InterviewQuestion = {
             id: `q-${Date.now()}-fu-${updatedCurrentCaseTurnNumber}`,
@@ -504,12 +529,13 @@ export default function InterviewSession() {
             currentQuestionStartTime: Date.now(),
             currentCaseTurnNumber: updatedCurrentCaseTurnNumber,
             caseConversationHistory: updatedCaseConversationHistory,
+            previousConversation: updatedPreviousConversation,
           };
 
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : "Failed to generate follow-up question.";
           toast({ title: "Error", description: errorMessage, variant: "destructive" });
-          newSessionData = { ...sessionData, answers: updatedAnswers, isLoading: false, error: errorMessage, currentQuestionStartTime: Date.now() };
+          newSessionData = { ...sessionData, answers: updatedAnswers, previousConversation: updatedPreviousConversation, isLoading: false, error: errorMessage, currentQuestionStartTime: Date.now() };
         }
       }
       setIsGeneratingFollowUp(false);
@@ -518,6 +544,7 @@ export default function InterviewSession() {
         newSessionData = {
           ...sessionData,
           answers: updatedAnswers,
+          previousConversation: updatedPreviousConversation,
           isLoading: false,
           interviewFinished: true,
           currentQuestionStartTime: undefined,
@@ -527,6 +554,7 @@ export default function InterviewSession() {
         newSessionData = {
           ...sessionData,
           answers: updatedAnswers,
+          previousConversation: updatedPreviousConversation,
           currentQuestionIndex: sessionData.currentQuestionIndex + 1,
           isLoading: false,
           currentQuestionStartTime: Date.now(),
@@ -558,6 +586,7 @@ export default function InterviewSession() {
 
     let updatedAnswers = sessionData.answers;
     let updatedCaseHistory = sessionData.caseConversationHistory;
+    let updatedPreviousConversation = sessionData.previousConversation || "";
 
     if (sessionData.questions.length > 0 && sessionData.currentQuestionIndex < sessionData.questions.length) {
       const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
@@ -569,6 +598,12 @@ export default function InterviewSession() {
            confidenceScore: currentConfidenceScore ?? undefined,
           };
          updatedAnswers = [...sessionData.answers.filter(a => a.questionId !== currentQ.id), newAnswer];
+         
+         // Update previousConversation with the final Q&A
+         if (currentAnswer.trim() !== "") {
+           updatedPreviousConversation += `\n\nInterviewer: ${currentQ.text}\nCandidate: ${currentAnswer}`;
+         }
+         
          if (sessionData.interviewStyle === 'case-study') {
            updatedCaseHistory = [...(sessionData.caseConversationHistory || []), { questionText: currentQ.text, answerText: currentAnswer }];
          }
@@ -579,6 +614,7 @@ export default function InterviewSession() {
       ...sessionData,
       answers: updatedAnswers,
       caseConversationHistory: updatedCaseHistory,
+      previousConversation: updatedPreviousConversation,
       isLoading: false,
       interviewFinished: true,
       currentQuestionStartTime: undefined,
@@ -597,12 +633,13 @@ export default function InterviewSession() {
     try {
       const input: ExplainConceptInput = {
         term: termToExplainInput,
-        interviewContext: sessionData.interviewType,
+        interviewContext: sessionData.questions[sessionData.currentQuestionIndex]?.text || "general context"
       };
-      const result: ExplainConceptOutput = await explainConcept(input);
+      const result = await executeBYOKFlow<ExplainConceptInput, ExplainConceptOutput>('explainConcept', input);
       setExplanation(result.explanation);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to get explanation.";
+    } catch (error: any) {
+      console.error("Error explaining term:", error);
+      const errorMsg = error instanceof Error ? error.message : "Failed to get explanation.";
       setExplainTermError(errorMsg);
       toast({ title: "Explanation Error", description: errorMsg, variant: "destructive" });
     } finally {
@@ -618,26 +655,25 @@ export default function InterviewSession() {
   };
 
   const handleFetchHint = async () => {
-    if (!sessionData || !sessionData.questions || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
-
+    if (!sessionData || sessionData.questions.length === 0) return;
     setIsFetchingHint(true);
-    setHintText(null);
     setHintError(null);
-
-    const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
+    setHintText(null);
     try {
+      const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
       const input: GenerateHintInput = {
-        questionText: currentQ.text,
+        questionText: currentQuestion.text,
         interviewType: sessionData.interviewType,
         faangLevel: sessionData.faangLevel,
-        userAnswerAttempt: currentAnswer,
-        interviewFocus: sessionData.interviewFocus,
-        targetedSkills: sessionData.targetedSkills,
+        userAnswerAttempt: currentAnswer || "",
+        interviewFocus: sessionData.interviewFocus || "",
+        targetedSkills: sessionData.targetedSkills || [],
       };
-      const result: GenerateHintOutput = await generateHint(input);
+      const result = await executeBYOKFlow<GenerateHintInput, GenerateHintOutput>('generateHint', input);
       setHintText(result.hintText);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to get hint.";
+    } catch (error: any) {
+      console.error("Error generating hint:", error);
+      const errorMsg = error instanceof Error ? error.message : "Failed to get hint.";
       setHintError(errorMsg);
       toast({ title: "Hint Error", description: errorMsg, variant: "destructive" });
     } finally {
@@ -652,46 +688,98 @@ export default function InterviewSession() {
   };
 
   const handleFetchSampleAnswer = async () => {
-    if (!sessionData || !sessionData.questions || sessionData.currentQuestionIndex >= sessionData.questions.length) return;
-    
-    const currentQ = sessionData.questions[sessionData.currentQuestionIndex];
-    if (sessionData.sampleAnswers && sessionData.sampleAnswers[currentQ.id]) {
-      setSampleAnswerText(sessionData.sampleAnswers[currentQ.id]);
-      setIsSampleAnswerDialogOpen(true);
-      return;
-    }
-
+    if (!sessionData || sessionData.questions.length === 0) return;
     setIsFetchingSampleAnswer(true);
-    setSampleAnswerText(null);
     setSampleAnswerError(null);
-    setIsSampleAnswerDialogOpen(true); // Open dialog immediately to show loading state
+    setSampleAnswerText(null);
 
     try {
+      const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
       const input: GenerateSampleAnswerInput = {
-        questionText: currentQ.text,
+        questionText: currentQuestion.text,
         interviewType: sessionData.interviewType,
         faangLevel: sessionData.faangLevel,
-        interviewFocus: sessionData.interviewFocus,
-        targetedSkills: sessionData.targetedSkills,
-        idealAnswerCharacteristics: currentQ.idealAnswerCharacteristics,
+        interviewFocus: sessionData.interviewFocus || "",
+        targetedSkills: sessionData.targetedSkills || [],
+        idealAnswerCharacteristics: currentQuestion.idealAnswerCharacteristics || [],
       };
-      const result: GenerateSampleAnswerOutput = await generateSampleAnswer(input);
+      const result = await executeBYOKFlow<GenerateSampleAnswerInput, GenerateSampleAnswerOutput>('generateSampleAnswer', input);
       setSampleAnswerText(result.sampleAnswerText);
-      // Cache the fetched sample answer
-      setSessionData(prev => {
-        if (!prev) return null;
-        const updatedSampleAnswers = { ...(prev.sampleAnswers || {}), [currentQ.id]: result.sampleAnswerText };
-        const updatedSession = { ...prev, sampleAnswers: updatedSampleAnswers };
-        localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
-        return updatedSession;
-      });
-
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to get sample answer.";
+      if (sessionData && currentQuestion.id) {
+        setSessionData(prev => prev ? ({
+          ...prev,
+          sampleAnswers: { ...(prev.sampleAnswers || {}), [currentQuestion.id]: result.sampleAnswerText },
+        }) : null);
+      }
+    } catch (error: any) {
+      console.error("Error generating sample answer:", error);
+      const errorMsg = error instanceof Error ? error.message : "Failed to get sample answer.";
       setSampleAnswerError(errorMsg);
       toast({ title: "Sample Answer Error", description: errorMsg, variant: "destructive" });
     } finally {
       setIsFetchingSampleAnswer(false);
+    }
+  };
+
+  const openClarifyQuestionDialog = () => {
+    setUserClarifyingQuestionInput("");
+    setClarificationForQuestion(null);
+    setQuestionClarificationError(null);
+    setIsClarifyQuestionDialogOpen(true);
+  };
+
+  const handleFetchQuestionClarification = async () => {
+    if (!userClarifyingQuestionInput.trim() || !sessionData || sessionData.questions.length === 0) return;
+
+    setIsFetchingQuestionClarification(true);
+    setQuestionClarificationError(null);
+    setClarificationForQuestion(null);
+
+    try {
+      const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
+      const input: ClarifyInterviewQuestionInput = {
+        interviewQuestionText: currentQuestion.text,
+        userClarificationRequest: userClarifyingQuestionInput,
+        interviewContext: {
+          interviewType: sessionData.interviewType,
+          interviewStyle: sessionData.interviewStyle,
+          faangLevel: sessionData.faangLevel,
+          roleType: sessionData.roleType,
+          jobTitle: sessionData.jobTitle || "",
+          jobDescription: sessionData.jobDescription || "",
+          resume: sessionData.resume || "",
+          targetedSkills: sessionData.targetedSkills || [],
+          targetCompany: sessionData.targetCompany || "",
+          interviewFocus: sessionData.interviewFocus || "",
+          selectedThemeId: sessionData.selectedThemeId,
+          interviewerPersona: sessionData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+          caseStudyNotes: sessionData.caseStudyNotes || "",
+          previousConversation: sessionData.previousConversation || "",
+        }
+      };
+      const result = await executeBYOKFlow<ClarifyInterviewQuestionInput, ClarifyInterviewQuestionOutput>('clarifyInterviewQuestion', input);
+
+      setClarificationForQuestion(result.clarificationText);
+
+      // Append to previousConversation
+      const updatedPreviousConversation = (sessionData.previousConversation || "") + 
+        `\n\n[USER ASKS FOR CLARIFICATION ON: "${currentQuestion.text}"]\nUser's request: ${userClarifyingQuestionInput}` +
+        `\n[AI CLARIFIES]: ${result.clarificationText}`;
+        
+      // Update session data with the new previousConversation
+      const updatedSession = {
+        ...sessionData,
+        previousConversation: updatedPreviousConversation,
+      };
+      localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+      setSessionData(updatedSession);
+      
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to get clarification.";
+      setQuestionClarificationError(errorMsg);
+      toast({ title: "Clarification Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsFetchingQuestionClarification(false);
     }
   };
 
@@ -768,6 +856,8 @@ export default function InterviewSession() {
 
   const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
   const styleLabel = INTERVIEW_STYLES.find(s => s.value === sessionData.interviewStyle)?.label || sessionData.interviewStyle;
+  const personaLabel = INTERVIEWER_PERSONAS.find(p => p.value === sessionData.interviewerPersona)?.label || sessionData.interviewerPersona;
+
 
   const isCaseStudyStyle = sessionData.interviewStyle === 'case-study';
   const progressValue = isCaseStudyStyle
@@ -784,41 +874,35 @@ export default function InterviewSession() {
           <MessageSquare className="mr-3 h-7 w-7 text-primary" />
           Interview: {sessionData.interviewType} ({styleLabel})
         </CardTitle>
-        <div className="flex flex-wrap justify-between items-center text-sm text-muted-foreground gap-y-1">
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
+        <div className="flex flex-wrap justify-between items-center text-sm text-muted-foreground gap-x-4 gap-y-2 mt-1">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 items-center">
             {sessionData.jobTitle && (
-              <span className="flex items-center">
-                <Briefcase className="h-4 w-4 mr-1 text-primary" /> Role: {sessionData.jobTitle}
-              </span>
+              <span className="flex items-center"><Briefcase className="h-4 w-4 mr-1 text-primary/80" />{sessionData.jobTitle}</span>
             )}
-            <span>Level: {sessionData.faangLevel}</span>
+            <span className="flex items-center"><Star className="h-4 w-4 mr-1 text-primary/80" />Level: {sessionData.faangLevel}</span>
+             {sessionData.interviewerPersona && (
+              <span className="flex items-center"><UserCheck2 className="h-4 w-4 mr-1 text-primary/80" />Persona: {personaLabel}</span>
+            )}
             {isCaseStudyStyle ? (
-              <span className="flex items-center">
-                <Layers className="h-4 w-4 mr-1 text-primary" />
-                Turn: {(sessionData.currentCaseTurnNumber ?? 0) + 1}
-              </span>
+              <span className="flex items-center"><Layers className="h-4 w-4 mr-1 text-primary/80" />Turn: {(sessionData.currentCaseTurnNumber ?? 0) + 1}</span>
             ) : (
-               <span>Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}</span>
+               <span className="flex items-center">Question {sessionData.currentQuestionIndex + 1} of {sessionData.questions.length}</span>
             )}
             {sessionData.targetCompany && (
-              <span className="flex items-center">
-                <Building className="h-4 w-4 mr-1 text-primary" /> Target: {sessionData.targetCompany}
-              </span>
+              <span className="flex items-center"><Building className="h-4 w-4 mr-1 text-primary/80" />Target: {sessionData.targetCompany}</span>
             )}
             {sessionData.interviewFocus && (
-              <span className="flex items-center">
-                <SearchCheck className="h-4 w-4 mr-1 text-primary" /> Focus: {sessionData.interviewFocus}
-              </span>
+              <span className="flex items-center"><SearchCheck className="h-4 w-4 mr-1 text-primary/80" />Focus: {sessionData.interviewFocus}</span>
             )}
           </div>
           {sessionData.interviewStarted && !sessionData.interviewFinished && sessionData.currentQuestionStartTime && sessionData.interviewStyle !== 'take-home' && (
-            <div className="flex items-center text-sm text-muted-foreground">
+            <div className="flex items-center text-sm text-muted-foreground shrink-0">
               <TimerIcon className="h-4 w-4 mr-1" />
               {formatMilliseconds(currentTime)}
             </div>
           )}
         </div>
-        <Progress value={progressValue} className="mt-2" />
+        <Progress value={progressValue} className="mt-3" />
       </CardHeader>
       <CardContent className="space-y-6">
         {isCaseStudyStyle && sessionData.caseConversationHistory && sessionData.caseConversationHistory.length > 0 && (
@@ -867,14 +951,17 @@ export default function InterviewSession() {
              <p className={`text-lg mb-3 ${sessionData.interviewStyle === 'take-home' ? 'whitespace-pre-wrap p-4 border rounded-md bg-secondary/30' : ''}`}>
                 {currentQuestion.text}
             </p>
-            <div className="flex space-x-1 mb-3 items-center">
+            <div className="mb-3">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="text-xs text-muted-foreground hover:text-primary">
+                        <Button variant="outline" size="sm" className="text-xs text-muted-foreground hover:text-primary hover:bg-secondary/50">
                             <HelpCircle className="mr-1.5 h-3.5 w-3.5" /> Help Tools
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={openClarifyQuestionDialog}>
+                            <MessageCircleQuestion className="mr-2 h-4 w-4" /> Clarify This Question
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={openExplainTermDialog}>
                             <Lightbulb className="mr-2 h-4 w-4" /> Explain a concept
                         </DropdownMenuItem>
@@ -1103,6 +1190,57 @@ export default function InterviewSession() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isClarifyQuestionDialogOpen} onOpenChange={setIsClarifyQuestionDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <MessageCircleQuestion className="mr-2 h-5 w-5 text-primary" /> Clarify Interview Question
+            </DialogTitle>
+            {currentQuestion && <DialogDescription>Original Question: "{currentQuestion.text}"</DialogDescription>}
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <Input
+              placeholder="Type your question about the AI's question..."
+              value={userClarifyingQuestionInput}
+              onChange={(e) => setUserClarifyingQuestionInput(e.target.value)}
+              disabled={isFetchingQuestionClarification}
+            />
+            {isFetchingQuestionClarification && (
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Getting clarification...
+              </div>
+            )}
+            {questionClarificationError && !isFetchingQuestionClarification && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{questionClarificationError}</AlertDescription>
+              </Alert>
+            )}
+            {clarificationForQuestion && !isFetchingQuestionClarification && (
+              <Alert variant="default" className="bg-sky-50 border-sky-200">
+                <Lightbulb className="h-4 w-4 text-sky-600" />
+                <AlertTitle className="text-sky-700">AI Clarification:</AlertTitle>
+                <AlertDescription className="text-sky-700 whitespace-pre-wrap">
+                  {clarificationForQuestion}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter className="sm:justify-end">
+             <DialogClose asChild>
+              <Button type="button" variant="secondary">Close</Button>
+            </DialogClose>
+            <Button type="button" onClick={handleFetchQuestionClarification} disabled={isFetchingQuestionClarification || !userClarifyingQuestionInput.trim()}>
+              {isFetchingQuestionClarification ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              Get Clarification
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
+

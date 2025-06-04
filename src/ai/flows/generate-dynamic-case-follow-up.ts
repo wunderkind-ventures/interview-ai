@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Generates a dynamic follow-up question for a case study interview.
@@ -10,10 +9,13 @@
  * - GenerateDynamicCaseFollowUpOutput - Output type for this flow.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAI } from '@/ai/genkit';
 import {z} from 'genkit';
-import type { InterviewSetupData } from '@/lib/types'; // For interviewContext
-import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
+import type { InterviewSetupData } from '@/lib/types';
+import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
+import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
 
 const GenerateDynamicCaseFollowUpInputSchema = z.object({
   internalNotesFromInitialScenario: z
@@ -27,8 +29,13 @@ const GenerateDynamicCaseFollowUpInputSchema = z.object({
     .describe("The user's answer to the previous question."),
   conversationHistory: z
     .array(z.object({ questionText: z.string(), answerText: z.string() }))
+    .optional()
     .describe("The history of questions and answers in this case study so far, to provide context and avoid repetition."),
-  interviewContext: z.custom<InterviewSetupData>() // Pass the full InterviewSetupData
+  previousConversation: z // Added to ensure the full string transcript can be passed
+    .string()
+    .optional()
+    .describe("The full string transcript of the conversation so far, including any clarifications."),
+  interviewContext: z.custom<InterviewSetupData>()
     .describe("The overall context of the interview (type, level, focus, job title, etc.)."),
   currentTurnNumber: z
     .number()
@@ -51,108 +58,75 @@ const GenerateDynamicCaseFollowUpOutputSchema = z.object({
 });
 export type GenerateDynamicCaseFollowUpOutput = z.infer<typeof GenerateDynamicCaseFollowUpOutputSchema>;
 
+const MAX_CASE_FOLLOW_UPS = 4;
+
+const RAW_DYNAMIC_CASE_FOLLOW_UP_PROMPT = loadPromptFile("generate-dynamic-case-follow-up.prompt");
+
 export async function generateDynamicCaseFollowUp(
-  input: GenerateDynamicCaseFollowUpInput
+  input: GenerateDynamicCaseFollowUpInput,
+  options?: { aiInstance?: any, apiKey?: string }
 ): Promise<GenerateDynamicCaseFollowUpOutput> {
-  return generateDynamicCaseFollowUpFlow(input);
-}
+  let activeAI = globalAI;
+  const flowNameForLogging = 'generateDynamicCaseFollowUp';
 
-const MAX_CASE_FOLLOW_UPS = 4; // Generate up to 4 follow-ups after the initial question.
-
-const dynamicCaseFollowUpPrompt = ai.definePrompt({
-  name: 'generateDynamicCaseFollowUpPrompt',
-  input: { schema: GenerateDynamicCaseFollowUpInputSchema },
-  output: { schema: GenerateDynamicCaseFollowUpOutputSchema },
-  prompt: `You are an **Expert Interviewer AI**, skilled at conducting dynamic, multi-turn case study interviews.
-Your current task is to generate the **next single follow-up question** based on the ongoing case study.
-
-**Overall Case Context (from initial setup):**
-{{internalNotesFromInitialScenario}}
-
-**Interview Setup:**
-- Interview Type: {{interviewContext.interviewType}}
-- FAANG Level: {{interviewContext.faangLevel}}
-{{#if interviewContext.jobTitle}}- Job Title: {{interviewContext.jobTitle}}{{/if}}
-{{#if interviewContext.interviewFocus}}- Specific Focus: {{interviewContext.interviewFocus}}{{/if}}
-{{#if interviewContext.targetCompany}}- Target Company: {{interviewContext.targetCompany}}{{/if}}
-
-**Conversation History (Most Recent First):**
-{{#each conversationHistory}}
-  Interviewer: "{{this.questionText}}"
-  Candidate: "{{this.answerText}}"
-{{/each}}
----
-Last Question Asked to Candidate: "{{previousQuestionText}}"
-Candidate's Last Answer: "{{previousUserAnswerText}}"
----
-
-**Your Task (Turn {{currentTurnNumber}} of follow-ups):**
-1.  **Analyze Context:** Review the 'Overall Case Context', the 'Interview Setup', the full 'Conversation History', and especially the 'Candidate's Last Answer'.
-2.  **Generate ONE Follow-up Question:**
-    *   The question should be a natural continuation of the discussion, probing deeper into an aspect of the candidate's last answer or introducing a new, relevant dimension/constraint to the case.
-    *   It must be relevant to the 'Overall Case Context' and the 'Interview Setup' (especially 'faangLevel' and 'interviewFocus').
-    *   Avoid simple yes/no questions. Aim for questions that require critical thinking, trade-off analysis, or further problem decomposition.
-    *   Do not repeat questions already asked.
-3.  **Define Ideal Answer Characteristics:** For your generated follow-up question, list 2-3 brief key characteristics of a strong answer.
-4.  **Assess if Final Follow-up:**
-    *   Based on the 'currentTurnNumber' (you are generating the question for this turn) and the depth of the conversation, decide if this is likely a good point to conclude the case.
-    *   Typically, a case study might have 3-5 follow-up questions in total after the initial question. Set 'isLikelyFinalFollowUp' to true if 'currentTurnNumber' is >= ${MAX_CASE_FOLLOW_UPS} OR if the candidate's last answer suggests a natural resolution or comprehensive coverage of the main problem. Otherwise, set it to false.
-
-**Example Areas to Probe (depending on case type and prior answers):**
-- Clarification of assumptions made by the candidate.
-- Trade-offs they considered or should consider.
-- How they would measure success or validate their approach.
-- Potential risks and mitigation strategies.
-- Scalability, edge cases, error handling.
-- Stakeholder considerations.
-- Prioritization if multiple options were presented.
-
-{{#if interviewContext.targetCompany}}
-If the interviewContext.targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
-**Amazon-Specific Considerations:**
-Frame your follow-up to provide opportunities to demonstrate Amazon's Leadership Principles.
-The Amazon Leadership Principles are:
-{{{AMAZON_LPS_LIST}}}
-{{/if}}
-
-Output a JSON object matching the GenerateDynamicCaseFollowUpOutputSchema.
-`,
-  customize: (promptDef, callInput) => {
-    let promptText = promptDef.prompt!;
-    if (callInput.interviewContext?.targetCompany && callInput.interviewContext.targetCompany.toLowerCase() === 'amazon') {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
-    } else {
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+    console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance.`);
+  } else if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+      });
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
+    } catch (e) {
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize with user API key: ${(e as Error).message}. Falling back.`);
+      // activeAI remains globalAI
     }
-    return {
-      ...promptDef,
-      prompt: promptText,
-    };
+  } else {
+     console.log(`[BYOK] ${flowNameForLogging}: No specific API key or AI instance provided; using default global AI instance.`);
   }
-});
 
-const generateDynamicCaseFollowUpFlow = ai.defineFlow(
-  {
-    name: 'generateDynamicCaseFollowUpFlow',
-    inputSchema: GenerateDynamicCaseFollowUpInputSchema,
-    outputSchema: GenerateDynamicCaseFollowUpOutputSchema,
-  },
-  async (input: GenerateDynamicCaseFollowUpInput): Promise<GenerateDynamicCaseFollowUpOutput> => {
-    if (input.currentTurnNumber > MAX_CASE_FOLLOW_UPS + 2) { // Safety break
-        return {
-            followUpQuestionText: "Thank you, that concludes this case study.",
-            idealAnswerCharacteristicsForFollowUp: [],
-            isLikelyFinalFollowUp: true,
-        };
+  if (input.currentTurnNumber > MAX_CASE_FOLLOW_UPS + 2) { // Add a little buffer
+      return {
+          followUpQuestionText: "Thank you, that concludes this case study.",
+          idealAnswerCharacteristicsForFollowUp: [],
+          isLikelyFinalFollowUp: true,
+      };
+  }
+
+  const saneInput = { 
+    ...input,
+    interviewContext: {
+      ...input.interviewContext,
+      interviewerPersona: input.interviewContext.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
     }
+  };
 
-    const {output} = await dynamicCaseFollowUpPrompt(input);
+  const contextForPrompt = {
+    ...saneInput,
+    renderAmazonLPsSection: saneInput.interviewContext?.targetCompany?.toLowerCase() === 'amazon',
+    amazonLpsList: saneInput.interviewContext?.targetCompany?.toLowerCase() === 'amazon' 
+      ? AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n') 
+      : '', 
+    maxCaseFollowUps: MAX_CASE_FOLLOW_UPS,
+  };
+
+  try {
+    const renderedPrompt = renderPromptTemplate(RAW_DYNAMIC_CASE_FOLLOW_UP_PROMPT, contextForPrompt);
+    console.log(`[BYOK] ${flowNameForLogging}: Rendered Prompt:\n`, renderedPrompt);
+
+    const result = await activeAI.generate<typeof GenerateDynamicCaseFollowUpOutputSchema>({
+        prompt: renderedPrompt,
+        model: googleAI.model('gemini-1.5-flash-latest'),
+        output: { schema: GenerateDynamicCaseFollowUpOutputSchema },
+        config: { responseMimeType: "application/json" },
+    });
+
+    const output = result.output;
 
     if (!output || !output.followUpQuestionText) {
-        // Basic fallback if AI fails
         let fallbackText = "Could you elaborate on the potential risks of your proposed approach?";
-        if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS) {
+        if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS) { 
             fallbackText = "Thanks for walking me through your thoughts. What would be your key success metrics for this initiative?";
         }
          return {
@@ -161,13 +135,21 @@ const generateDynamicCaseFollowUpFlow = ai.defineFlow(
             isLikelyFinalFollowUp: input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS,
         };
     }
-    // Ensure isLikelyFinalFollowUp is true if currentTurnNumber hits the typical max
+
+    let finalOutput = { ...output };
     if (input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS && !output.isLikelyFinalFollowUp) {
-        output.isLikelyFinalFollowUp = true;
+        finalOutput.isLikelyFinalFollowUp = true;
     }
 
-    return output;
-  }
-);
+    return finalOutput;
 
-    
+  } catch (error) {
+    console.error(`[BYOK] Error in ${flowNameForLogging} (Input: ${JSON.stringify(saneInput, null, 2)}):`, error);
+    // Provide a user-friendly fallback question in case of error
+    return {
+        followUpQuestionText: "There was an issue generating the next question. Let's try a different angle: Can you summarize the key trade-offs you've considered so far in this case?",
+        idealAnswerCharacteristicsForFollowUp: ["Clear articulation of 2-3 trade-offs", "Justification for choices made or proposed"],
+        isLikelyFinalFollowUp: input.currentTurnNumber >= MAX_CASE_FOLLOW_UPS, 
+    };
+  }
+}

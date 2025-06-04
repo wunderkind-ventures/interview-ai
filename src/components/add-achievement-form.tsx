@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from "@/components/ui/card"; // Renamed CardTitle to UiCardTitle
+import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from "@/components/ui/card"; 
 import { CalendarIcon, Loader2, Save, Sparkles, AlertTriangle, Lightbulb, CheckSquare, X } from "lucide-react";
 import { format, parseISO } from 'date-fns';
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ import type { Achievement } from "@/lib/types";
 import { getAchievementComponentGuidance } from "@/ai/flows/get-achievement-component-guidance";
 import type { GetAchievementComponentGuidanceOutput, GetAchievementComponentGuidanceInput } from "@/ai/flows/get-achievement-component-guidance";
 import { Badge } from "./ui/badge";
-import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "./ui/alert"; // Renamed AlertDescription
+import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "./ui/alert"; 
 
 
 const achievementFormSchema = z.object({
@@ -372,17 +372,15 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
 
           {activeHelpComponent && (aiGuidance || isFetchingAiGuidance || aiGuidanceError) && (
             <Card ref={aiAssistancePanelRef} className="mt-6 mb-4 border-primary/50 shadow-md">
-              <CardHeader className="py-3 px-4 bg-primary/10">
-                <div className="flex items-center justify-between">
-                    <UiCardTitle className="text-base font-semibold text-primary flex items-center">
-                        <Sparkles className="h-5 w-5 mr-2" />
-                        AI Assistance for {activeHelpComponent.charAt(0).toUpperCase() + activeHelpComponent.slice(1)}
-                    </UiCardTitle>
-                    <Button variant="ghost" size="icon" onClick={closeAiAssistancePanel} className="h-7 w-7 text-muted-foreground hover:text-destructive">
-                        <X className="h-4 w-4" />
-                        <span className="sr-only">Close AI Assistance</span>
-                    </Button>
-                </div>
+              <CardHeader className="py-3 px-4 bg-primary/10 flex-row items-center justify-between">
+                  <UiCardTitle className="text-base font-semibold text-primary flex items-center">
+                      <Sparkles className="h-5 w-5 mr-2" />
+                      AI Assistance for {activeHelpComponent.charAt(0).toUpperCase() + activeHelpComponent.slice(1)}
+                  </UiCardTitle>
+                  <Button variant="ghost" size="icon" onClick={closeAiAssistancePanel} className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Close AI Assistance</span>
+                  </Button>
               </CardHeader>
               <CardContent className="p-4 space-y-3 text-sm">
                 {isFetchingAiGuidance && (
@@ -418,7 +416,7 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
                     )}
                     {aiGuidance.suggestedPointsToConsider && aiGuidance.suggestedPointsToConsider.length > 0 && (
                       <div>
-                        <h5 className="font-semibold text-muted-foreground mb-1.5 flex items-center"><CheckSquare className="h-4 w-4 mr-1.5 text-green-500" />Suggested Points to Consider:</h5>
+                        <h4 className="font-semibold text-muted-foreground mb-1.5 flex items-center"><CheckSquare className="h-4 w-4 mr-2 text-green-500" />Suggested Points to Consider:</h4>
                          <div className="flex flex-wrap gap-1.5">
                           {aiGuidance.suggestedPointsToConsider.map((s, i) => (
                             <Badge key={`sp-${i}`} variant="secondary" className="text-xs font-normal">{s}</Badge>
@@ -451,3 +449,4 @@ export function AddAchievementForm({ userId, existingAchievement, onFormSubmit }
     </>
   );
 }
+

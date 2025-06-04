@@ -1,23 +1,24 @@
-
-'use server';
+'use strict';
 /**
  * @fileOverview Generates the initial setup for a case study interview.
  * This flow provides the main scenario description, the first question to ask,
  * and internal notes to guide subsequent dynamic follow-up questions.
  *
  * - generateInitialCaseSetup - Function to generate the case study's starting point.
- * - GenerateInitialCaseSetupInput - Input type (likely same as CustomizeInterviewQuestionsInput).
+ * - GenerateInitialCaseSetupInput - Input type.
  * - GenerateInitialCaseSetupOutput - Output type for the initial case setup.
  */
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAI, getTechnologyBriefTool as globalGetTechnologyBriefTool, findRelevantAssessmentsTool as globalFindRelevantAssessmentsTool } from '@/ai/genkit';
+import {z, type Genkit as GenkitInstanceType, type ModelReference} from 'genkit';
+import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
+import { defineGetTechnologyBriefTool } from '../tools/technology-tools';
+import { defineFindRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool';
+import { CustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput } from '../schemas';
+import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
-import { getTechnologyBriefTool } from '../tools/technology-tools';
-// Using CustomizeInterviewQuestionsInputSchema as the input for this specialized flow too,
-// as it contains all necessary context (job title, desc, level, focus, etc.)
-import { CustomizeInterviewQuestionsInputSchema } from '../schemas';
-export type GenerateInitialCaseSetupInput = z.infer<typeof CustomizeInterviewQuestionsInputSchema>;
+export type GenerateInitialCaseSetupInput = CustomizeInterviewQuestionsInput;
 
 const GenerateInitialCaseSetupOutputSchema = z.object({
   caseTitle: z.string().describe("A concise, engaging title for the case study (e.g., 'The Profile Gate Challenge', 'Revitalizing a Legacy System')."),
@@ -35,146 +36,97 @@ const GenerateInitialCaseSetupOutputSchema = z.object({
     .string()
     .describe('Concise internal notes, keywords, or key aspects of the case scenario. This will be passed to a subsequent AI flow that generates dynamic follow-up questions, helping it stay on topic and probe relevant areas.'),
 });
-
 export type GenerateInitialCaseSetupOutput = z.infer<
   typeof GenerateInitialCaseSetupOutputSchema
 >;
 
-// Exported function to be called by the orchestrator
+const RAW_INITIAL_CASE_SETUP_PROMPT = loadPromptFile('generate-initial-case-setup.prompt');
+
 export async function generateInitialCaseSetup(
-  input: GenerateInitialCaseSetupInput
+  input: GenerateInitialCaseSetupInput,
+  options?: { aiInstance?: GenkitInstanceType, tools?: any[], apiKey?: string, userGoogleAIPlugin?: any }
 ): Promise<GenerateInitialCaseSetupOutput> {
-  return generateInitialCaseSetupFlow(input);
-}
+  let aiInstanceToUse: GenkitInstanceType = globalAI;
+  let toolsToUse: any[];
+  const flowNameForLogging = 'generateInitialCaseSetup';
 
-const initialCaseSetupPrompt = ai.definePrompt({
-  name: 'generateInitialCaseSetupPrompt',
-  tools: [getTechnologyBriefTool],
-  input: {
-    schema: CustomizeInterviewQuestionsInputSchema,
-  },
-  output: {
-    schema: GenerateInitialCaseSetupOutputSchema,
-  },
-  prompt: `You are an **Expert Case Study Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**. You excel at designing compelling and realistic case study interviews.
-Your task is to design the **initial setup** for a case study.
-This setup includes:
-1.  A 'caseTitle'.
-2.  A 'fullScenarioDescription': A detailed narrative that sets the stage. This should be rich and multi-layered, especially for higher FAANG levels, providing enough detail to be immersive but leaving room for clarification and candidate assumptions.
-3.  The 'firstQuestionToAsk': The very first question for the candidate. This should be open-ended, prompting the candidate to frame their approach, ask clarifying questions, or outline their initial strategy. Example: "Given this scenario, how would you begin to approach this problem, and what are your immediate clarifying questions?" or "What are your initial thoughts on the core challenges and opportunities presented here?"
-4.  'idealAnswerCharacteristicsForFirstQuestion': 2-3 key elements for a strong answer to that first question.
-5.  'internalNotesForFollowUpGenerator': A concise summary of key themes, challenges, or areas to probe in the case. This will guide another AI in generating dynamic follow-up questions. For example: "Key challenges: scaling, data privacy, cross-team collaboration. Core trade-offs: cost vs. performance, speed vs. reliability. Potential areas to probe: user impact, metrics, technical debt."
-
-**Core Instructions & Persona Nuances:**
-- Your persona is that of a seasoned hiring manager. Your goal is to craft case studies that are not just tests but learning experiences, making candidates think critically and reveal their problem-solving process.
-- The scenario must be challenging and allow for multiple valid approaches. It should NOT have an obvious single 'correct' answer.
-- Calibrate the complexity, ambiguity, and scope of the scenario and first question to the 'faangLevel'. For the given 'faangLevel', consider typical industry expectations regarding: Ambiguity, Complexity, Scope, and Execution.
-  - Example: L3/L4 cases: more defined problems, clearer scope.
-  - Example: L5/L6 cases: more ambiguous scenarios, candidate needs to define scope and assumptions, solution might involve strategic trade-offs.
-  - Example: L7 cases: highly complex, strategic, or organization-wide problems with significant ambiguity.
-- The 'interviewFocus', 'jobTitle', and 'jobDescription' should heavily influence the theme and specifics of the case.
-- **Internal Reflection on Ideal Answer Characteristics:** Before finalizing the first question, briefly consider the key characteristics or elements a strong answer would demonstrate. This internal reflection will help ensure the question is well-posed. You DO need to output these characteristics for the 'idealAnswerCharacteristicsForFirstQuestion' field.
-
-**Input Context to Consider:**
-{{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
-{{#if jobDescription}}Job Description: {{{jobDescription}}}{{/if}}
-{{#if resume}}Candidate Resume Context (for subtle angling, do not reference directly): {{{resume}}}{{/if}}
-Interview Type: {{{interviewType}}}
-Interview Style: case-study (You are generating the initial setup)
-{{#if faangLevel}}FAANG Level: {{{faangLevel}}}{{/if}}
-{{#if targetCompany}}Target Company: {{{targetCompany}}}{{/if}}
-{{#if targetedSkills.length}}
-Targeted Skills:
-{{#each targetedSkills}}
-- {{{this}}}
-{{/each}}
-{{/if}}
-{{#if interviewFocus}}Specific Focus: {{{interviewFocus}}}{{/if}}
-
-**Scenario Generation Logic:**
-- **Theme:**
-    If the interviewType is "technical system design": The scenario will be a system to design or a major architectural challenge. Design a realistic, multi-faceted problem.
-    If the interviewType is "product sense": A product strategy, market entry, feature design, or problem-solving challenge. Ensure it's engaging and requires strategic thinking.
-    If the interviewType is "behavioral": A complex hypothetical workplace situation requiring judgment and principle-based decision-making. Frame it as a leadership challenge if appropriate for the level.
-    If the interviewType is "machine learning": An ML System Design problem or a strategic ML initiative. The scenario should be detailed enough to allow for discussion of data, models, evaluation, and deployment.
-    If the interviewType is "data structures & algorithms": A complex algorithmic problem that requires significant decomposition and discussion before coding. The 'firstQuestionToAsk' might be about understanding requirements or initial approaches for this multi-faceted problem.
-
-{{#if targetCompany}}
-If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
-**Amazon-Specific Considerations:**
-Ensure the scenario and potential follow-ups (guided by your internal notes) provide opportunities to demonstrate Amazon's Leadership Principles.
-The Amazon Leadership Principles are:
-{{{AMAZON_LPS_LIST}}}
-{{/if}}
-
-**Final Output Format:**
-Output a JSON object strictly matching the GenerateInitialCaseSetupOutputSchema. Ensure 'caseTitle', 'fullScenarioDescription', 'firstQuestionToAsk', 'idealAnswerCharacteristicsForFirstQuestion', and 'internalNotesForFollowUpGenerator' are all populated with relevant, detailed content.
-`,
-  customize: (promptDef, callInput) => {
-    let promptText = promptDef.prompt!;
-    if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
-    } else {
-      // Remove the whole Amazon section if not Amazon, or leave it to the LLM to ignore
-      // For simplicity, let's rely on the LLM ignoring it if the condition isn't met in its reasoning
-      // Or, we can remove the placeholder if it's not Amazon.
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
+  if (options?.aiInstance && options.aiInstance !== globalAI) {
+    aiInstanceToUse = options.aiInstance;
+    toolsToUse = options.tools || [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool];
+    console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance and its tools.`);
+  } else if (options?.apiKey) {
+    try {
+      const userGoogleAIPlugin = googleAI({ apiKey: options.apiKey });
+      const userKitInstance = genkit({ plugins: [userGoogleAIPlugin] });
+      aiInstanceToUse = userKitInstance;
+      const techTool = await defineGetTechnologyBriefTool(userKitInstance);
+      const assessTool = await defineFindRelevantAssessmentsTool(userKitInstance);
+      toolsToUse = [techTool, assessTool];
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key and new tools for this instance.`);
+    } catch (e) {
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize with user API key: ${(e as Error).message}. Falling back to global AI and tools.`);
+      aiInstanceToUse = globalAI;
+      toolsToUse = [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool];
     }
+  } else {
+    aiInstanceToUse = globalAI;
+    toolsToUse = [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool];
+    console.log(`[BYOK] ${flowNameForLogging}: Using default global AI instance and tools.`);
+  }
+
+  const saneInput: GenerateInitialCaseSetupInput = { 
+    ...input, 
+    interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value 
+  };
+
+  const contextForPrompt = {
+    ...saneInput,
+    renderAmazonLPsSection: saneInput.targetCompany?.toLowerCase() === 'amazon',
+    amazonLpsList: saneInput.targetCompany?.toLowerCase() === 'amazon' 
+      ? AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n') 
+      : '',
+  };
+
+  try {
+    const renderedPrompt = renderPromptTemplate(RAW_INITIAL_CASE_SETUP_PROMPT, contextForPrompt);
+    console.log(`[BYOK] ${flowNameForLogging}: Rendered Prompt:\n`, renderedPrompt);
+
+    console.log(`[BYOK] ${flowNameForLogging}: Calling aiInstanceToUse.generate()`);
+    const generateResult = await aiInstanceToUse.generate<typeof GenerateInitialCaseSetupOutputSchema>({ 
+      model: googleAI.model('gemini-1.5-flash-latest') as ModelReference<any>,
+      prompt: renderedPrompt,
+      tools: toolsToUse,
+      output: { schema: GenerateInitialCaseSetupOutputSchema }, 
+      config: { responseMimeType: 'application/json' },
+    });
+    
+    let outputFromAI = generateResult.output;
+
+    if (!outputFromAI) {
+      console.warn(`[BYOK] ${flowNameForLogging}: AI response was null or undefined. Triggering fallback.`);
+      outputFromAI = null;
+    }
+          
+    if (!outputFromAI || !outputFromAI.fullScenarioDescription || !outputFromAI.firstQuestionToAsk) {
+      console.warn(`${flowNameForLogging}: AI Case Study Generation Fallback - Essential fields missing or AI response issue. Input:`, saneInput);
+      return {
+        caseTitle: 'Fallback Case Study: Error Occurred',
+        fullScenarioDescription: 'An unexpected error occurred while generating the case study scenario. Please try again or contact support if the issue persists.',
+        firstQuestionToAsk: 'Please describe a past project or challenge you encountered.',
+        idealAnswerCharacteristicsForFirstQuestion: ['Problem identification', 'Solution approach', 'Outcome/Learning'],
+        internalNotesForFollowUpGenerator: 'Error during generation. Focus on general problem-solving.'
+      };
+    }
+    return outputFromAI;
+
+  } catch (error) {
+    console.error(`[BYOK] Error in ${flowNameForLogging} (input: ${JSON.stringify(input)}):`, error);
     return {
-      ...promptDef,
-      prompt: promptText,
+      caseTitle: 'Error Case Study: Generation Failed',
+      fullScenarioDescription: `An error occurred while generating the case study: ${error instanceof Error ? error.message : 'Unknown error'}. Please review the inputs and try again.`,
+      firstQuestionToAsk: 'Could you describe a significant challenge you faced in a previous role and how you addressed it?',
+      idealAnswerCharacteristicsForFirstQuestion: ['Clear description of the challenge', 'Explanation of actions taken', 'Reflection on the outcome and learnings'],
+      internalNotesForFollowUpGenerator: `Error: ${error instanceof Error ? error.message : 'Unknown error'}. Focus on general behavioral questions.`
     };
   }
-});
-
-const generateInitialCaseSetupFlow = ai.defineFlow(
-  {
-    name: 'generateInitialCaseSetupFlow', // Renamed flow
-    inputSchema: CustomizeInterviewQuestionsInputSchema,
-    outputSchema: GenerateInitialCaseSetupOutputSchema,
-  },
-  async (input: GenerateInitialCaseSetupInput): Promise<GenerateInitialCaseSetupOutput> => {
-    try {
-        const {output} = await initialCaseSetupPrompt(input);
-        if (!output || !output.fullScenarioDescription || !output.firstQuestionToAsk || !output.caseTitle || !output.internalNotesForFollowUpGenerator) {
-            console.warn(`AI Initial Case Setup Fallback Triggered. Input: ${JSON.stringify(input)}`);
-            const scenarioType = input.interviewType === "technical system design" ? "system design challenge" :
-                                 input.interviewType === "machine learning" ? "ML problem" :
-                                 input.interviewType === "data structures & algorithms" ? "algorithmic design task" :
-                                 "product strategy scenario";
-            const fallbackTitle = `${input.interviewFocus || scenarioType} Setup (${input.faangLevel})`;
-            const fallbackDescription = `You are tasked with addressing a significant ${scenarioType} for a ${input.jobTitle || 'relevant role'} at ${input.targetCompany || 'a leading tech firm'}, focusing on "${input.interviewFocus || input.interviewType}". The complexity is aligned with a ${input.faangLevel || 'senior'} level. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${input.faangLevel} expectations for this domain].`;
-            const fallbackFirstQuestion = "Given this situation, what are your initial thoughts, and what clarifying questions would you ask to better understand the problem space and constraints?";
-            const fallbackIdealChars = ["Problem framing and clarification", "Identification of key ambiguities", "Structured approach to information gathering"];
-            const fallbackInternalNotes = `Fallback Case. Focus: ${input.interviewFocus || scenarioType}. Level: ${input.faangLevel}. Key areas: problem definition, initial strategy, constraints.`;
-
-            return {
-                caseTitle: fallbackTitle,
-                fullScenarioDescription: fallbackDescription,
-                firstQuestionToAsk: fallbackFirstQuestion,
-                idealAnswerCharacteristicsForFirstQuestion: fallbackIdealChars,
-                internalNotesForFollowUpGenerator: fallbackInternalNotes,
-            };
-        }
-        return output;
-    } catch (error) {
-        const errMessage = error instanceof Error ? error.message : 'Unknown error during initial case setup generation.';
-        console.error(`Error in generateInitialCaseSetupFlow (input: ${JSON.stringify(input)}):`, error);
-        const fallbackTitle = `Error: ${input.interviewFocus || input.interviewType} Setup (${input.faangLevel})`;
-        const fallbackDescription = `Error generating initial case setup for ${input.jobTitle || 'role'} on ${input.interviewFocus || input.interviewType}. The AI model might be temporarily unavailable or the prompt requires adjustment. Error: ${errMessage}`;
-        const fallbackFirstQuestion = "An error occurred generating the first question. Please try again later or reconfigure your interview.";
-        const fallbackIdealChars = ["Report error."];
-        const fallbackInternalNotes = `Error in generation. Input: ${JSON.stringify(input)}. Error: ${errMessage}`;
-        return {
-            caseTitle: fallbackTitle,
-            fullScenarioDescription: fallbackDescription,
-            firstQuestionToAsk: fallbackFirstQuestion,
-            idealAnswerCharacteristicsForFirstQuestion: fallbackIdealChars,
-            internalNotesForFollowUpGenerator: fallbackInternalNotes,
-        };
-    }
-  }
-);
-
-    
+}

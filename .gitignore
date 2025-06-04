@@ -1,5 +1,12 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# secrets
+/backends/byot-go-backend/serviceAccountKey.json
+/backends/byot-go-backend/interviewai-byot.json
+.env
+.env.local
+
+
 # dependencies
 /node_modules
 /.pnp
@@ -38,8 +45,14 @@ yarn-error.log*
 next-env.d.ts
 
 .genkit/*
-.env*
 
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# prototyping
+/context_backup
+
+/backends/byot-go-backend/vendor/
+
+/debugging/

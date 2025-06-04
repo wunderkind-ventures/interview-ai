@@ -1,30 +1,36 @@
-
 'use server';
 /**
  * @fileOverview Generates feedback for a completed interview session.
  * This flow now orchestrates initial feedback generation and then refines it.
+ * For take-home assignments, it uses a specialized analysis flow.
  *
  * - generateInterviewFeedback - A function that provides feedback on interview answers.
  * - GenerateInterviewFeedbackInput - The input type for the feedback generation.
  * - GenerateInterviewFeedbackOutput - The return type containing feedback items and an overall summary.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi, getTechnologyBriefTool } from '@/ai/genkit';
 import {z} from 'genkit';
-import { getTechnologyBriefTool } from '../tools/technology-tools';
 import { refineInterviewFeedback } from './refine-interview-feedback';
 import type { RefineInterviewFeedbackInput } from './refine-interview-feedback';
-import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema, type GenerateInterviewFeedbackOutput } from '../schemas'; // Import from shared schemas
+import { FeedbackItemSchema, GenerateInterviewFeedbackOutputSchema } from '../schemas'; 
+import type { GenerateInterviewFeedbackOutput } from '../schemas';
+import { analyzeTakeHomeSubmission } from './analyze-take-home-submission'; 
+import type { AnalyzeTakeHomeSubmissionInput, AnalyzeTakeHomeSubmissionOutput, AnalyzeTakeHomeSubmissionContext } from '@/lib/types'; 
+import { INTERVIEW_TYPES, FAANG_LEVELS, INTERVIEW_STYLES, SKILLS_BY_ROLE, RoleType as RoleTypeFromConstants } from '@/lib/constants';
+import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
 
 // Input schema for the data needed by the initial prompt template
 const DraftPromptInputSchema = z.object({
   interviewType: z.string(),
-  interviewStyle: z.string(), // Will be used to set boolean flags
   faangLevel: z.string().describe("The target FAANG level, influencing expected depth and quality of answers."),
   jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
   resume: z.string().optional(),
   interviewFocus: z.string().optional(),
+  evaluatedSkills: z.array(z.string()).optional().describe("The specific skills that were evaluated or targeted during this interview session."),
   questionsAndAnswers: z.array(
     z.object({
       questionId: z.string(),
@@ -36,9 +42,9 @@ const DraftPromptInputSchema = z.object({
       confidenceScore: z.number().min(1).max(5).optional().describe("User's self-rated confidence (1-5 stars) for their answer."),
     })
   ),
-  // Boolean flags for Handlebars
-  isTakeHomeStyle: z.boolean(),
-  isSimpleQAOrCaseStudyStyle: z.boolean(),
+  isTakeHomeStyle: z.boolean(), 
+  isSimpleQAOrCaseStudyStyle: z.boolean(), 
+  structuredTakeHomeAnalysis: z.custom<AnalyzeTakeHomeSubmissionOutput>().optional().describe("Detailed analysis if it's a take-home assignment."),
 });
 
 // Schema for what the AI model is expected to return for each feedback item (draft stage)
@@ -74,13 +80,13 @@ const AIDraftFeedbackItemSchema = z.object({
 
 // Schema for the overall AI model output (draft stage)
 const AIDraftOutputSchema = z.object({
-  feedbackItems: z
+  feedbackItems: z 
     .array(AIDraftFeedbackItemSchema)
-    .describe('An array of feedback objects, one for each question.'),
+    .describe('An array of feedback objects, one for each question (or one for a take-home).'),
   overallSummary: z
     .string()
     .describe(
-      'A comprehensive overall summary of the candidate performance, including strengths, weaknesses, actionable advice, and comments on pacing if applicable. The summary should also reflect how well the candidate met the expectations for the specified faangLevel in terms of handling ambiguity, complexity, scope, and execution.'
+      'A comprehensive overall summary of the candidate performance, including strengths, weaknesses, actionable advice, and comments on pacing if applicable. The summary should also reflect how well the candidate met the expectations for the specified faangLevel in terms of handling ambiguity, complexity, scope, and execution. For take-home, this summary should be based on the structuredTakeHomeAnalysis.'
     ),
 });
 
@@ -101,14 +107,16 @@ const GenerateInterviewFeedbackInputSchema = z.object({
       confidenceScore: z.number().min(1).max(5).optional(),
     })
   ).describe("The list of answers provided by the user, including time taken and confidence for each."),
-  interviewType: z.nativeEnum(
+  interviewType: z.enum(
     ['product sense', 'technical system design', 'behavioral', 'machine learning', 'data structures & algorithms']
   ).describe("The type of the interview."),
-   interviewStyle: z.nativeEnum(['simple-qa', 'case-study', 'take-home'])
+   interviewStyle: z.enum(['simple-qa', 'case-study', 'take-home'])
     .describe('The style of the interview: simple Q&A or multi-turn case study or take home.'),
   faangLevel: z
     .string()
     .describe('The target FAANG complexity level of the interview.'),
+  roleType: z.custom<RoleTypeFromConstants>().optional().describe("The selected role type for the interview."),
+  targetedSkills: z.array(z.string()).optional().describe("Specific skills targeted during the interview generation phase."),
   jobTitle: z.string().optional().describe('The job title, if provided.'),
   jobDescription: z
     .string()
@@ -117,201 +125,156 @@ const GenerateInterviewFeedbackInputSchema = z.object({
   resume: z.string().optional().describe('The candidate resume, if provided.'),
   interviewFocus: z.string().optional().describe('The specific focus of the interview, if provided.'),
 });
-export type GenerateInterviewFeedbackInput = z.infer<
-  typeof GenerateInterviewFeedbackInputSchema
->;
+export type GenerateInterviewFeedbackInput = z.infer<typeof GenerateInterviewFeedbackInputSchema>;
 
-// Exported type GenerateInterviewFeedbackOutput is already imported from ../schemas
-
+const RAW_DRAFT_FEEDBACK_PROMPT_TEMPLATE = loadPromptFile("generate-interview-feedback-draft.prompt");
 
 export async function generateInterviewFeedback(
-  input: GenerateInterviewFeedbackInput
+  input: GenerateInterviewFeedbackInput,
+  options?: { apiKey?: string }
 ): Promise<GenerateInterviewFeedbackOutput> {
-  return generateInterviewFeedbackOrchestrationFlow(input);
-}
+  const flowNameForLogging = 'generateInterviewFeedback';
+  let activeAI = globalAi;
 
-const draftPrompt = ai.definePrompt({
-  name: 'generateDraftInterviewFeedbackPrompt',
-  tools: [getTechnologyBriefTool],
-  input: {schema: DraftPromptInputSchema},
-  output: {schema: AIDraftOutputSchema},
-  prompt: `You are an expert career coach and interviewer, providing detailed, structured DRAFT feedback for a mock interview session.
-This is the first pass; the feedback will be polished by another specialized AI agent later. Focus on getting comprehensive content and analysis down.
+  if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+      });
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
+    } catch (e) {
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back to global AI.`);
+      activeAI = globalAi;
+    }
+  } else {
+    console.log(`[BYOK] ${flowNameForLogging}: No specific API key provided; using default global AI instance.`);
+  }
 
-The user has just completed a mock interview of type "{{interviewType}}" (style: "{{interviewStyle}}") targeting a "{{faangLevel}}" level.
-For the given 'faangLevel', consider common industry expectations regarding:
-*   **Ambiguity:** How well did the candidate handle unclear or incomplete information?
-*   **Complexity:** Did their responses address the inherent complexity of the problems appropriately for the level?
-*   **Scope:** Was their thinking appropriately broad or deep for the level?
-*   **Execution:** Did they demonstrate tactical skill or strategic thinking as expected for the level?
-Your feedback, especially the 'critique' for each question and the 'overallSummary', should subtly reflect these considerations.
+  console.log(`[BYOK] ${flowNameForLogging}: Input received:`, JSON.stringify(input, null, 2));
 
-{{#if jobTitle}}
-The interview was for the role of: {{{jobTitle}}}
-{{/if}}
-{{#if jobDescription}}
-The interview was for a role with the following job description:
-{{{jobDescription}}}
-{{/if}}
-{{#if resume}}
-The candidate's resume is as follows:
-{{{resume}}}
-{{/if}}
-{{#if interviewFocus}}
-The specific focus for this interview was: {{{interviewFocus}}}
-{{/if}}
+  const isTakeHome = input.interviewStyle === 'take-home';
+  let structuredTakeHomeAnalysisData: AnalyzeTakeHomeSubmissionOutput | undefined = undefined;
 
-**Tool Usage Guidance:**
-If the candidate's answer mentions specific technologies and you need a quick, factual summary to help you evaluate their understanding or suggest alternatives, you may use the \`getTechnologyBriefTool\`. Use the tool's output to enrich your feedback.
+  if (isTakeHome) {
+    if (!input.questions[0] || !input.answers[0]) {
+      throw new Error("Take-home style interview requires at least one question and one answer.");
+    }
+    const takeHomeInput: AnalyzeTakeHomeSubmissionInput = {
+      assignmentText: input.questions[0].text,
+      userSubmissionText: input.answers[0].answerText,
+      idealSubmissionCharacteristics: input.questions[0].idealAnswerCharacteristics || [],
+      interviewContext: {
+        interviewType: input.interviewType,
+        faangLevel: input.faangLevel,
+        jobTitle: input.jobTitle,
+        interviewFocus: input.interviewFocus,
+      }
+    };
+    console.log(`[BYOK] ${flowNameForLogging}: Calling analyzeTakeHomeSubmission with input:`, JSON.stringify(takeHomeInput, null, 2));
+    structuredTakeHomeAnalysisData = await analyzeTakeHomeSubmission(takeHomeInput, options);
+    console.log(`[BYOK] ${flowNameForLogging}: Received structured analysis for take-home:`, JSON.stringify(structuredTakeHomeAnalysisData, null, 2));
+  }
 
-{{#if isTakeHomeStyle}}
-This was a take-home assignment. The "question" is the assignment description, and the "answer" is the candidate's submission.
-Question (Assignment Description): {{{questionsAndAnswers.0.questionText}}}
-{{#if questionsAndAnswers.0.idealAnswerCharacteristics.length}}
-Ideal Submission Characteristics for this Assignment:
-{{#each questionsAndAnswers.0.idealAnswerCharacteristics}}
-- {{{this}}}
-{{/each}}
-{{/if}}
-Candidate's Submission: {{{questionsAndAnswers.0.answerText}}}
-{{#if questionsAndAnswers.0.timeTakenMs}}
-(Time spent on submission (if tracked): {{questionsAndAnswers.0.timeTakenMs}} ms)
-{{/if}}
-{{#if questionsAndAnswers.0.confidenceScore}}
-User Confidence (1-5 stars): {{questionsAndAnswers.0.confidenceScore}}
-{{/if}}
-
-Your task is to provide a DRAFT of:
-1.  An 'overallSummary' evaluating the candidate's submission. Consider clarity, structure, completeness, adherence to instructions, quality of the solution/analysis, and how well it met '{{faangLevel}}' expectations and the provided 'Ideal Submission Characteristics'.
-2.  The 'feedbackItems' array should contain a single item for questionId '{{questionsAndAnswers.0.questionId}}':
-    *   'critique': Comprehensive critique, referencing 'Ideal Submission Characteristics' and subtly acknowledging user 'confidenceScore' if available.
-    *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional).
-    *   'idealAnswerPointers': Key elements of a strong submission, potentially expanding on or reinforcing the 'Ideal Submission Characteristics'.
-    *   'reflectionPrompts': Based on the submission, critique, and confidence, generate 1-2 prompts for self-reflection.
-{{/if}}
-
-{{#if isSimpleQAOrCaseStudyStyle}}
-Below are the questions asked, the answers provided, ideal answer characteristics, and user confidence for each question.
-{{#each questionsAndAnswers}}
-Question {{this.indexPlusOne}} (ID: {{this.questionId}}): {{{this.questionText}}}
-{{#if this.idealAnswerCharacteristics.length}}
-Ideal Answer Characteristics for this Question:
-{{#each this.idealAnswerCharacteristics}}
-- {{{this}}}
-{{/each}}
-{{/if}}
-Answer: {{{this.answerText}}}
-{{#if this.timeTakenMs}}
-(Time taken: {{this.timeTakenMs}} ms)
-{{/if}}
-{{#if this.confidenceScore}}
-User Confidence (1-5 stars): {{this.confidenceScore}}
-{{/if}}
-{{/each}}
-
-Your task is to provide a DRAFT of:
-1.  For each question and answer pair, provide structured feedback in 'feedbackItems'. Each item should include:
-    *   'questionId'.
-    *   'strengths', 'areasForImprovement', 'specificSuggestions' (optional arrays of 1-3 strings).
-    *   'critique': (Optional concise summary). Your critique should be informed by the 'Ideal Answer Characteristics' provided for the question, and subtly acknowledge the user's 'confidenceScore' if available.
-    *   'idealAnswerPointers': (Optional array of 2-4 strings) Key elements of a strong answer, potentially expanding on or reinforcing the provided 'Ideal Answer Characteristics'.
-    *   'reflectionPrompts': Based on the answer, critique, strengths, areas for improvement, AND the user's 'confidenceScore' (if provided), generate 1-2 thoughtful reflection prompts.
-        If confidence aligns with feedback (e.g., high confidence & strong feedback), ask what led to success.
-        If confidence misaligns (e.g., high confidence & weak feedback, or low confidence & strong feedback), prompt user to explore the discrepancy.
-        If no confidence score is available, you may omit reflection prompts or provide very general ones.
-2.  Provide an 'overallSummary' of performance. Synthesize feedback, identify themes, offer advice. Comment on 'interviewFocus' and how performance aligns with '{{faangLevel}}' expectations (ambiguity, complexity, scope, execution), referencing 'Ideal Answer Characteristics' in general terms if they were commonly met or missed.
-    *   Comment on pacing based on 'timeTakenMs' if available.
-{{/if}}
-
-Output the DRAFT feedback in the specified JSON format.
-Make sure each item in 'feedbackItems' includes the 'questionId' it refers to.
-`,
-});
-
-const generateInterviewFeedbackOrchestrationFlow = ai.defineFlow(
-  {
-    name: 'generateInterviewFeedbackOrchestrationFlow',
-    inputSchema: GenerateInterviewFeedbackInputSchema,
-    outputSchema: GenerateInterviewFeedbackOutputSchema, // Use the imported schema from ../schemas
-  },
-  async (input: GenerateInterviewFeedbackInput): Promise<GenerateInterviewFeedbackOutput> => {
-    const questionsAndAnswers = input.questions.map((q, index) => {
-      const answer = input.answers.find(a => a.questionId === q.id);
+  const questionsAndAnswersPromptData = input.questions.map((q, index) => {
+    const answer = input.answers.find(a => a.questionId === q.id);
+    if (!answer) {
+      console.warn(`${flowNameForLogging}: No answer found for questionId ${q.id}. This might affect feedback quality.`);
       return {
         questionId: q.id,
         questionText: q.text,
-        answerText: answer ? answer.answerText : "No answer provided.",
-        timeTakenMs: answer ? answer.timeTakenMs : undefined,
+        answerText: '[No answer provided]',
+        timeTakenMs: undefined,
         indexPlusOne: index + 1,
-        idealAnswerCharacteristics: q.idealAnswerCharacteristics,
-        confidenceScore: answer ? answer.confidenceScore : undefined,
+        idealAnswerCharacteristics: q.idealAnswerCharacteristics || [],
+        confidenceScore: undefined,
       };
-    });
+    }
+    return {
+      questionId: q.id,
+      questionText: q.text,
+      answerText: answer.answerText,
+      timeTakenMs: answer.timeTakenMs,
+      indexPlusOne: index + 1,
+      idealAnswerCharacteristics: q.idealAnswerCharacteristics || [],
+      confidenceScore: answer.confidenceScore,
+    };
+  });
 
-    const isTakeHomeStyle = input.interviewStyle === 'take-home';
-    const isSimpleQAOrCaseStudyStyle = input.interviewStyle === 'simple-qa' || input.interviewStyle === 'case-study';
+  const draftPromptInputData: z.infer<typeof DraftPromptInputSchema> = {
+    interviewType: input.interviewType,
+    faangLevel: input.faangLevel,
+    jobTitle: input.jobTitle,
+    jobDescription: input.jobDescription,
+    resume: input.resume,
+    interviewFocus: input.interviewFocus,
+    evaluatedSkills: input.targetedSkills, 
+    questionsAndAnswers: questionsAndAnswersPromptData,
+    isTakeHomeStyle: isTakeHome,
+    isSimpleQAOrCaseStudyStyle: !isTakeHome,
+    structuredTakeHomeAnalysis: structuredTakeHomeAnalysisData,
+  };
+  
+  console.log(`[BYOK] ${flowNameForLogging}: Data prepared for draft prompt:`, JSON.stringify(draftPromptInputData, null, 2));
 
-    const draftPromptInput: z.infer<typeof DraftPromptInputSchema> = {
+  const renderedDraftPrompt = renderPromptTemplate(RAW_DRAFT_FEEDBACK_PROMPT_TEMPLATE, draftPromptInputData);
+  console.log(`[BYOK] ${flowNameForLogging}: Rendered Draft Prompt:\n`, renderedDraftPrompt);
+
+  const toolsToUse = [getTechnologyBriefTool];
+
+  console.log(`[BYOK] ${flowNameForLogging}: Calling AI.generate for draft feedback with model and tools...`);
+  const draftFeedbackResult = await activeAI.generate<typeof AIDraftOutputSchema>({
+    prompt: renderedDraftPrompt,
+    model: googleAI.model('gemini-1.5-pro-latest'),
+    output: { schema: AIDraftOutputSchema },
+    tools: toolsToUse,
+    config: { responseMimeType: "application/json" },
+  });
+
+  const draftAIOutput = draftFeedbackResult.output;
+
+  if (!draftAIOutput) {
+    console.error(`${flowNameForLogging}: Draft feedback generation failed - AI output was null.`);
+    throw new Error('Draft feedback generation failed to produce an output.');
+  }
+  console.log(`[BYOK] ${flowNameForLogging}: Received draft AI output:`, JSON.stringify(draftAIOutput, null, 2));
+
+  const feedbackItems: z.infer<typeof FeedbackItemSchema>[] = draftAIOutput.feedbackItems.map(item => {
+    const question = input.questions.find(q => q.id === item.questionId);
+    return {
+      questionId: item.questionId,
+      questionText: question ? question.text : 'Unknown Question',
+      answerText: input.answers.find(a => a.questionId === item.questionId)?.answerText || 'N/A',
+      critique: item.critique || '',
+      strengths: item.strengths || [],
+      areasForImprovement: item.areasForImprovement || [],
+      specificSuggestions: item.specificSuggestions || [],
+      idealAnswerPointers: item.idealAnswerPointers || [],
+      reflectionPrompts: item.reflectionPrompts || [],
+      timeTakenMs: input.answers.find(a => a.questionId === item.questionId)?.timeTakenMs,
+      confidenceScore: input.answers.find(a => a.questionId === item.questionId)?.confidenceScore,
+    };
+  });
+
+  const initialFeedbackOutput: GenerateInterviewFeedbackOutput = {
+    overallSummary: draftAIOutput.overallSummary,
+    feedbackItems: feedbackItems,
+  };
+  console.log(`[BYOK] ${flowNameForLogging}: Initial feedback output (pre-refinement):`, JSON.stringify(initialFeedbackOutput, null, 2));
+
+  const refineInput: RefineInterviewFeedbackInput = {
+    draftFeedback: initialFeedbackOutput,
+    interviewContext: {
       interviewType: input.interviewType,
       interviewStyle: input.interviewStyle,
       faangLevel: input.faangLevel,
       jobTitle: input.jobTitle,
-      jobDescription: input.jobDescription,
-      resume: input.resume,
       interviewFocus: input.interviewFocus,
-      questionsAndAnswers,
-      isTakeHomeStyle,
-      isSimpleQAOrCaseStudyStyle,
-    };
-
-    const {output: draftAiOutput} = await draftPrompt(draftPromptInput);
-
-    if (!draftAiOutput) {
-      throw new Error('AI did not return draft feedback.');
-    }
-
-     const fullyFormedDraftFeedbackItems = draftAiOutput.feedbackItems.map(aiItem => {
-      const originalQuestion = input.questions.find(q => q.id === aiItem.questionId);
-      const originalAnswer = input.answers.find(a => a.questionId === aiItem.questionId);
-      return {
-        questionId: aiItem.questionId,
-        questionText: originalQuestion ? originalQuestion.text : "Question text not found.",
-        answerText: originalAnswer ? originalAnswer.answerText : "Answer text not found.",
-        strengths: aiItem.strengths || [],
-        areasForImprovement: aiItem.areasForImprovement || [],
-        specificSuggestions: aiItem.specificSuggestions || [],
-        critique: aiItem.critique || "",
-        idealAnswerPointers: aiItem.idealAnswerPointers || [],
-        timeTakenMs: originalAnswer ? originalAnswer.timeTakenMs : undefined,
-        confidenceScore: originalAnswer ? originalAnswer.confidenceScore : undefined,
-        reflectionPrompts: aiItem.reflectionPrompts || [],
-      };
-    });
-
-    const draftFeedbackForRefiner: GenerateInterviewFeedbackOutput = {
-        feedbackItems: fullyFormedDraftFeedbackItems,
-        overallSummary: draftAiOutput.overallSummary
-    };
-
-    const refineInput: RefineInterviewFeedbackInput = {
-      draftFeedback: draftFeedbackForRefiner,
-      interviewContext: {
-        interviewType: input.interviewType,
-        interviewStyle: input.interviewStyle,
-        faangLevel: input.faangLevel,
-        jobTitle: input.jobTitle,
-        interviewFocus: input.interviewFocus,
-        timeWasTracked: input.answers.some(a => a.timeTakenMs !== undefined)
-      },
-    };
-
-    const refinedOutput = await refineInterviewFeedback(refineInput);
-
-    if (!refinedOutput) {
-        throw new Error('Feedback refinement process failed.');
-    }
-
-    return refinedOutput;
-  }
-);
-
+      timeWasTracked: input.answers.some(a => a.timeTakenMs !== undefined && a.timeTakenMs > 0),
+    },
+  };
+  console.log(`[BYOK] ${flowNameForLogging}: Calling refineInterviewFeedback with input:`, JSON.stringify(refineInput, null, 2));
+  
+  const refinedOutput = await refineInterviewFeedback(refineInput, options);
+  console.log(`[BYOK] ${flowNameForLogging}: Final refined output:`, JSON.stringify(refinedOutput, null, 2));
+  return refinedOutput;
+}

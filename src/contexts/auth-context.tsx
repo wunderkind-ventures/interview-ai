@@ -4,7 +4,7 @@
 import type { User } from "firebase/auth";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { getApps, initializeApp, getApp } from 'firebase/app';
+import { getApps, initializeApp, getApp, type FirebaseOptions } from 'firebase/app';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
@@ -22,7 +22,7 @@ import { AlertTriangle } from "lucide-react";
 // NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 // After adding/changing these, restart your development server or redeploy.
 
-const firebaseConfig = {
+const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
@@ -32,9 +32,16 @@ const firebaseConfig = {
 };
 
 let app;
+let authInitializationFailedInitially = false;
+
 if (!getApps().length) {
-  if (firebaseConfig.projectId && firebaseConfig.apiKey) { // Check for essential config
-    app = initializeApp(firebaseConfig);
+  if (firebaseConfig.projectId && firebaseConfig.apiKey) { 
+    try {
+      app = initializeApp(firebaseConfig);
+    } catch (e) {
+        console.error("Firebase initialization failed:", e);
+        authInitializationFailedInitially = true;
+    }
   } else {
     console.warn(
       "Firebase configuration is missing or incomplete. " +
@@ -44,12 +51,13 @@ if (!getApps().length) {
       "For deployed apps, check your hosting provider's environment variable settings. " +
       "Authentication will not work."
     );
+    authInitializationFailedInitially = true;
   }
 } else {
   app = getApp();
 }
 
-const auth = app ? getAuth(app) : null;
+const auth = app && !authInitializationFailedInitially ? getAuth(app) : null;
 
 interface AuthContextType {
   user: User | null;
@@ -57,6 +65,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   authInitializationFailed: boolean;
+  firebaseConfig: FirebaseOptions | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,7 +73,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authInitializationFailed, setAuthInitializationFailed] = useState(false);
+  const [authInitializationFailed, setAuthInitializationFailed] = useState(authInitializationFailedInitially);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -76,27 +85,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         "For deployed environments, ensure these environment variables are set in your hosting provider's settings. " +
         "Auth features will be disabled."
       );
-      setAuthInitializationFailed(true);
+      setAuthInitializationFailed(true); // Explicitly set here if auth is null
       setLoading(false);
       return;
     }
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setAuthInitializationFailed(false);
+      // Do not set authInitializationFailed to false here if it was already true
+      // setAuthInitializationFailed(false); 
       setLoading(false);
+    }, (error) => {
+        console.error("Firebase onAuthStateChanged error:", error);
+        setAuthInitializationFailed(true);
+        setLoading(false);
+        toast({
+            title: "Authentication Monitoring Error",
+            description: `Failed to monitor authentication state: ${error.message}. Please try refreshing the page.`,
+            variant: "destructive"
+        });
     });
     return () => unsubscribe();
-  }, []);
+  }, [toast]);
 
   const signInWithGoogle = async () => {
     if (!auth) {
         toast({
-            title: "Authentication Error",
-            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables. For local development, check .env.local and restart the server. For deployed apps, check your hosting provider's environment variable settings.",
-            variant: "destructive"
+            title: "Authentication System Error",
+            description: "Firebase Authentication is not properly initialized. Cannot sign in. Please ensure your Firebase project configuration (API Key, Project ID, etc.) is correctly set up. For local development, verify your .env.local file and restart the development server. For deployed applications, confirm these environment variables are configured in your hosting provider's settings.",
+            variant: "destructive",
+            duration: 10000,
         });
         console.error("Attempted to sign in, but Firebase Auth is not initialized.");
-        setAuthInitializationFailed(true);
+        setAuthInitializationFailed(true); // Ensure state reflects this critical failure
         return;
     }
     const provider = new GoogleAuthProvider();
@@ -124,12 +144,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     if (!auth) {
         toast({
-            title: "Authentication Error",
-            description: "Firebase Authentication is not properly initialized. Please check your Firebase setup and environment variables. For local development, check .env.local and restart the server. For deployed apps, check your hosting provider's environment variable settings.",
-            variant: "destructive"
+            title: "Authentication System Error",
+            description: "Firebase Authentication is not properly initialized. Cannot sign out. Please check your Firebase setup and environment variables.",
+            variant: "destructive",
+            duration: 10000,
         });
         console.error("Attempted to sign out, but Firebase Auth is not initialized.");
-        setAuthInitializationFailed(true);
+        setAuthInitializationFailed(true); // Ensure state reflects this
         return;
     }
     try {
@@ -142,7 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, logout, authInitializationFailed }}>
+    <AuthContext.Provider value={{ user, loading, signInWithGoogle, logout, authInitializationFailed, firebaseConfig: (firebaseConfig.projectId && firebaseConfig.apiKey) ? firebaseConfig : null }}>
       {authInitializationFailed && (
         <div className="sticky top-0 z-[10000] w-full bg-background p-2 shadow-md">
           <Alert variant="destructive" className="container mx-auto">

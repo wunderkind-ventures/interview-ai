@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Generates a detailed take-home assignment for various interview types.
@@ -8,257 +7,126 @@
  * - GenerateTakeHomeAssignmentOutput - The return type containing the assignment text.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-import { AMAZON_LEADERSHIP_PRINCIPLES } from '@/lib/constants';
-import { getTechnologyBriefTool } from '../tools/technology-tools';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAI, getTechnologyBriefTool as globalGetTechnologyBriefTool, findRelevantAssessmentsTool as globalFindRelevantAssessmentsTool } from '@/ai/genkit';
+import { z, type Genkit as GenkitInstanceType, type ModelReference } from 'genkit';
+import { AMAZON_LEADERSHIP_PRINCIPLES, INTERVIEWER_PERSONAS } from '@/lib/constants';
+import { defineGetTechnologyBriefTool } from '../tools/technology-tools';
+import { defineFindRelevantAssessmentsTool } from '../tools/assessment-retrieval-tool';
+import { CustomizeInterviewQuestionsInputSchema, type CustomizeInterviewQuestionsInput } from '../schemas';
+import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
 
-// Input schema for the flow (NOT EXPORTED)
-const GenerateTakeHomeAssignmentInputSchema = z.object({
-  interviewType: z
-    .enum(['product sense', 'technical system design', 'behavioral', 'machine learning', 'data structures & algorithms'])
-    .describe('The type of interview the take-home assignment is for.'),
-  jobTitle: z
-    .string()
-    .optional()
-    .describe('The job title, crucial for tailoring technical depth and context.'),
-  jobDescription: z
-    .string()
-    .optional()
-    .describe('The job description, used to extract key responsibilities and technologies.'),
-  faangLevel: z
-    .string()
-    .describe('The target FAANG level for difficulty and complexity calibration. This will influence the expected ambiguity, scope, and complexity of the assignment.'),
-  targetedSkills: z
-    .array(z.string())
-    .optional()
-    .describe('Specific skills the assignment should aim to assess.'),
-  targetCompany: z
-    .string()
-    .optional()
-    .describe('The target company, which can influence style and thematic focus (e.g., Amazon and LPs).'),
-  interviewFocus: z
-    .string()
-    .optional()
-    .describe('A specific focus area or sub-topic to be the central theme of the assignment.'),
-});
+export type GenerateTakeHomeAssignmentInput = CustomizeInterviewQuestionsInput;
 
-export type GenerateTakeHomeAssignmentInput = z.infer< // EXPORTED (Type)
-  typeof GenerateTakeHomeAssignmentInputSchema
->;
-
-// Output schema for the flow (NOT EXPORTED)
 const GenerateTakeHomeAssignmentOutputSchema = z.object({
   assignmentText: z
     .string()
     .describe('The full text of the generated take-home assignment, formatted with Markdown-like headings.'),
   idealSubmissionCharacteristics: z.array(z.string()).optional().describe("Key characteristics or elements a strong submission for this take-home assignment would demonstrate, considering the problem, deliverables, and FAANG level."),
 });
-
-export type GenerateTakeHomeAssignmentOutput = z.infer< // EXPORTED (Type)
+export type GenerateTakeHomeAssignmentOutput = z.infer<
   typeof GenerateTakeHomeAssignmentOutputSchema
 >;
 
-// Main exported function that calls the flow
-export async function generateTakeHomeAssignment( // EXPORTED (Async Function)
-  input: GenerateTakeHomeAssignmentInput
+const RAW_TAKE_HOME_PROMPT_TEMPLATE = loadPromptFile("generate-take-home-assignment.prompt");
+
+export async function generateTakeHomeAssignment(
+  input: GenerateTakeHomeAssignmentInput,
+  options?: { aiInstance?: GenkitInstanceType, tools?: any[], apiKey?: string }
 ): Promise<GenerateTakeHomeAssignmentOutput> {
-  return generateTakeHomeAssignmentFlow(input);
-}
+  let aiInstanceToUse: GenkitInstanceType = globalAI;
+  let toolsToUse: any[];
+  const flowNameForLogging = 'generateTakeHomeAssignment';
 
-// Internal prompt definition
-const takeHomeAssignmentPrompt = ai.definePrompt({
-  name: 'generateTakeHomeAssignmentPrompt',
-  tools: [getTechnologyBriefTool],
-  input: {
-    schema: GenerateTakeHomeAssignmentInputSchema,
-  },
-  output: {
-    schema: GenerateTakeHomeAssignmentOutputSchema,
-  },
-  prompt: `You are an **Expert Interview Assignment Architect AI**, embodying the persona of a **seasoned hiring manager from a top-tier tech company (e.g., Google, Meta, Amazon)**.
-Your primary function is to generate a single, comprehensive, and self-contained take-home assignment based on the provided specifications.
-The output MUST be a JSON object with 'assignmentText' (string) and 'idealSubmissionCharacteristics' (array of strings). The 'assignmentText' should contain the full assignment, formatted with Markdown-like headings (e.g., "## Title", "### Goal").
-
-**Core Instructions & Persona Nuances:**
-- Your persona is that of a seasoned hiring manager from a top-tier tech company. Your goal is to craft assignments that assess practical skills, problem-solving abilities, and communication clarity.
-- Ensure every part of the assignment directly reflects the provided inputs.
-- The assignment must be detailed, well-structured, and directly reflect 'interviewType', 'jobTitle', 'jobDescription', 'targetedSkills', 'interviewFocus', and crucially, the 'faangLevel'.
-- For the given 'faangLevel', consider common industry expectations regarding: Ambiguity, Complexity, Scope, and Execution.
-
-**FAANG Level Calibration:**
-The 'faangLevel' is critical. Calibrate the assignment based on typical expectations for Ambiguity, Complexity, Scope, and Execution for that level.
-The problem scenario, guiding questions, and expected depth of the deliverable MUST reflect these level-specific expectations.
-- Example: An L3/L4 assignment: well-defined problem, clear expected output.
-- Example: An L5/L6 assignment: more ambiguous problem, requires candidate to define scope, make assumptions, propose a strategic solution with trade-offs.
-- Example: An L7 assignment: highly complex, strategic, or organization-wide problem with significant ambiguity.
-
-**Output Requirement - Ideal Submission Characteristics:**
-For the assignment generated, you MUST also provide 'idealSubmissionCharacteristics', a list of 3-5 key elements a strong submission would typically exhibit for THIS SPECIFIC assignment, considering the 'interviewType', 'faangLevel', and 'interviewFocus'.
-- Example for Product Sense L6 "Develop GTM strategy": Characteristics like "Deep understanding of target users", "Clear value proposition", "Comprehensive GTM plan", "Data-driven success metrics", "Executive-level communication".
-- Example for DSA L5 "Design ride-sharing dispatch algorithm": Characteristics like "Correct and efficient algorithm", "Justified data structures for real-time updates", "Rigorous time/space complexity analysis", "Thorough edge case handling", "Clear explanation of trade-offs".
-
-**Input Context to Consider:**
-Interview Type: {{{interviewType}}}
-{{#if jobTitle}}Job Title: {{{jobTitle}}}{{/if}}
-{{#if jobDescription}}Job Description Context:
-{{{jobDescription}}}
-(Use this to understand relevant problems, technologies, and responsibilities.)
-{{/if}}
-FAANG Level: {{{faangLevel}}}
-{{#if targetCompany}}Target Company: {{{targetCompany}}}{{/if}}
-{{#if targetedSkills.length}}
-Targeted Skills:
-{{#each targetedSkills}}
-- {{{this}}}
-{{/each}}
-{{/if}}
-{{#if interviewFocus}}Specific Focus: {{{interviewFocus}}}{{/if}}
-
-**Internal Reflection on Ideal Submission Characteristics (Guiding your assignment generation):**
-Before finalizing the assignment, briefly consider the key characteristics or elements a strong submission would demonstrate (e.g., clear problem definition for Product Sense; robustness, scalability for System Design; sound ML model choice for ML; correct algorithm and complexity analysis for DSA). This internal reflection will help ensure the assignment is well-posed and effectively tests the intended skills for the given 'faangLevel'. You DO need to output these characteristics in the 'idealSubmissionCharacteristics' field.
-
-**Assignment Generation Logic:**
-1.  **Structure Planning:** Mentally outline each section described below. The 'Problem Scenario' must be crafted with care, heavily influenced by 'interviewFocus' and calibrated for 'faangLevel'.
-2.  **Assignment Structure (Strictly Adhere to this Format for 'assignmentText'):**
-
-    *   **## Title of the Exercise**: Clear, descriptive title. Example: "Take-Home Exercise: [Specific Problem or Domain]"
-
-    *   **### Goal / Objective**:
-        *   State the main purpose, reflecting 'faangLevel' and 'interviewType'.
-        *   List 2-4 key skills being assessed, aligned with 'targetedSkills' and 'jobTitle'.
-
-    *   **### The Exercise - Problem Scenario**:
-        *   Provide a detailed and specific problem scenario. 'interviewFocus' MUST be central.
-        *   Calibrate technical depth based on 'interviewType', 'jobTitle', 'jobDescription', and 'faangLevel'.
-            *   If the interviewType is "product sense":
-                *   If 'jobTitle' or 'jobDescription' suggest a highly technical PM role (e.g., "PM, Machine Learning Platforms"), the scenario should involve more technical considerations (e.g., API design, data model implications, ML feasibility). Base the scenario on the 'interviewFocus' if provided.
-                *   If the role seems less technically deep (e.g., "Product Manager, Growth") or if the 'interviewFocus' is on strategy or reflection, generate a "Product Innovation Story" style assignment: ask the candidate to describe an innovative product they delivered, focusing on context, journey, impact, and lessons learned, especially if 'interviewFocus' is about past experiences or achievements.
-                *   Otherwise, default to product strategy, market entry analysis, feature deep-dive, or metrics definition based on 'interviewFocus'.
-            *   If the interviewType is "technical system design": A specific technical system design challenge (e.g., "Design a scalable notification system," "Architect a real-time analytics pipeline"). The problem must be directly related to the 'interviewFocus' if provided.
-            *   If the interviewType is "behavioral": A reflective exercise asking the candidate to describe a complex past project, a significant challenge, or a strategic decision they drove. Focus on role, actions, outcomes, learnings (STAR method implicitly encouraged), especially if 'interviewFocus' aligns with such a reflection.
-            *   If the interviewType is "machine learning": A detailed ML system design challenge (e.g., "Design a fraud detection system") or a comprehensive proposal for an ML initiative (e.g., "Propose an ML-based solution to improve user retention"). The problem should be directly based on 'interviewFocus'.
-            *   If the interviewType is "data structures & algorithms": A comprehensive algorithmic problem requiring detailed textual design, pseudo-code, complexity analysis, and discussion of edge cases. More involved than a typical live coding problem. The problem should relate to 'interviewFocus' if applicable.
-
-    *   **### Key Aspects to Consider / Guiding Questions**:
-        *   List 5-8 bullet points or explicit questions tailored to the 'Problem Scenario', 'interviewFocus', 'interviewType', and 'faangLevel'.
-        *   *Example for System Design:* "What are the key components?", "How will it scale?", "Potential bottlenecks?", "Data storage trade-offs."
-        *   *Example for Product Sense:* "Target users?", "Key success metrics?", "Major risks & mitigations?", "Outline MVP."
-        *   *Example for ML:* "What data would you use?", "What's your proposed model architecture?", "How would you evaluate performance?", "Deployment considerations?"
-        *   *Example for DSA:* "Explain your algorithm", "Analyze time/space complexity", "Discuss edge cases and constraints."
-
-    *   **### Deliverable Requirements**:
-        *   Specify format (e.g., "Written memo," "Slide deck (PDF)," "Detailed design document," "Textual algorithm explanation").
-        *   Provide constraints (e.g., "Max 6 pages," "10-12 slides," "Approx 1000-1500 words").
-        *   Define target audience if relevant (e.g., "Product audience," "Technical peers," "Executive review").
-
-    *   **### (Optional) Tips for Success**:
-        *   Provide 1-2 brief, general tips (e.g., "Focus on clear communication," "Be explicit about assumptions and trade-offs").
-
-{{#if targetCompany}}
-If the targetCompany field has a value like "Amazon" (perform a case-insensitive check in your reasoning and apply the following if true):
-**Amazon-Specific Considerations:**
-Subtly weave in opportunities to demonstrate Amazon's Leadership Principles, especially if the assignment type allows (e.g., behavioral reflection, or product strategy).
-The Amazon Leadership Principles are:
-{{{AMAZON_LPS_LIST}}}
-{{/if}}
-
-**Final Output Format:**
-Output a JSON object with two keys:
-- 'assignmentText': The full assignment text (string, Markdown-like headings).
-- 'idealSubmissionCharacteristics': An array of 3-5 strings describing elements of a strong submission.
-`,
-  customize: (promptDef, callInput) => {
-    let promptText = promptDef.prompt!;
-    if (callInput.targetCompany && callInput.targetCompany.toLowerCase() === 'amazon') {
-      const lpList = AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n');
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', lpList);
-    } else {
-      promptText = promptText.replace('{{{AMAZON_LPS_LIST}}}', 'Not applicable for this company.');
-    }
-    return {
-      ...promptDef,
-      prompt: promptText,
-    };
-  }
-});
-
-// Internal flow definition
-const generateTakeHomeAssignmentFlow = ai.defineFlow(
-  {
-    name: 'generateTakeHomeAssignmentFlow',
-    inputSchema: GenerateTakeHomeAssignmentInputSchema, // Use internal schema
-    outputSchema: GenerateTakeHomeAssignmentOutputSchema, // Use internal schema
-  },
-  async (input: GenerateTakeHomeAssignmentInput): Promise<GenerateTakeHomeAssignmentOutput> => {
+  if (options?.aiInstance && options.aiInstance !== globalAI) {
+    aiInstanceToUse = options.aiInstance;
+    toolsToUse = options.tools || [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool];
+    console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance and its tools.`);
+  } else if (options?.apiKey) {
     try {
-      const {output} = await takeHomeAssignmentPrompt(input);
-      if (!output || !output.assignmentText || !output.idealSubmissionCharacteristics || output.idealSubmissionCharacteristics.length === 0) {
-        const fallbackTitle = `Take-Home Assignment: ${input.interviewFocus || input.interviewType} Challenge (${input.faangLevel})`;
-        const fallbackJobContext = input.jobTitle ? `for the role of ${input.jobTitle}` : `for the specified role`;
-        const fallbackCompanyContext = input.targetCompany ? `at ${input.targetCompany}` : `at a leading tech company`;
-        const fallbackFocusContext = input.interviewFocus || input.interviewType;
-        const fallbackLevelContext = input.faangLevel || 'a relevant professional';
+      const userGoogleAIPlugin = googleAI({ apiKey: options.apiKey });
+      const userKitInstance = genkit({ plugins: [userGoogleAIPlugin] });
+      aiInstanceToUse = userKitInstance;
+      
+      const techTool = await defineGetTechnologyBriefTool(userKitInstance);
+      const assessTool = await defineFindRelevantAssessmentsTool(userKitInstance);
+      toolsToUse = [techTool, assessTool];
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key and new tools for this instance.`);
+    } catch (e) {
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize with user API key: ${(e as Error).message}. Falling back to global AI and tools.`);
+      aiInstanceToUse = globalAI;
+      toolsToUse = [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool];
+    }
+  } else {
+    aiInstanceToUse = globalAI;
+    toolsToUse = [globalGetTechnologyBriefTool, globalFindRelevantAssessmentsTool];
+    console.log(`[BYOK] ${flowNameForLogging}: Using default global AI instance and tools.`);
+  }
 
-        const fallbackText = `## ${fallbackTitle}
+  const saneInput: GenerateTakeHomeAssignmentInput = {
+    ...input,
+    interviewerPersona: input.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+  };
+  
+  const contextForPrompt = {
+    ...saneInput,
+    renderAmazonLPsSection: saneInput.targetCompany?.toLowerCase() === 'amazon',
+    amazonLpsList: saneInput.targetCompany?.toLowerCase() === 'amazon' 
+      ? AMAZON_LEADERSHIP_PRINCIPLES.map(lp => `- ${lp}`).join('\n') 
+      : '',
+  };
 
-### Goal
-Demonstrate your ability to analyze a complex problem related to ${fallbackFocusContext} and propose a well-reasoned solution appropriate for a ${fallbackLevelContext} level ${fallbackJobContext} ${fallbackCompanyContext}.
+  try {
+    const renderedPrompt = renderPromptTemplate(RAW_TAKE_HOME_PROMPT_TEMPLATE, contextForPrompt);
+    console.log(`[BYOK] ${flowNameForLogging}: Rendered Prompt:\n`, renderedPrompt);
 
-### Problem Scenario
-Develop a detailed proposal for [a relevant problem based on: ${fallbackJobContext}, focusing on ${fallbackFocusContext}]. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${input.faangLevel} expectations].
+    console.log(`[BYOK] ${flowNameForLogging}: Calling aiInstanceToUse.generate()`);
+    const generateResult = await aiInstanceToUse.generate<typeof GenerateTakeHomeAssignmentOutputSchema>({
+      model: googleAI.model('gemini-1.5-flash-latest') as ModelReference<any>,
+      prompt: renderedPrompt,
+      tools: toolsToUse,
+      output: { schema: GenerateTakeHomeAssignmentOutputSchema },
+      config: { responseMimeType: "application/json" },
+    });
+    let outputFromAI = generateResult.output;
 
-### Key Aspects to Consider
-- What is your overall approach?
-- What are the key trade-offs you considered?
-- How would you measure success?
-- What are potential risks or challenges?
-- How does your solution scale or adapt to future needs?
+    if (!outputFromAI || !outputFromAI.assignmentText || !outputFromAI.idealSubmissionCharacteristics || outputFromAI.idealSubmissionCharacteristics.length === 0) {
+        console.warn(`[BYOK] ${flowNameForLogging}: AI output was missing key fields or empty. Using fallback.`);
+        const fallbackTitle = `Take-Home Assignment: ${saneInput.interviewFocus || saneInput.interviewType} Challenge (${saneInput.faangLevel})`;
+        const fallbackJobContext = saneInput.jobTitle ? `for the role of ${saneInput.jobTitle}` : `for the specified role`;
+        const fallbackCompanyContext = saneInput.targetCompany ? `at ${saneInput.targetCompany}` : `at a leading tech company`;
+        const fallbackFocusContext = saneInput.interviewFocus || saneInput.interviewType;
+        const fallbackLevelContext = saneInput.faangLevel || 'a relevant professional';
 
-### Deliverable
-A document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, proposed solution, and key considerations.
-
-### Tips for Success
-- Be clear and concise in your communication.
-- State any assumptions you've made.`;
+        const fallbackText = `## ${fallbackTitle}\n\n### Goal\nDemonstrate your ability to analyze a complex problem related to ${fallbackFocusContext} and propose a well-reasoned solution appropriate for a ${fallbackLevelContext} level ${fallbackJobContext} ${fallbackCompanyContext}.\n\n### Problem Scenario\nDevelop a detailed proposal for [a relevant problem based on: ${fallbackJobContext}, focusing on ${fallbackFocusContext}]. Consider aspects like [key challenge 1, key challenge 2, and key challenge 3 related to ${saneInput.faangLevel} expectations].\n\n### Key Aspects to Consider\n- What is your overall approach?\n- What are the key trade-offs you considered?\n- How would you measure success?\n- What are potential risks or challenges?\n- How does your solution scale or adapt to future needs?\n\n### Deliverable\nA document (max 5 pages, or a 10-slide deck) outlining your approach, analysis, proposed solution, and key considerations.\n\n### Tips for Success\n- Be clear and concise in your communication.\n- State any assumptions you've made.`;
 
         const fallbackCharacteristics = [
           "Clear problem understanding and scoping.",
           "Well-reasoned approach and justification of choices.",
           "Consideration of potential challenges and trade-offs.",
-          `Depth of analysis appropriate for ${input.faangLevel}.`,
-          "Clear and concise communication of ideas."
+          `Depth of analysis appropriate for ${saneInput.faangLevel}.`,
+          "Professional and clear presentation of the solution."
         ];
-        
-        console.warn(`AI Take-Home Assignment Generation Fallback - A simplified assignment was generated. Input: ${JSON.stringify(input)}. This might be due to an issue with the AI model or prompt.`);
-
-        return { 
-          assignmentText: fallbackText,
-          idealSubmissionCharacteristics: fallbackCharacteristics
-        };
-      }
-      return output;
-    } catch (error) {
-        const errMessage = error instanceof Error ? error.message : 'Unknown error during take-home assignment generation.';
-        console.error(`Error in generateTakeHomeAssignmentFlow (input: ${JSON.stringify(input)}):`, error);
-        const errorAssignmentText = `## Error Generating Take-Home Assignment
-
-We encountered an error while trying to generate your take-home assignment for:
-- Interview Type: ${input.interviewType}
-- Focus: ${input.interviewFocus || 'Not specified'}
-- Level: ${input.faangLevel || 'Not specified'}
-- Job Title: ${input.jobTitle || 'Not specified'}
-
-Please try configuring your interview again. If the problem persists, the AI model might be temporarily unavailable or the prompt requires further adjustment. The error was: ${errMessage}`;
-        
-        const errorCharacteristics = ["Error during generation - please report this."];
-        
-        return {
-            assignmentText: errorAssignmentText,
-            idealSubmissionCharacteristics: errorCharacteristics
+        outputFromAI = {
+            assignmentText: fallbackText,
+            idealSubmissionCharacteristics: fallbackCharacteristics,
         };
     }
+    return outputFromAI;
+  } catch (error) {
+    console.error(`[BYOK] Error in ${flowNameForLogging}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const fallbackTitle = `Take-Home Assignment: ${saneInput.interviewFocus || saneInput.interviewType} Challenge (${saneInput.faangLevel})`;
+    const fallbackJobContext = saneInput.jobTitle ? `for the role of ${saneInput.jobTitle}` : 'for the specified role';
+    const fallbackText = `## ${fallbackTitle}\n\n### Goal\nProvide a detailed response to a challenge related to ${saneInput.interviewFocus || saneInput.interviewType} ${fallbackJobContext}.\n\n### Task\n[A generic problem statement will be inserted here by the system if generation fails. Please describe a complex problem relevant to ${saneInput.interviewType} at an ${saneInput.faangLevel} level and outline your solution approach, key considerations, and deliverables.]`;
+    return {
+        assignmentText: fallbackText,
+        idealSubmissionCharacteristics: [
+            "Clear problem definition.", 
+            "Logical solution structure.", 
+            "Consideration of edge cases or trade-offs."
+        ]
+    };
   }
-);
-
-    
+}

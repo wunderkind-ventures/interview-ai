@@ -21,3 +21,5 @@ env:
     value: 130237704747
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
     value: interviewai-mzf86.firebasestorage.app
+  - variable: NEXT_PUBLIC_GO_BACKEND_URL
+    value: https://catalyst-backend-gateway-prod-1ntw604r.uc.gateway.dev

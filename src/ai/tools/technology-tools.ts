@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Defines Genkit tools for fetching domain-specific information, initially focused on technology briefs.
@@ -6,8 +5,8 @@
  * - getTechnologyBriefTool - A tool that provides a brief summary for a given technology name.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { type Genkit } from 'genkit'; // Import Genkit type for the instance
+import { z } from 'genkit';
 
 const TechnologyBriefInputSchema = z.object({
   technologyName: z.string().describe('The name of the technology to get a brief summary for (e.g., Kafka, Kubernetes, GraphQL).'),
@@ -30,14 +29,16 @@ const technologySummaries: Record<string, string> = {
   "machine learning": "Machine learning (ML) is a field of study in artificial intelligence concerned with the development and study of statistical algorithms that can learn from data and generalize to unseen data, and thus perform tasks without explicit instructions."
 };
 
-export const getTechnologyBriefTool = ai.defineTool(
+// Export a function that defines the tool on a given Genkit instance
+export async function defineGetTechnologyBriefTool(kit: Genkit) {
+  return kit.defineTool(
   {
     name: 'getTechnologyBriefTool',
     description: 'Provides a brief, factual summary of a specific technology and its primary use case. Useful when encountering a technology term that needs clarification for generating relevant interview questions or feedback.',
     inputSchema: TechnologyBriefInputSchema,
     outputSchema: TechnologyBriefOutputSchema,
   },
-  async (input) : Promise<string> => {
+    async (input): Promise<string> => {
     const techNameLower = input.technologyName.toLowerCase();
     if (technologySummaries[techNameLower]) {
       return technologySummaries[techNameLower];
@@ -45,3 +46,4 @@ export const getTechnologyBriefTool = ai.defineTool(
     return `Information for "${input.technologyName}" is not available in the current brief. Please proceed based on general knowledge or ask for clarification if essential.`;
   }
 );
+}

@@ -1,21 +1,23 @@
-
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getFirestore, collection, addDoc, serverTimestamp, getApps, doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
+import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, getDoc, Timestamp, updateDoc, arrayUnion } from "firebase/firestore";
+import { getApps } from 'firebase/app';
 import { useAuth } from "@/contexts/auth-context";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download, MessageSquarePlus } from "lucide-react";
-import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEW_TYPES, FAANG_LEVELS } from "@/lib/constants";
-import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion } from "@/lib/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, TimerIcon, Building, Briefcase, ThumbsUp, TrendingDown, Lightbulb, MessageCircle, CheckSquare, Layers, Search, BookOpen, AlertTriangle, SearchCheck, Star, HelpCircle, Info, BookMarked, Download, MessageSquarePlus, ShieldCheck, ListChecks } from "lucide-react";
+import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEW_TYPES, FAANG_LEVELS, INTERVIEWER_PERSONAS } from "@/lib/constants";
+import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion, AdminFeedbackItem, AdminFeedbackTargetType as AdminFeedbackTargetTypeType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
 import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
@@ -28,6 +30,7 @@ import type { ClarifyFeedbackInput, ClarifyFeedbackOutput } from "@/ai/flows/cla
 import { formatMilliseconds } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "./ui/scroll-area";
 
 interface ExportOptions {
   includeSetupDetails: boolean;
@@ -46,6 +49,8 @@ interface ClarificationContext {
   feedbackItemText: string;
   feedbackItemType: 'areaForImprovement' | 'specificSuggestion' | 'critique' | 'strength' | 'idealAnswerPointer' | 'reflectionPrompt';
 }
+
+type AdminFeedbackTargetType = AdminFeedbackTargetTypeType;
 
 function InterviewSummaryContent() {
   const router = useRouter();
@@ -87,6 +92,13 @@ function InterviewSummaryContent() {
     includeOverallSummary: true,
   });
 
+  const [adminFeedbackText, setAdminFeedbackText] = useState("");
+  const [adminFeedbackTargetType, setAdminFeedbackTargetType] = useState<AdminFeedbackTargetType>('overall_session');
+  const [adminFeedbackTargetQuestionId, setAdminFeedbackTargetQuestionId] = useState<string>("");
+  const [isSubmittingAdminFeedback, setIsSubmittingAdminFeedback] = useState(false);
+
+  const isAdmin = authUser?.email === 'admin@example.com';
+
   const saveInterviewToBackend = useCallback(async (dataToLog: InterviewSessionData, docId?: string) => {
     if (getApps().length === 0) {
       console.warn("Firebase app not initialized. Skipping backend logging.");
@@ -110,29 +122,90 @@ function InterviewSummaryContent() {
       return;
     }
 
-    try {
-      const db = getFirestore();
-      const interviewLog = {
-        ...dataToLog,
+    const documentId = docId || dataToLog.firestoreDocId || doc(collection(getFirestore(), "users", authUser.uid, "interviews")).id;
+    const db = getFirestore();
+
+    const payloadToSave: Partial<InterviewSessionData> = {
         userId: authUser.uid,
         completedAt: dataToLog.completedAt instanceof Timestamp ? dataToLog.completedAt : serverTimestamp(),
-      };
+        interviewType: dataToLog.interviewType,
+        interviewStyle: dataToLog.interviewStyle,
+        faangLevel: dataToLog.faangLevel,
+        jobTitle: dataToLog.jobTitle ?? null,
+        jobDescription: dataToLog.jobDescription ?? null,
+        resume: dataToLog.resume ?? null,
+        targetedSkills: dataToLog.targetedSkills ?? [],
+        targetCompany: dataToLog.targetCompany ?? null,
+        interviewFocus: dataToLog.interviewFocus ?? null,
+        selectedThemeId: dataToLog.selectedThemeId ?? "custom",
+        interviewerPersona: dataToLog.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+        currentQuestionIndex: dataToLog.currentQuestionIndex,
+        interviewStarted: dataToLog.interviewStarted,
+        interviewFinished: dataToLog.interviewFinished,
+        currentQuestionStartTime: dataToLog.currentQuestionStartTime === undefined ? null : dataToLog.currentQuestionStartTime,
+        currentCaseTurnNumber: dataToLog.currentCaseTurnNumber === undefined ? null : dataToLog.currentCaseTurnNumber,
+        caseStudyNotes: dataToLog.caseStudyNotes ?? null,
+        questions: (dataToLog.questions || []).map(q => ({
+            id: q.id,
+            text: q.text,
+            ...(q.idealAnswerCharacteristics && q.idealAnswerCharacteristics.length > 0 && { idealAnswerCharacteristics: q.idealAnswerCharacteristics }),
+            ...(q.isInitialCaseQuestion !== undefined && { isInitialCaseQuestion: q.isInitialCaseQuestion }),
+            ...(q.fullScenarioDescription && { fullScenarioDescription: q.fullScenarioDescription }),
+            ...(q.internalNotesForFollowUpGenerator && { internalNotesForFollowUpGenerator: q.internalNotesForFollowUpGenerator }),
+            ...(q.isLikelyFinalFollowUp !== undefined && { isLikelyFinalFollowUp: q.isLikelyFinalFollowUp }),
+        })),
+        answers: (dataToLog.answers || []).map(a => ({
+            questionId: a.questionId,
+            answerText: a.answerText,
+            ...(a.timeTakenMs !== undefined && { timeTakenMs: a.timeTakenMs }),
+            ...(a.confidenceScore !== undefined && { confidenceScore: a.confidenceScore }),
+        })),
+        feedback: dataToLog.feedback ? {
+            overallSummary: dataToLog.feedback.overallSummary,
+            feedbackItems: (dataToLog.feedback.feedbackItems || []).map(item => ({
+                questionId: item.questionId,
+                questionText: item.questionText,
+                answerText: item.answerText,
+                ...(item.strengths && item.strengths.length > 0 && { strengths: item.strengths }),
+                ...(item.areasForImprovement && item.areasForImprovement.length > 0 && { areasForImprovement: item.areasForImprovement }),
+                ...(item.specificSuggestions && item.specificSuggestions.length > 0 && { specificSuggestions: item.specificSuggestions }),
+                ...(item.critique && { critique: item.critique }),
+                ...(item.idealAnswerPointers && item.idealAnswerPointers.length > 0 && { idealAnswerPointers: item.idealAnswerPointers }),
+                ...(item.timeTakenMs !== undefined && { timeTakenMs: item.timeTakenMs }),
+                ...(item.confidenceScore !== undefined && { confidenceScore: item.confidenceScore }),
+                ...(item.reflectionPrompts && item.reflectionPrompts.length > 0 && { reflectionPrompts: item.reflectionPrompts }),
+            })),
+        } : null,
+        deepDives: dataToLog.deepDives ? { ...dataToLog.deepDives } : {},
+        sampleAnswers: dataToLog.sampleAnswers ? { ...dataToLog.sampleAnswers } : {},
+        adminFeedback: (dataToLog.adminFeedback || []).map(fb => ({
+          adminId: fb.adminId,
+          adminEmail: fb.adminEmail ?? undefined,
+          feedbackText: fb.feedbackText,
+          targetType: fb.targetType,
+          targetQuestionId: fb.targetQuestionId ?? undefined,
+          createdAt: fb.createdAt instanceof Timestamp ? fb.createdAt : Timestamp.now(),
+        })),
+        caseConversationHistory: dataToLog.caseConversationHistory && dataToLog.caseConversationHistory.length > 0 ? dataToLog.caseConversationHistory : [],
+        previousConversation: dataToLog.previousConversation ?? null,
+    };
 
-      delete interviewLog.isLoading;
-      delete interviewLog.isLoggedToServer;
-      delete interviewLog.error;
+    Object.keys(payloadToSave).forEach(key => {
+        if (payloadToSave[key as keyof InterviewSessionData] === undefined) {
+            delete payloadToSave[key as keyof InterviewSessionData];
+        }
+    });
 
-
-      const documentId = docId || dataToLog.firestoreDocId || doc(collection(db, "users", authUser.uid, "interviews")).id;
-
-      await setDoc(doc(db, "users", authUser.uid, "interviews", documentId), interviewLog, { merge: true });
-
+    try {
+      await setDoc(doc(db, "users", authUser.uid, "interviews", documentId), payloadToSave, { merge: true });
       console.log("Interview session logged/updated successfully:", documentId);
-      toast({
-        title: "Session Logged",
-        description: "Your interview data has been saved to your account.",
-        variant: "default",
-      });
+      setTimeout(() => {
+        toast({
+          title: "Session Logged",
+          description: "Your interview data has been saved to your account.",
+          variant: "default",
+        });
+      }, 0);
 
       setSessionData(prev => {
         if (!prev) return null;
@@ -140,15 +213,19 @@ function InterviewSummaryContent() {
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
       });
-    } catch (error) {
-      console.error("Error logging interview session to backend:", error);
-      toast({
-        title: "Logging Error",
-        description: "Could not save interview data to your account. See console for details.",
-        variant: "destructive",
-      });
-      setSessionData(prev => {
+    } catch (error: any) {
+      console.error("Error logging interview session to backend:", error, "Payload attempted:", payloadToSave);
+      setTimeout(() => {
+        toast({
+          title: "Logging Error",
+          description: `Could not save interview data: ${error.message || "Unknown error. Check console."}`,
+          variant: "destructive",
+        });
+      }, 0);
+       setSessionData(prev => {
         if (!prev) return null;
+        // Still mark as logged to prevent loops, even if it failed.
+        // The error toast will inform the user.
         const updatedSession = { ...prev, isLoggedToServer: true, firestoreDocId: docId || prev.firestoreDocId };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
         return updatedSession;
@@ -184,13 +261,15 @@ function InterviewSummaryContent() {
         interviewType: currentSession.interviewType,
         interviewStyle: currentSession.interviewStyle,
         faangLevel: currentSession.faangLevel,
-        jobTitle: currentSession.jobTitle,
-        jobDescription: currentSession.jobDescription,
-        resume: currentSession.resume,
-        interviewFocus: currentSession.interviewFocus,
+        roleType: currentSession.roleType,
+        targetedSkills: currentSession.targetedSkills ?? [],
+        jobTitle: currentSession.jobTitle === null || currentSession.jobTitle === undefined ? undefined : currentSession.jobTitle,
+        jobDescription: currentSession.jobDescription === null || currentSession.jobDescription === undefined ? undefined : currentSession.jobDescription,
+        resume: currentSession.resume === null || currentSession.resume === undefined ? undefined : currentSession.resume,
+        interviewFocus: currentSession.interviewFocus === null || currentSession.interviewFocus === undefined ? undefined : currentSession.interviewFocus,
       };
 
-      const feedbackResult = await generateInterviewFeedback(feedbackInput);
+      const feedbackResult = await generateInterviewFeedback(feedbackInput, { apiKey: undefined });
 
       setSessionData(prev => {
         if (!prev) return null;
@@ -211,13 +290,15 @@ function InterviewSummaryContent() {
         return updatedSession;
       });
 
-    } catch (err) {
+    } catch (err: any) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred while generating feedback.";
-      toast({
-        title: "Error generating feedback",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setTimeout(() => {
+        toast({
+          title: "Error generating feedback",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }, 0);
       setFeedbackError(errorMessage);
     } finally {
       setIsFeedbackLoading(false);
@@ -242,8 +323,14 @@ function InterviewSummaryContent() {
 
           if (docSnap.exists()) {
             const firestoreData = docSnap.data() as Omit<InterviewSessionData, 'completedAt'> & { completedAt: Timestamp, firestoreDocId?: string };
+            let completedAt = firestoreData.completedAt;
+            if (completedAt && typeof completedAt.toDate !== 'function' && (completedAt as any).seconds) {
+                completedAt = new Timestamp((completedAt as any).seconds, (completedAt as any).nanoseconds);
+            }
+
             const loadedSessionData: InterviewSessionData = {
                 ...firestoreData,
+                completedAt,
                 jobTitle: firestoreData.jobTitle || "",
                 jobDescription: firestoreData.jobDescription || "",
                 resume: firestoreData.resume || "",
@@ -252,27 +339,35 @@ function InterviewSummaryContent() {
                 interviewFocus: firestoreData.interviewFocus || "",
                 deepDives: firestoreData.deepDives || {},
                 sampleAnswers: firestoreData.sampleAnswers || {},
-                caseStudyNotes: firestoreData.caseStudyNotes || "",
+                caseStudyNotes: firestoreData.caseStudyNotes ?? null,
+                caseConversationHistory: firestoreData.caseConversationHistory || [],
+                previousConversation: firestoreData.previousConversation || "",
+                adminFeedback: firestoreData.adminFeedback || [],
                 isLoading: false,
                 error: null,
                 isLoggedToServer: true,
                 firestoreDocId: docSnap.id,
-                completedAt: firestoreData.completedAt,
+                interviewerPersona: firestoreData.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
+                selectedThemeId: firestoreData.selectedThemeId || "custom",
             };
             setSessionData(loadedSessionData);
             localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(loadedSessionData));
 
-            if (!loadedSessionData.feedback && loadedSessionData.answers.length > 0) {
-              fetchAndSetFeedback(loadedSessionData);
-            }
+            // Do not automatically fetch feedback if it's missing when loading from history.
+            // User must click "Generate Feedback" button.
 
           } else {
-            toast({ title: "Session Not Found", description: "Could not find the specified interview session. Loading last local session.", variant: "destructive"});
+            setTimeout(() => {
+              toast({ title: "Session Not Found", description: "Could not find the specified interview session. Loading last local session.", variant: "destructive"});
+            }, 0);
             loadFromLocalStorage();
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching session from Firestore:", error);
-          toast({ title: "Error Loading Session", description: "Failed to load session from history. Loading last local session.", variant: "destructive"});
+          const errorMsg = error.code ? `Error loading session: ${error.code} - ${error.message}` : `Error loading session: ${error.message || "Unknown Firebase error."}`;
+          setTimeout(() => {
+            toast({ title: "Error Loading Session", description: errorMsg, variant: "destructive"});
+          }, 0);
           loadFromLocalStorage();
         } finally {
           setIsSessionLoading(false);
@@ -289,27 +384,43 @@ function InterviewSummaryContent() {
             const parsedSession: InterviewSessionData = JSON.parse(storedSession);
             parsedSession.isLoggedToServer = parsedSession.isLoggedToServer ?? false;
             parsedSession.firestoreDocId = parsedSession.firestoreDocId ?? undefined;
+            parsedSession.deepDives = parsedSession.deepDives || {};
+            parsedSession.sampleAnswers = parsedSession.sampleAnswers || {};
+            parsedSession.caseStudyNotes = parsedSession.caseStudyNotes ?? null;
+            parsedSession.caseConversationHistory = parsedSession.caseConversationHistory || [];
+            parsedSession.previousConversation = parsedSession.previousConversation || "";
+            parsedSession.adminFeedback = parsedSession.adminFeedback || [];
+            parsedSession.interviewerPersona = parsedSession.interviewerPersona || INTERVIEWER_PERSONAS[0].value;
+            parsedSession.selectedThemeId = parsedSession.selectedThemeId || "custom";
+
 
             if (!parsedSession.interviewFinished) {
-              toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
+              setTimeout(() => {
+                toast({ title: "Interview Not Finished", description: "Redirecting...", variant: "default"});
+              }, 0);
               router.replace(parsedSession.questions?.length > 0 ? "/interview" : "/");
               return;
             }
             setSessionData(parsedSession);
 
-            if (!parsedSession.feedback && parsedSession.answers.length > 0) {
-              fetchAndSetFeedback(parsedSession);
-            } else if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer && authUser) {
+            // Do not automatically fetch feedback if it's missing.
+            // User must click "Generate Feedback" button.
+            // However, if feedback exists AND it's not logged, try to log.
+            if (parsedSession.feedback && parsedSession.interviewFinished && !parsedSession.isLoggedToServer && authUser) {
               saveInterviewToBackend(parsedSession, parsedSession.firestoreDocId);
             }
-          } catch (e) {
+          } catch (e: any) {
             console.error("Error parsing session data:", e);
-            toast({ title: "Session Error", description: "Could not load session data. Please start a new interview.", variant: "destructive"});
+            setTimeout(() => {
+              toast({ title: "Session Error", description: "Could not load session data. Please start a new interview.", variant: "destructive"});
+            }, 0);
             localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
             router.replace("/");
           }
         } else {
-          toast({ title: "No Interview Data", description: "Please start an interview first.", variant: "destructive"});
+          setTimeout(() => {
+            toast({ title: "No Interview Data", description: "Please start an interview first.", variant: "destructive"});
+          }, 0);
           router.replace("/");
         }
         setIsSessionLoading(false);
@@ -317,7 +428,7 @@ function InterviewSummaryContent() {
 
     loadSession();
 
-  }, [router, toast, fetchAndSetFeedback, saveInterviewToBackend, authLoading, authUser, searchParams]);
+  }, [router, toast, saveInterviewToBackend, authLoading, authUser, searchParams]);
 
   const handleOpenDeepDive = async (questionId: string) => {
     if (!sessionData) return;
@@ -361,12 +472,18 @@ function InterviewSummaryContent() {
         const updatedDeepDives = { ...(prev.deepDives || {}), [questionId]: result };
         const updatedSession = { ...prev, deepDives: updatedDeepDives };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        if (prev.isLoggedToServer && prev.firestoreDocId && authUser) {
+          const db = getFirestore();
+          updateDoc(doc(db, "users", authUser.uid, "interviews", prev.firestoreDocId), { deepDives: updatedDeepDives });
+        }
         return updatedSession;
       });
-    } catch (err) {
+    } catch (err: any) {
       const errorMessage = err instanceof Error ? err.message : "Failed to generate deep dive feedback.";
       setDeepDiveError(errorMessage);
-      toast({ title: "Deep Dive Error", description: errorMessage, variant: "destructive" });
+      setTimeout(() => {
+        toast({ title: "Deep Dive Error", description: errorMessage, variant: "destructive" });
+      },0);
     } finally {
       setIsDeepDiveLoading(false);
     }
@@ -376,7 +493,9 @@ function InterviewSummaryContent() {
     if (!sessionData) return;
     const question = sessionData.questions.find(q => q.id === questionId);
     if (!question) {
-        toast({ title: "Error", description: "Question not found.", variant: "destructive" });
+        setTimeout(() => {
+            toast({ title: "Error", description: "Question not found.", variant: "destructive" });
+        }, 0);
         return;
     }
 
@@ -406,12 +525,18 @@ function InterviewSummaryContent() {
         const updatedSampleAnswers = { ...(prev.sampleAnswers || {}), [questionId]: result.sampleAnswerText };
         const updatedSession = { ...prev, sampleAnswers: updatedSampleAnswers };
         localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+        if (prev.isLoggedToServer && prev.firestoreDocId && authUser) {
+          const db = getFirestore();
+          updateDoc(doc(db, "users", authUser.uid, "interviews", prev.firestoreDocId), { sampleAnswers: updatedSampleAnswers });
+        }
         return updatedSession;
       });
-    } catch (err) {
+    } catch (err: any) {
       const errorMessage = err instanceof Error ? err.message : "Failed to generate sample answer.";
       setSampleAnswerError(errorMessage);
-      toast({ title: "Sample Answer Error", description: errorMessage, variant: "destructive" });
+      setTimeout(() => {
+        toast({ title: "Sample Answer Error", description: errorMessage, variant: "destructive" });
+      }, 0);
     } finally {
       setIsSampleAnswerLoading(false);
     }
@@ -456,10 +581,12 @@ function InterviewSummaryContent() {
       };
       const result: ClarifyFeedbackOutput = await clarifyFeedback(input);
       setClarificationResponse(result.clarificationText);
-    } catch (err) {
+    } catch (err: any) {
       const errorMsg = err instanceof Error ? err.message : "Failed to get clarification.";
       setClarificationError(errorMsg);
-      toast({ title: "Clarification Error", description: errorMsg, variant: "destructive" });
+      setTimeout(() => {
+        toast({ title: "Clarification Error", description: errorMsg, variant: "destructive" });
+      }, 0);
     } finally {
       setIsFetchingClarification(false);
     }
@@ -587,7 +714,57 @@ function InterviewSummaryContent() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     setIsExportDialogOpen(false);
-    toast({ title: "Export Successful", description: "Your interview summary has been downloaded." });
+    setTimeout(() => {
+      toast({ title: "Export Successful", description: "Your interview summary has been downloaded." });
+    }, 0);
+  };
+
+  const handleAdminFeedbackSubmit = async () => {
+    if (!adminFeedbackText.trim() || !sessionData || !sessionData.firestoreDocId || !authUser) {
+        setTimeout(() => {
+            toast({ title: "Error", description: "Missing data to submit admin feedback.", variant: "destructive"});
+        }, 0);
+        return;
+    }
+    setIsSubmittingAdminFeedback(true);
+    try {
+        const db = getFirestore();
+        const newFeedback: AdminFeedbackItem = {
+            adminId: authUser.uid,
+            adminEmail: authUser.email === null ? undefined : authUser.email,
+            feedbackText: adminFeedbackText,
+            targetType: adminFeedbackTargetType,
+            targetQuestionId: (adminFeedbackTargetType !== 'overall_session' && adminFeedbackTargetQuestionId) ? adminFeedbackTargetQuestionId : undefined,
+            createdAt: Timestamp.now(),
+        };
+
+        const interviewDocRef = doc(db, "users", authUser.uid, "interviews", sessionData.firestoreDocId);
+        await updateDoc(interviewDocRef, {
+            adminFeedback: arrayUnion(newFeedback)
+        });
+
+        setSessionData(prev => {
+            if (!prev) return null;
+            const updatedAdminFeedback = [...(prev.adminFeedback || []), newFeedback];
+            const updatedSession = { ...prev, adminFeedback: updatedAdminFeedback };
+            localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION, JSON.stringify(updatedSession));
+            return updatedSession;
+        });
+
+        setAdminFeedbackText("");
+        setAdminFeedbackTargetType('overall_session');
+        setAdminFeedbackTargetQuestionId("");
+        setTimeout(() => {
+            toast({ title: "Admin Feedback Submitted", description: "Your feedback has been recorded."});
+        }, 0);
+    } catch (error: any) {
+        console.error("Error submitting admin feedback:", error);
+        setTimeout(() => {
+            toast({ title: "Admin Feedback Error", description: `Could not submit feedback: ${error.message || 'Unknown error'}. See console.`, variant: "destructive"});
+        }, 0);
+    } finally {
+        setIsSubmittingAdminFeedback(false);
+    }
   };
 
 
@@ -626,8 +803,12 @@ function InterviewSummaryContent() {
   };
 
   const getFeedbackItemForQuestion = (questionId: string): FeedbackItem | undefined => {
-    return sessionData.feedback?.feedbackItems.find(item => item.questionId === questionId);
-  }
+    if (sessionData.feedback && Array.isArray(sessionData.feedback.feedbackItems)) {
+      return sessionData.feedback.feedbackItems.find(item => item.questionId === questionId);
+    }
+    return undefined;
+  };
+
 
   const getLabel = (value: string | undefined, options: readonly { value: string; label: string }[]) => {
     if (!value) return "N/A";
@@ -734,199 +915,14 @@ function InterviewSummaryContent() {
             </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold mb-3 flex items-center text-foreground">
-              <FileText className="mr-2 h-6 w-6 text-accent" />
-              {isTakeHomeStyle ? "Assignment & Submission Feedback" : "Questions, Answers & Feedback"}
-            </h3>
-            {sessionData.questions.length > 0 ? (
-              isTakeHomeStyle ? (
-                  sessionData.questions.map((question) => {
-                      const answerInfo = getAnswerInfoForQuestion(question.id);
-                      const feedbackItem = getFeedbackItemForQuestion(question.id);
-                      return (
-                          <div key={question.id} className="space-y-4 p-4 border rounded-md bg-card">
-                              <div>
-                                  <h4 className="font-semibold text-muted-foreground mb-1">Assignment Description:</h4>
-                                  <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{question.text}</p>
-                                  {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
-                                    <div className="mt-2 p-2 rounded-md bg-blue-50 border border-blue-200">
-                                      <h5 className="text-xs font-semibold text-blue-700 mb-1 flex items-center"><Info className="h-3.5 w-3.5 mr-1.5"/>AI's Ideal Answer Characteristics (for Assignment Design):</h5>
-                                      <ul className="list-disc list-inside pl-1 space-y-0.5">
-                                        {question.idealAnswerCharacteristics.map((char, idx) => (
-                                          <li key={idx} className="text-xs text-blue-600">{char}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-                              </div>
-                              <div>
-                                  <h4 className="font-semibold text-muted-foreground mb-1">Your Submission:</h4>
-                                  <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{answerInfo.answerText}</p>
-                              </div>
-                              {feedbackItem && (
-                                  <div className="mt-4 p-3 rounded-md bg-accent/5 border border-accent/20">
-                                      <h4 className="font-semibold text-accent mb-2 flex items-center">
-                                          <Sparkles className="h-5 w-5 mr-2" />
-                                          AI Feedback on Submission:
-                                      </h4>
-                                      {feedbackItem.critique && (
-                                        <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
-                                                    <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
-                                                    </h5>
-                                                    <p className="text-sm">{feedbackItem.critique}</p>
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
-                                                    onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
-                                                    title="Ask for clarification on this critique"
-                                                >
-                                                    <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
-                                                </Button>
-                                            </div>
-                                        </div>
-                                      )}
-                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
-                                      <div className="flex space-x-2 mt-4">
-                                          <Button
-                                              onClick={() => handleOpenDeepDive(question.id)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
-                                              disabled={!feedbackItem}
-                                          >
-                                              <Layers className="mr-2 h-4 w-4" /> Deep Dive
-                                          </Button>
-                                          <Button
-                                              onClick={() => handleOpenSampleAnswer(question.id)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
-                                          >
-                                              <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
-                                          </Button>
-                                      </div>
-                                  </div>
-                              )}
-                          </div>
-                      );
-                  })
-              ) : (
-                  <Accordion type="single" collapsible className="w-full">
-                  {sessionData.questions.map((question, index) => {
-                      const answerInfo = getAnswerInfoForQuestion(question.id);
-                      const feedbackItem = getFeedbackItemForQuestion(question.id);
-                      const displayTime = formatMilliseconds(answerInfo.timeTakenMs);
-
-                      return (
-                      <AccordionItem value={`item-${index}`} key={question.id}>
-                          <AccordionTrigger className="text-lg hover:no-underline">
-                          <div className="flex items-start text-left w-full">
-                              <MessageSquare className="h-5 w-5 mr-3 mt-1 shrink-0 text-primary" />
-                              <span className="flex-1">Question {index + 1}: {question.text}</span>
-                          </div>
-                          </AccordionTrigger>
-                          <AccordionContent className="text-base pl-8 space-y-4">
-                              {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
-                                <div className="mb-2 p-2 rounded-md bg-blue-50 border border-blue-200">
-                                  <h5 className="text-xs font-semibold text-blue-700 mb-1 flex items-center"><Info className="h-3.5 w-3.5 mr-1.5"/>AI's Ideal Answer Characteristics (for Question Design):</h5>
-                                  <ul className="list-disc list-inside pl-1 space-y-0.5">
-                                    {question.idealAnswerCharacteristics.map((char, idx) => (
-                                      <li key={idx} className="text-xs text-blue-600">{char}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              <div>
-                                  <div className="flex justify-between items-center mb-1">
-                                      <p className="font-semibold text-muted-foreground">Your Answer:</p>
-                                      <div className="flex items-center space-x-3">
-                                        {answerInfo.confidenceScore !== undefined && (
-                                          <div className="flex items-center text-xs text-muted-foreground">
-                                            <span className="mr-1">Confidence:</span> {renderConfidenceStars(answerInfo.confidenceScore)}
-                                          </div>
-                                        )}
-                                        {answerInfo.timeTakenMs !== undefined && (
-                                            <p className="text-xs text-muted-foreground flex items-center">
-                                                <TimerIcon className="h-3 w-3 mr-1" /> {displayTime}
-                                            </p>
-                                        )}
-                                      </div>
-                                  </div>
-                                  <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md">{answerInfo.answerText}</p>
-                              </div>
-                              {feedbackItem && (
-                                  <div className="mt-3 p-3 rounded-md bg-accent/5 border border-accent/20">
-                                      <h4 className="font-semibold text-accent mb-2 flex items-center">
-                                          <Sparkles className="h-5 w-5 mr-2" />
-                                          AI Feedback:
-                                      </h4>
-                                      {feedbackItem.critique && (
-                                        <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
-                                                    <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
-                                                    </h5>
-                                                    <p className="text-sm">{feedbackItem.critique}</p>
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
-                                                    onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
-                                                    title="Ask for clarification on this critique"
-                                                >
-                                                    <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
-                                                </Button>
-                                            </div>
-                                        </div>
-                                      )}
-                                      {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
-                                      {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
-                                      <div className="flex space-x-2 mt-4">
-                                          <Button
-                                              onClick={() => handleOpenDeepDive(question.id)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
-                                              disabled={!feedbackItem}
-                                          >
-                                              <Layers className="mr-2 h-4 w-4" /> Deep Dive
-                                          </Button>
-                                          <Button
-                                              onClick={() => handleOpenSampleAnswer(question.id)}
-                                              variant="outline"
-                                              size="sm"
-                                              className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
-                                          >
-                                              <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
-                                          </Button>
-                                      </div>
-                                  </div>
-                              )}
-                          </AccordionContent>
-                      </AccordionItem>
-                      );
-                  })}
-                  </Accordion>
-              )
-            ) : (
-              <p className="text-center text-muted-foreground">No questions were asked in this session.</p>
-            )}
-          </div>
+          {sessionData.interviewFinished && !sessionData.feedback && !isFeedbackLoading && !feedbackError && (
+            <div className="text-center py-4">
+              <Button onClick={() => fetchAndSetFeedback(sessionData)} size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                <Sparkles className="mr-2 h-5 w-5" />
+                Generate My Feedback
+              </Button>
+            </div>
+          )}
 
           {(isFeedbackLoading && sessionData.answers.length > 0) && (
             <div className="flex flex-col items-center justify-center py-6">
@@ -947,15 +943,216 @@ function InterviewSummaryContent() {
           )}
 
           {sessionData.feedback && !isFeedbackLoading && !feedbackError && (
-            <div>
-              <h3 className="text-xl font-semibold mb-3 flex items-center text-foreground">
-                <Sparkles className="mr-2 h-6 w-6 text-accent" />
-                Overall Summary & Advice
-              </h3>
-              <div className="whitespace-pre-wrap bg-accent/10 p-4 rounded-md border border-accent/30 text-base">
-                {sessionData.feedback.overallSummary}
+            <>
+              <div>
+                <h3 className="text-xl font-semibold mb-3 flex items-center text-foreground">
+                  <FileText className="mr-2 h-6 w-6 text-accent" />
+                  {isTakeHomeStyle ? "Assignment & Submission Feedback" : "Questions, Answers & Feedback"}
+                </h3>
+                {sessionData.questions.length > 0 ? (
+                  isTakeHomeStyle ? (
+                      sessionData.questions.map((question) => {
+                          const answerInfo = getAnswerInfoForQuestion(question.id);
+                          const feedbackItem = getFeedbackItemForQuestion(question.id);
+                          return (
+                              <div key={question.id} className="space-y-4 p-4 border rounded-md bg-card">
+                                  <div>
+                                      <h4 className="font-semibold text-muted-foreground mb-1">Assignment Description:</h4>
+                                      <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{question.text}</p>
+                                      {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
+                                        <Alert variant="default" className="mt-2 bg-blue-50 border-blue-200">
+                                          <Info className="h-4 w-4 text-blue-600" />
+                                          <AlertTitle className="text-xs font-semibold text-blue-700">AI's Ideal Answer Characteristics (for Assignment Design):</AlertTitle>
+                                          <AlertDescription>
+                                            <ul className="list-disc list-inside pl-1 space-y-0.5">
+                                              {question.idealAnswerCharacteristics.map((char, idx) => (
+                                                <li key={idx} className="text-xs text-blue-600">{char}</li>
+                                              ))}
+                                            </ul>
+                                          </AlertDescription>
+                                        </Alert>
+                                      )}
+                                  </div>
+                                  <div>
+                                      <h4 className="font-semibold text-muted-foreground mb-1">Your Submission:</h4>
+                                      <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md border">{answerInfo.answerText}</p>
+                                  </div>
+                                  {feedbackItem && (
+                                      <div className="mt-4 p-3 rounded-md bg-accent/5 border border-accent/20">
+                                          <h4 className="font-semibold text-accent mb-2 flex items-center">
+                                              <Sparkles className="h-5 w-5 mr-2" />
+                                              AI Feedback on Submission:
+                                          </h4>
+                                          {feedbackItem.critique && (
+                                            <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
+                                                        <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
+                                                        </h5>
+                                                        <p className="text-sm">{feedbackItem.critique}</p>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                                        onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
+                                                        title="Ask for clarification on this critique"
+                                                    >
+                                                        <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                          )}
+                                          {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Ideal Submission Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
+                                          <div className="flex space-x-2 mt-4">
+                                              <Button
+                                                  onClick={() => handleOpenDeepDive(question.id)}
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
+                                                  disabled={!feedbackItem}
+                                              >
+                                                  <Layers className="mr-2 h-4 w-4" /> Deep Dive
+                                              </Button>
+                                              <Button
+                                                  onClick={() => handleOpenSampleAnswer(question.id)}
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
+                                              >
+                                                  <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
+                                              </Button>
+                                          </div>
+                                      </div>
+                                  )}
+                              </div>
+                          );
+                      })
+                  ) : (
+                      <Accordion type="single" collapsible className="w-full">
+                      {sessionData.questions.map((question, index) => {
+                          const answerInfo = getAnswerInfoForQuestion(question.id);
+                          const feedbackItem = getFeedbackItemForQuestion(question.id);
+                          const displayTime = formatMilliseconds(answerInfo.timeTakenMs);
+
+                          return (
+                          <AccordionItem value={`item-${index}`} key={question.id}>
+                              <AccordionTrigger className="text-lg hover:no-underline">
+                              <div className="flex items-start text-left w-full">
+                                  <MessageSquare className="h-5 w-5 mr-3 mt-1 shrink-0 text-primary" />
+                                  <span className="flex-1">Question {index + 1}: {question.text}</span>
+                              </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="text-base pl-8 space-y-4">
+                                  {question.idealAnswerCharacteristics && question.idealAnswerCharacteristics.length > 0 && (
+                                    <Alert variant="default" className="mb-2 bg-blue-50 border-blue-200">
+                                      <Info className="h-4 w-4 text-blue-600" />
+                                      <AlertTitle className="text-xs font-semibold text-blue-700">AI's Ideal Answer Characteristics (for Question Design):</AlertTitle>
+                                      <AlertDescription>
+                                        <ul className="list-disc list-inside pl-1 space-y-0.5">
+                                          {question.idealAnswerCharacteristics.map((char, idx) => (
+                                            <li key={idx} className="text-xs text-blue-600">{char}</li>
+                                          ))}
+                                        </ul>
+                                      </AlertDescription>
+                                    </Alert>
+                                  )}
+                                  <div>
+                                      <div className="flex justify-between items-center mb-1">
+                                          <p className="font-semibold text-muted-foreground">Your Answer:</p>
+                                          <div className="flex items-center space-x-3">
+                                            {answerInfo.confidenceScore !== undefined && (
+                                              <div className="flex items-center text-xs text-muted-foreground">
+                                                <span className="mr-1">Confidence:</span> {renderConfidenceStars(answerInfo.confidenceScore)}
+                                              </div>
+                                            )}
+                                            {answerInfo.timeTakenMs !== undefined && (
+                                                <p className="text-xs text-muted-foreground flex items-center">
+                                                    <TimerIcon className="h-3 w-3 mr-1" /> {displayTime}
+                                                </p>
+                                            )}
+                                          </div>
+                                      </div>
+                                      <p className="whitespace-pre-wrap bg-secondary/30 p-3 rounded-md">{answerInfo.answerText}</p>
+                                  </div>
+                                  {feedbackItem && (
+                                      <div className="mt-3 p-3 rounded-md bg-accent/5 border border-accent/20">
+                                          <h4 className="font-semibold text-accent mb-2 flex items-center">
+                                              <Sparkles className="h-5 w-5 mr-2" />
+                                              AI Feedback:
+                                          </h4>
+                                          {feedbackItem.critique && (
+                                            <div className="mb-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <h5 className="font-semibold text-muted-foreground mb-1 flex items-center">
+                                                        <MessageCircle className="h-4 w-4 mr-2 text-primary" /> Overall Critique:
+                                                        </h5>
+                                                        <p className="text-sm">{feedbackItem.critique}</p>
+                                                    </div>
+                                                     <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="ml-2 h-auto shrink-0 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                                                        onClick={() => handleOpenClarifyFeedbackDialog(question, answerInfo.answerText, feedbackItem.critique!, 'critique')}
+                                                        title="Ask for clarification on this critique"
+                                                    >
+                                                        <MessageSquarePlus className="h-3.5 w-3.5 mr-1" /> Clarify
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                          )}
+                                          {renderFeedbackListWithClarification("Strengths", feedbackItem.strengths, <ThumbsUp className="h-4 w-4 mr-2 text-green-500" />, 'strength', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Areas for Improvement", feedbackItem.areasForImprovement, <TrendingDown className="h-4 w-4 mr-2 text-orange-500" />, 'areaForImprovement', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Specific Suggestions", feedbackItem.specificSuggestions, <Lightbulb className="h-4 w-4 mr-2 text-blue-500" />, 'specificSuggestion', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Ideal Answer Pointers", feedbackItem.idealAnswerPointers, <CheckSquare className="h-4 w-4 mr-2 text-purple-500" />, 'idealAnswerPointer', question, answerInfo.answerText)}
+                                          {renderFeedbackListWithClarification("Points to Reflect On", feedbackItem.reflectionPrompts, <HelpCircle className="h-4 w-4 mr-2 text-teal-500" />, 'reflectionPrompt', question, answerInfo.answerText)}
+                                          <div className="flex space-x-2 mt-4">
+                                              <Button
+                                                  onClick={() => handleOpenDeepDive(question.id)}
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
+                                                  disabled={!feedbackItem}
+                                              >
+                                                  <Layers className="mr-2 h-4 w-4" /> Deep Dive
+                                              </Button>
+                                              <Button
+                                                  onClick={() => handleOpenSampleAnswer(question.id)}
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-600"
+                                              >
+                                                  <BookMarked className="mr-2 h-4 w-4" /> View Sample Answer
+                                              </Button>
+                                          </div>
+                                      </div>
+                                  )}
+                              </AccordionContent>
+                          </AccordionItem>
+                          );
+                      })}
+                      </Accordion>
+                  )
+                ) : (
+                  <p className="text-center text-muted-foreground">No questions were asked in this session.</p>
+                )}
               </div>
-            </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-3 flex items-center text-foreground">
+                  <Sparkles className="mr-2 h-6 w-6 text-accent" />
+                  Overall Summary & Advice
+                </h3>
+                <div className="whitespace-pre-wrap bg-accent/10 p-4 rounded-md border border-accent/30 text-base">
+                  {sessionData.feedback.overallSummary}
+                </div>
+              </div>
+            </>
           )}
 
           {sessionData.answers.length === 0 && !isFeedbackLoading && (
@@ -967,6 +1164,80 @@ function InterviewSummaryContent() {
                   </AlertDescription>
               </Alert>
           )}
+
+          {isAdmin && sessionData && sessionData.firestoreDocId && (
+            <Card className="mt-8 border-primary/30 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-lg text-primary flex items-center">
+                  <ShieldCheck className="mr-2 h-5 w-5" /> Admin Feedback
+                </CardTitle>
+                <CardDescription>Provide feedback on this interview session to help improve the AI.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {sessionData.adminFeedback && sessionData.adminFeedback.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-muted-foreground">Existing Admin Feedback:</h4>
+                    <ScrollArea className="h-40 border rounded-md p-3 bg-background">
+                      {sessionData.adminFeedback.map((fb, index) => (
+                        <div key={index} className="text-xs mb-2 pb-2 border-b last:border-b-0 last:mb-0">
+                          <p className="font-medium">{fb.adminEmail || fb.adminId} ({fb.targetType}{fb.targetQuestionId ? ` - QID: ${fb.targetQuestionId.substring(0,8)}...` : ''}):</p>
+                          <p className="whitespace-pre-wrap text-foreground/80">{fb.feedbackText}</p>
+                          <p className="text-muted-foreground/70 mt-0.5">{fb.createdAt.toDate().toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                  </div>
+                )}
+                <div>
+                  <Label htmlFor="adminFeedbackTargetType">Feedback Target Type</Label>
+                  <Select value={adminFeedbackTargetType} onValueChange={(value) => setAdminFeedbackTargetType(value as AdminFeedbackTargetType)}>
+                    <SelectTrigger id="adminFeedbackTargetType">
+                      <SelectValue placeholder="Select target type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="overall_session">Overall Session</SelectItem>
+                      <SelectItem value="ai_question_quality">AI Question Quality</SelectItem>
+                      <SelectItem value="ai_feedback_quality">AI Feedback Quality</SelectItem>
+                      <SelectItem value="user_answer_quality">User Answer Quality</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {adminFeedbackTargetType !== 'overall_session' && (
+                  <div>
+                    <Label htmlFor="adminFeedbackTargetQuestionId">Target Question ID (if applicable)</Label>
+                    <Select value={adminFeedbackTargetQuestionId} onValueChange={setAdminFeedbackTargetQuestionId}>
+                        <SelectTrigger id="adminFeedbackTargetQuestionId">
+                            <SelectValue placeholder="Select question to target..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="">N/A (or select a question)</SelectItem>
+                            {sessionData.questions.map((q, idx) => (
+                                <SelectItem key={q.id} value={q.id}>
+                                    Q{idx + 1}: {q.text.substring(0, 50)}...
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div>
+                  <Label htmlFor="adminFeedbackText">Your Feedback</Label>
+                  <Textarea
+                    id="adminFeedbackText"
+                    value={adminFeedbackText}
+                    onChange={(e) => setAdminFeedbackText(e.target.value)}
+                    placeholder="Enter your observations or suggestions..."
+                    rows={3}
+                  />
+                </div>
+                <Button onClick={handleAdminFeedbackSubmit} disabled={isSubmittingAdminFeedback || !adminFeedbackText.trim()}>
+                  {isSubmittingAdminFeedback && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Submit Admin Feedback
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
         </CardContent>
 
         {activeDeepDiveQuestionId && (
@@ -1010,7 +1281,7 @@ function InterviewSummaryContent() {
                 )}
                 {deepDiveContent && !isDeepDiveLoading && !deepDiveError && (
                   <div className="space-y-4">
-                    {renderFeedbackListWithClarification("Detailed Ideal Answer Breakdown", deepDiveContent.detailedIdealAnswerBreakdown, <CheckSquare className="h-5 w-5 text-green-600" />, 'idealAnswerPointer', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
+                    {renderFeedbackListWithClarification("Detailed Ideal Answer Breakdown", deepDiveContent.detailedIdealAnswerBreakdown, <ListChecks className="h-5 w-5 text-green-600" />, 'idealAnswerPointer', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                     {renderFeedbackListWithClarification("Alternative Approaches", deepDiveContent.alternativeApproaches, <Lightbulb className="h-5 w-5 text-blue-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                     {renderFeedbackListWithClarification("Follow-up Scenarios / Probing Questions", deepDiveContent.followUpScenarios, <Search className="h-5 w-5 text-purple-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
                     {renderFeedbackListWithClarification("Suggested Study Concepts", deepDiveContent.suggestedStudyConcepts, <BookOpen className="h-5 w-5 text-orange-600" />, 'critique', sessionData.questions.find(q=>q.id===activeDeepDiveQuestionId)!, currentDeepDiveUserAnswerText)}
@@ -1118,7 +1389,6 @@ function InterviewSummaryContent() {
           </DialogContent>
         </Dialog>
 
-        {/* Clarify Feedback Dialog */}
         <Dialog open={isClarifyFeedbackDialogOpen} onOpenChange={setIsClarifyFeedbackDialogOpen}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
@@ -1204,3 +1474,4 @@ export default function InterviewSummaryPage() {
     </Suspense>
   );
 }
+

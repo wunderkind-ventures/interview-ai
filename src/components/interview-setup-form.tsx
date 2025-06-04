@@ -1,11 +1,10 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2, UploadCloud, Save, List, AlertCircle, Trash2, Cog, HelpCircle } from "lucide-react";
+import { Brain, FileText, UserCircle, Star, Workflow, Users, Loader2, MessagesSquare, ListChecks, Lightbulb, AlertTriangle, Target, Building, Layers, Briefcase, SearchCheck, PackageSearch, BrainCircuit, Code2, UploadCloud, Save, List, AlertCircle, Trash2, Cog, HelpCircle, Users2, CloudUpload, KeyRound, SettingsIcon } from "lucide-react";
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, deleteDoc, orderBy } from "firebase/firestore";
 import { useAuth } from '@/contexts/auth-context';
@@ -37,11 +36,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 
-import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, type InterviewType, type FaangLevel, INTERVIEW_STYLES, type InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, THEMED_INTERVIEW_PACKS, type Skill } from "@/lib/constants";
-import type { InterviewSetupData, ThemedInterviewPack, ThemedInterviewPackConfig, SavedResume, SavedJobDescription, SavedInterviewSetup } from "@/lib/types";
+import { INTERVIEW_TYPES, FAANG_LEVELS, LOCAL_STORAGE_KEYS, type InterviewType, type FaangLevel, INTERVIEW_STYLES, type InterviewStyle, SKILLS_BY_INTERVIEW_TYPE, type Skill, THEMED_INTERVIEW_PACKS, INTERVIEWER_PERSONAS, type InterviewerPersona, ROLE_TYPES, type RoleType } from "@/lib/constants";
+import type { InterviewSetupData, SavedResume, SavedJobDescription, SavedInterviewSetup, ThemedInterviewPack, ThemedInterviewPackConfig } from "@/lib/types";
 import { summarizeResume } from "@/ai/flows/summarize-resume";
 import type { SummarizeResumeOutput } from "@/ai/flows/summarize-resume";
 import { useToast } from "@/hooks/use-toast";
+
+const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || 'http://localhost:8080';
 
 const formSchema = z.object({
   interviewType: z.custom<InterviewType>((val) => INTERVIEW_TYPES.some(it => it.value === val), {
@@ -53,6 +54,9 @@ const formSchema = z.object({
   faangLevel: z.custom<FaangLevel>((val) => FAANG_LEVELS.some(fl => fl.value === val), {
     message: "Please select a FAANG level.",
   }),
+  roleType: z.custom<RoleType>((val) => ROLE_TYPES.some(rt => rt.value === val), {
+    message: "Please select a role type.",
+  }).optional(),
   jobTitle: z.string().optional(),
   jobDescription: z.string().optional(),
   resume: z.string().optional(),
@@ -60,12 +64,15 @@ const formSchema = z.object({
   targetCompany: z.string().optional(),
   interviewFocus: z.string().optional(),
   selectedThemeId: z.string().optional(),
+  interviewerPersona: z.custom<InterviewerPersona | string>().optional(),
+  // No longer taking userApiKey directly in the form.
+  // It will be fetched from Go backend if set by user, or default will be used by Go backend.
 });
 
 export default function InterviewSetupForm() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, authInitializationFailed } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [resumeSummary, setResumeSummary] = useState<string | null>(null);
@@ -96,6 +103,8 @@ export default function InterviewSetupForm() {
   const [savedSetups, setSavedSetups] = useState<SavedInterviewSetup[]>([]);
   const [isLoadingSetups, setIsLoadingSetups] = useState(false);
 
+  const [isGoogleDriveInfoDialogOpen, setIsGoogleDriveInfoDialogOpen] = useState(false);
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -103,6 +112,7 @@ export default function InterviewSetupForm() {
       interviewType: INTERVIEW_TYPES[0].value,
       interviewStyle: INTERVIEW_STYLES[0].value,
       faangLevel: FAANG_LEVELS[1].value,
+      roleType: undefined,
       jobTitle: "",
       jobDescription: "",
       resume: "",
@@ -110,6 +120,7 @@ export default function InterviewSetupForm() {
       targetCompany: "",
       interviewFocus: "",
       selectedThemeId: "custom",
+      interviewerPersona: INTERVIEWER_PERSONAS[0].value,
     },
   });
 
@@ -120,6 +131,7 @@ export default function InterviewSetupForm() {
   const availableSkills: Skill[] = useMemo(() => {
     return SKILLS_BY_INTERVIEW_TYPE[watchedInterviewType] || [];
   }, [watchedInterviewType]);
+
 
   useEffect(() => {
     if (form.getValues("selectedThemeId") === "custom" && availableSkills.length > 0) {
@@ -181,9 +193,10 @@ export default function InterviewSetupForm() {
         form.reset({
           ...parsedSetup,
           selectedThemeId: parsedSetup.selectedThemeId || "custom",
+          interviewerPersona: parsedSetup.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
         });
         if (parsedSetup.resume && parsedSetup.resume.trim() !== "") {
-           setSummarizedForResumeText(parsedSetup.resume);
+           setSummarizedForResumeText(parsedSetup.resume); 
         }
       } catch (e) {
         console.error("Failed to parse stored interview setup:", e);
@@ -191,6 +204,13 @@ export default function InterviewSetupForm() {
       }
     }
   }, [form]);
+
+  useEffect(() => { 
+    if (summarizedForResumeText && form.getValues('resume') === summarizedForResumeText) {
+        handleResumeAnalysis();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summarizedForResumeText]); 
 
   const handleThemeChange = (themeId: string) => {
     form.setValue("selectedThemeId", themeId);
@@ -200,6 +220,7 @@ export default function InterviewSetupForm() {
         availableSkills.some(s => s.value === skillVal)
       );
       form.setValue("targetedSkills", validCurrentTargetedSkills);
+      form.setValue("interviewerPersona", INTERVIEWER_PERSONAS[0].value ) 
       return;
     }
     const selectedPack = THEMED_INTERVIEW_PACKS.find(pack => pack.id === themeId);
@@ -211,6 +232,7 @@ export default function InterviewSetupForm() {
         interviewType: config.interviewType || INTERVIEW_TYPES[0].value,
         interviewStyle: config.interviewStyle || INTERVIEW_STYLES[0].value,
         faangLevel: config.faangLevel || FAANG_LEVELS[1].value,
+        roleType: config.roleType || undefined,
         jobTitle: config.jobTitle || "",
         jobDescription: config.jobDescription || currentJobDescriptionFromForm,
         targetedSkills: [],
@@ -218,6 +240,7 @@ export default function InterviewSetupForm() {
         interviewFocus: config.interviewFocus || "",
         resume: currentResume,
         selectedThemeId: themeId,
+        interviewerPersona: config.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
       };
       form.reset(newFormValues);
 
@@ -232,7 +255,11 @@ export default function InterviewSetupForm() {
 
       setResumeSummary(null);
       setResumeSummaryError(null);
-      setSummarizedForResumeText(currentResume);
+      if (currentResume) {
+        setSummarizedForResumeText(currentResume); 
+      } else {
+        setSummarizedForResumeText(null);
+      }
       setSelectedFileName(null);
     }
   };
@@ -286,15 +313,68 @@ export default function InterviewSetupForm() {
     reader.readAsText(file);
   };
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
+    
     const setupData: InterviewSetupData = {
         ...values,
         targetedSkills: values.targetedSkills || [],
+        interviewerPersona: values.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
     };
+
     localStorage.setItem(LOCAL_STORAGE_KEYS.INTERVIEW_SETUP, JSON.stringify(setupData));
-    localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION);
-    router.push("/interview");
+    localStorage.removeItem(LOCAL_STORAGE_KEYS.INTERVIEW_SESSION); 
+
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to start an interview.", variant: "default" });
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const idToken = await user.getIdToken();
+      
+      // Placeholder for calling the Go backend proxy
+      // The Go backend will handle API key logic and then call the Next.js /api/execute-flow endpoint.
+      console.log("Submitting interview setup to Go backend proxy (conceptual)...");
+      console.log("Flow Name: customizeInterviewQuestions");
+      console.log("Request Body to Go Backend:", setupData);
+      console.log("Authorization Header would contain: Bearer " + idToken.substring(0, 20) + "...");
+
+      // Example conceptual fetch call to Go backend
+      // const response = await fetch(`${GO_BACKEND_URL}/api/ai/genkit/customizeInterviewQuestions`, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Authorization': `Bearer ${idToken}`,
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify(setupData), // This is the input for the Genkit flow
+      // });
+
+      // if (!response.ok) {
+      //   const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+      //   throw new Error(`Error from AI service: ${response.status} ${errorData.detail || errorData.error || ''}`);
+      // }
+      // const aiResponse = await response.json(); // This would be CustomizeInterviewQuestionsOutput
+      // For now, we assume the Go backend interaction is successful and proceed to /interview
+      // The /interview page will pick up the setup from localStorage and initiate the AI call.
+
+      toast({
+        title: "Setup Ready",
+        description: "Your interview configuration is set. Navigating to the interview session...",
+      });
+      router.push("/interview");
+
+    } catch (error) {
+      console.error("Error starting interview via backend:", error);
+      toast({
+        title: "Error Starting Interview",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+    }
+    // No setIsSubmitting(false) here, as navigation should occur.
   }
 
   const getIconForType = (type: InterviewType) => {
@@ -317,7 +397,6 @@ export default function InterviewSetupForm() {
     }
   };
 
-  // Resume Save/Load Logic
   const fetchSavedResumes = async () => {
     if (!user) return;
     setIsLoadingResumes(true);
@@ -534,11 +613,12 @@ export default function InterviewSetupForm() {
       return;
     }
 
-    const currentConfig = form.getValues();
+    const currentConfigValues = form.getValues();
     const setupToSave: InterviewSetupData = {
-        ...currentConfig,
-        targetedSkills: currentConfig.targetedSkills || [],
-        selectedThemeId: currentConfig.selectedThemeId || "custom",
+        ...currentConfigValues,
+        targetedSkills: currentConfigValues.targetedSkills || [],
+        selectedThemeId: currentConfigValues.selectedThemeId || "custom",
+        interviewerPersona: currentConfigValues.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
     };
 
     setIsSavingSetup(true);
@@ -569,6 +649,7 @@ export default function InterviewSetupForm() {
     form.reset({
       ...setup.config,
       selectedThemeId: setup.config.selectedThemeId || "custom",
+      interviewerPersona: setup.config.interviewerPersona || INTERVIEWER_PERSONAS[0].value,
     });
     toast({ title: "Setup Loaded", description: `"${setup.title}" interview setup has been loaded.` });
     setIsLoadSetupDialogOpen(false);
@@ -595,7 +676,6 @@ export default function InterviewSetupForm() {
     }
   };
 
-
   return (
     <>
     <Card className="w-full max-w-2xl mx-auto shadow-xl">
@@ -609,53 +689,17 @@ export default function InterviewSetupForm() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <Card className="bg-secondary/30">
-              <CardHeader>
-                <CardTitle className="text-xl">Interview Configuration</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-6 mb-4">
-                    <FormField
-                    control={form.control}
-                    name="selectedThemeId"
-                    render={({ field }) => (
-                        <FormItem className="flex-grow">
-                        <FormLabel className="flex items-center">
-                            <PackageSearch className="mr-2 h-5 w-5 text-primary" />
-                            Interview Theme
-                        </FormLabel>
-                        <Select onValueChange={handleThemeChange} value={field.value || "custom"}>
-                            <FormControl>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a theme or configure manually" />
-                            </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                            <SelectItem value="custom">
-                                Custom Configuration
-                            </SelectItem>
-                            {THEMED_INTERVIEW_PACKS.map((pack) => (
-                                <SelectItem key={pack.id} value={pack.id} title={pack.description}>
-                                {pack.label}
-                                </SelectItem>
-                            ))}
-                            </SelectContent>
-                        </Select>
-                        <FormDescription>
-                            Select a theme or configure manually below.
-                        </FormDescription>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-                    <div className="flex flex-col sm:flex-row sm:items-end gap-2 pt-2 sm:pt-0 shrink-0">
+              <CardHeader className="pb-4">
+                 <div className="flex items-center justify-between">
+                    <CardTitle className="text-xl">Interview Configuration</CardTitle>
+                    <div className="flex items-center space-x-2">
                         <Dialog open={isLoadSetupDialogOpen} onOpenChange={setIsLoadSetupDialogOpen}>
                             <DialogTrigger asChild>
-                            <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} onClick={handleOpenLoadSetupDialog} className="w-full sm:w-auto">
+                            <Button type="button" variant="outline" size="sm" disabled={!user || authLoading || authInitializationFailed} onClick={handleOpenLoadSetupDialog}>
                                 <Cog className="mr-2 h-4 w-4" /> Load Setup
                             </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-md">
-                                {/* Load Setup Dialog Content (similar to resume/jd load) */}
                                 <DialogHeader>
                                     <DialogTitle>Load Saved Interview Setup</DialogTitle>
                                     <DialogDescription>Select a setup to load into the form.</DialogDescription>
@@ -713,7 +757,7 @@ export default function InterviewSetupForm() {
                         </Dialog>
                         <Dialog open={isSaveSetupDialogOpen} onOpenChange={setIsSaveSetupDialogOpen}>
                             <DialogTrigger asChild>
-                            <Button type="button" variant="outline" size="sm" disabled={!user || authLoading} className="w-full sm:w-auto">
+                            <Button type="button" variant="outline" size="sm" disabled={!user || authLoading || authInitializationFailed}>
                                 <Save className="mr-2 h-4 w-4" /> Save Setup
                             </Button>
                             </DialogTrigger>
@@ -737,7 +781,42 @@ export default function InterviewSetupForm() {
                             </DialogContent>
                         </Dialog>
                     </div>
-                </div>
+                 </div>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-4">
+                 <FormField
+                    control={form.control}
+                    name="selectedThemeId"
+                    render={({ field }) => (
+                        <FormItem className="flex-grow">
+                        <FormLabel className="flex items-center">
+                            <PackageSearch className="mr-2 h-5 w-5 text-primary" />
+                            Interview Theme
+                        </FormLabel>
+                        <Select onValueChange={handleThemeChange} value={field.value || "custom"}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a theme or configure manually" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            <SelectItem value="custom">
+                                Custom Configuration
+                            </SelectItem>
+                            {THEMED_INTERVIEW_PACKS.map((pack) => (
+                                <SelectItem key={pack.id} value={pack.id} title={pack.description}>
+                                {pack.label}
+                                </SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormDescription>
+                            Select a theme or configure manually below.
+                        </FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
                 
                 <FormField
                   control={form.control}
@@ -837,6 +916,64 @@ export default function InterviewSetupForm() {
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name="roleType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role Type (Optional)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""} >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role type (optional)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {ROLE_TYPES.map((role) => (
+                            <SelectItem key={role.value} value={role.value}>
+                              {role.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Selecting a role can help tailor questions and feedback (optional).
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="interviewerPersona"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <Users2 className="mr-2 h-5 w-5 text-primary" />
+                        Interviewer Persona (Optional)
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || INTERVIEWER_PERSONAS[0].value} >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an interviewer persona" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {INTERVIEWER_PERSONAS.map((persona) => (
+                            <SelectItem key={persona.value} value={persona.value}>
+                              {persona.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Choose the style of the AI interviewer.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </CardContent>
             </Card>
 
@@ -924,7 +1061,7 @@ export default function InterviewSetupForm() {
                           <Target className="mr-2 h-5 w-5 text-primary" />
                           Targeted Skills
                         </FormLabel>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 p-3 border rounded-md bg-background">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 p-4 border rounded-md bg-background shadow-sm">
                           {availableSkills.map((skill) => (
                             <FormField
                               key={skill.value}
@@ -995,6 +1132,16 @@ export default function InterviewSetupForm() {
                               >
                                   <UploadCloud className="mr-1.5 h-3.5 w-3.5" />
                                   Upload .txt
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                className="text-xs"
+                                onClick={() => setIsGoogleDriveInfoDialogOpen(true)}
+                              >
+                                <CloudUpload className="mr-1.5 h-3.5 w-3.5" />
+                                Import Google Drive
                               </Button>
                               <Dialog open={isSaveResumeDialogOpen} onOpenChange={setIsSaveResumeDialogOpen}>
                                   <DialogTrigger asChild>
@@ -1188,9 +1335,8 @@ export default function InterviewSetupForm() {
                     />
                 </CardContent>
             </Card>
-
-
-            <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting || isSummarizingResume || authLoading}>
+            
+            <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting || isSummarizingResume || authLoading || authInitializationFailed}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -1204,6 +1350,32 @@ export default function InterviewSetupForm() {
         </Form>
       </CardContent>
     </Card>
+
+    <Dialog open={isGoogleDriveInfoDialogOpen} onOpenChange={setIsGoogleDriveInfoDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center">
+            <CloudUpload className="mr-2 h-5 w-5 text-primary" />
+            Import from Google Drive
+          </DialogTitle>
+          <DialogDescription className="pt-2">
+            This feature allows importing your resume directly from Google Drive.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-2">
+          <p className="text-sm text-muted-foreground">
+            To enable this functionality, full integration with the Google Drive API and Google Picker API, including OAuth 2.0 for user authorization, would be required. This involves setup in the Google Cloud Console.
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            For now, please use the "Upload .txt" option or copy-paste your resume content into the textarea.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => setIsGoogleDriveInfoDialogOpen(false)}>Got it</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
+

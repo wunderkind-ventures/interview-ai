@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to generate a hint for the current interview question.
@@ -8,10 +7,13 @@
  * - GenerateHintOutput - The return type for the generateHint function.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
+import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
 
-const GenerateHintInputSchema = z.object({
+const GenerateHintInputSchemaInternal = z.object({
   questionText: z.string().describe('The text of the current interview question for which a hint is requested.'),
   interviewType: z.string().describe('The type of the interview (e.g., "product sense", "technical system design").'),
   faangLevel: z.string().describe('The target FAANG level for the interview, to calibrate the hint difficulty.'),
@@ -19,61 +21,65 @@ const GenerateHintInputSchema = z.object({
   interviewFocus: z.string().optional().describe('The specific focus of the interview, if any.'),
   targetedSkills: z.array(z.string()).optional().describe('Specific skills being targeted, if any.'),
 });
-export type GenerateHintInput = z.infer<typeof GenerateHintInputSchema>;
+export type GenerateHintInput = z.infer<typeof GenerateHintInputSchemaInternal>;
 
-const GenerateHintOutputSchema = z.object({
+const GenerateHintOutputSchemaInternal = z.object({
   hintText: z.string().describe('A subtle hint or guiding question to help the user proceed with their answer.'),
 });
-export type GenerateHintOutput = z.infer<typeof GenerateHintOutputSchema>;
+export type GenerateHintOutput = z.infer<typeof GenerateHintOutputSchemaInternal>;
 
-export async function generateHint(input: GenerateHintInput): Promise<GenerateHintOutput> {
-  return generateHintFlow(input);
-}
+const RAW_GENERATE_HINT_PROMPT_TEMPLATE = loadPromptFile("generate-hint.prompt");
 
-const generateHintPrompt = ai.definePrompt({
+// definePrompt can still be useful for organizing/validating schemas, even if not using run() by name directly in this flow
+// Note: The 'prompt' field here now holds the raw template string. 
+// The actual rendering will happen dynamically within the generateHint function.
+const generateHintPromptObj = globalAi.definePrompt({
   name: 'generateHintPrompt',
-  input: {schema: GenerateHintInputSchema},
-  output: {schema: GenerateHintOutputSchema},
-  prompt: `You are an expert Interview Coach AI. A user is stuck on the following interview question and needs a hint.
-Provide a subtle hint, a guiding question, or suggest an area to focus on.
-The hint should help them think in the right direction without giving away the answer or being too obvious.
-Tailor the hint based on the interview type, FAANG level, the question itself, and any partial answer they've provided.
-
-Interview Type: {{{interviewType}}}
-FAANG Level: {{{faangLevel}}}
-{{#if interviewFocus}}Specific Interview Focus: {{{interviewFocus}}}{{/if}}
-{{#if targetedSkills.length}}Targeted Skills: {{#each targetedSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
-
-Question:
-"{{{questionText}}}"
-
-{{#if userAnswerAttempt}}
-User's current answer attempt (if any):
-"{{{userAnswerAttempt}}}"
-{{/if}}
-
-Generate a concise hint (1-2 sentences).
-
-Examples of good hints:
-- For a system design question: "Consider how you would handle a large number of concurrent users." or "What are the primary components you'd need to consider for this system?"
-- For a product sense question: "What user problem are you primarily trying to solve here?" or "How would you measure the success of this feature?"
-- For a behavioral question: "Try to structure your answer using a common framework like STAR."
-- For a DSA question: "Think about what data structure would be most efficient for lookups in this scenario." or "Have you considered edge cases like an empty input?"
-
-Do not provide a direct answer or a solution. The goal is to nudge their thinking.
-`,
+  input: {schema: GenerateHintInputSchemaInternal},
+  output: {schema: GenerateHintOutputSchemaInternal},
+  prompt: RAW_GENERATE_HINT_PROMPT_TEMPLATE, 
 });
 
-const generateHintFlow = ai.defineFlow(
-  {
-    name: 'generateHintFlow',
-    inputSchema: GenerateHintInputSchema,
-    outputSchema: GenerateHintOutputSchema,
-  },
-  async (input) => {
-    const {output} = await generateHintPrompt(input);
+export async function generateHint(
+  input: GenerateHintInput,
+  options?: { aiInstance?: any; apiKey?: string }
+): Promise<GenerateHintOutput> {
+  let activeAI = globalAi;
+  const flowNameForLogging = 'generateHint';
+
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+    console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance.`);
+  } else if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+      });
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
+    } catch (e) {
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back to global AI.`);
+      activeAI = globalAi;
+    }
+  } else {
+    console.log(`[BYOK] ${flowNameForLogging}: No specific API key or AI instance provided; using default global AI instance.`);
+  }
+
+  try {
+    const renderedPrompt = renderPromptTemplate(RAW_GENERATE_HINT_PROMPT_TEMPLATE, input);
+    console.log(`[BYOK] ${flowNameForLogging}: Rendered Prompt:\n`, renderedPrompt);
+    console.log('[BYOK] generateHint input:', JSON.stringify(input, null, 2));
+    
+    const generateResult = await activeAI.generate<typeof GenerateHintOutputSchemaInternal>({
+      prompt: renderedPrompt,
+      model: googleAI.model('gemini-1.5-flash-latest'),
+      output: { schema: GenerateHintOutputSchemaInternal },
+      config: { responseMimeType: "application/json" },
+    });
+    
+    const output = generateResult.output;
+
     if (!output || !output.hintText) {
-        // Fallback hint
+        console.log('[BYOK] generateHint: Output was null or hintText missing, using fallback.');
         let fallback = "Consider breaking the problem down into smaller pieces. What's the core challenge?";
         if (input.interviewType === "behavioral") {
             fallback = "Think about a specific past experience that illustrates this. How can you structure your story clearly?";
@@ -83,5 +89,13 @@ const generateHintFlow = ai.defineFlow(
         return { hintText: fallback };
     }
     return output;
+  } catch (error) {
+    console.error(`Error in ${flowNameForLogging}:`, error);
+    if (error instanceof Error) {
+        throw new Error(`Hint generation failed: ${error.message}`);
+    }
+    throw new Error('Hint generation failed due to an unknown error.');
   }
-);
+}
+
+    

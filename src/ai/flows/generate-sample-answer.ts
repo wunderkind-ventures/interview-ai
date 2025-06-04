@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to generate a sample answer for a given interview question.
@@ -8,10 +7,13 @@
  * - GenerateSampleAnswerOutput - The return type for the generateSampleAnswer function.
  */
 
-import {ai} from '@/ai/genkit';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
+import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
 
-const GenerateSampleAnswerInputSchema = z.object({
+const GenerateSampleAnswerInputSchemaInternal = z.object({
   questionText: z.string().describe('The text of the interview question.'),
   interviewType: z.string().describe('The overall type of the interview (e.g., "product sense", "behavioral").'),
   faangLevel: z.string().describe('The target FAANG complexity level for the answer.'),
@@ -19,64 +21,63 @@ const GenerateSampleAnswerInputSchema = z.object({
   targetedSkills: z.array(z.string()).optional().describe('Specific skills the question may be targeting.'),
   idealAnswerCharacteristics: z.array(z.string()).optional().describe("Pre-defined ideal characteristics of a strong answer to this question, to guide the sample answer generation."),
 });
-export type GenerateSampleAnswerInput = z.infer<typeof GenerateSampleAnswerInputSchema>;
+export type GenerateSampleAnswerInput = z.infer<typeof GenerateSampleAnswerInputSchemaInternal>;
 
-const GenerateSampleAnswerOutputSchema = z.object({
+const GenerateSampleAnswerOutputSchemaInternal = z.object({
   sampleAnswerText: z.string().describe('A well-structured, ideal sample answer to the question.'),
 });
-export type GenerateSampleAnswerOutput = z.infer<typeof GenerateSampleAnswerOutputSchema>;
+export type GenerateSampleAnswerOutput = z.infer<typeof GenerateSampleAnswerOutputSchemaInternal>;
 
-export async function generateSampleAnswer(input: GenerateSampleAnswerInput): Promise<GenerateSampleAnswerOutput> {
-  return generateSampleAnswerFlow(input);
-}
+const RAW_SAMPLE_ANSWER_PROMPT = loadPromptFile("generate-sample-answer.prompt");
 
-const generateSampleAnswerPrompt = ai.definePrompt({
-  name: 'generateSampleAnswerPrompt',
-  input: {schema: GenerateSampleAnswerInputSchema},
-  output: {schema: GenerateSampleAnswerOutputSchema},
-  prompt: `You are an expert Interview Coach AI. Your task is to generate a high-quality, well-structured sample answer for the following interview question.
-The answer should be appropriate for the specified interview type, FAANG level, and any given focus or targeted skills.
-It should embody the "ideal answer characteristics" if they are provided.
+export async function generateSampleAnswer(
+  input: GenerateSampleAnswerInput,
+  options?: { aiInstance?: any; apiKey?: string }
+): Promise<GenerateSampleAnswerOutput> {
+  let activeAI = globalAi;
+  const flowNameForLogging = 'generateSampleAnswer';
 
-Interview Context:
-- Type: {{{interviewType}}}
-- Level: {{{faangLevel}}}
-{{#if interviewFocus}}- Specific Focus: {{{interviewFocus}}}{{/if}}
-{{#if targetedSkills.length}}
-- Targeted Skills:
-{{#each targetedSkills}}
-  - {{{this}}}
-{{/each}}
-{{/if}}
-{{#if idealAnswerCharacteristics.length}}
-- Ideal Answer Characteristics for this question (use these as a guide for your sample answer):
-{{#each idealAnswerCharacteristics}}
-  - {{{this}}}
-{{/each}}
-{{/if}}
-
-Original Question:
-"{{{questionText}}}"
-
-Generate a sample answer that effectively addresses the question, demonstrates strong reasoning, and is clearly communicated.
-If the question is behavioral, structure the sample answer using the STAR method (Situation, Task, Action, Result).
-If it's a technical or product question, ensure the answer is logical, covers key considerations, and explains trade-offs where appropriate.
-The answer should be comprehensive yet concise.
-Begin the answer directly, without introductory phrases like "Here's a sample answer:".
-`,
-});
-
-const generateSampleAnswerFlow = ai.defineFlow(
-  {
-    name: 'generateSampleAnswerFlow',
-    inputSchema: GenerateSampleAnswerInputSchema,
-    outputSchema: GenerateSampleAnswerOutputSchema,
-  },
-  async (input) => {
-    const {output} = await generateSampleAnswerPrompt(input);
+  if (options?.aiInstance) {
+    activeAI = options.aiInstance;
+    console.log(`[BYOK] ${flowNameForLogging}: Using provided aiInstance.`);
+  } else if (options?.apiKey) {
+    try {
+      activeAI = genkit({
+        plugins: [googleAI({ apiKey: options.apiKey })],
+      });
+      console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
+    } catch (e) {
+      console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back.`);
+    }
+  } else {
+    console.log(`[BYOK] ${flowNameForLogging}: No specific API key or AI instance provided; using default global AI instance.`);
+  }
+  
+  try {
+    const renderedPrompt = renderPromptTemplate(RAW_SAMPLE_ANSWER_PROMPT, input);
+    console.log(`[BYOK] ${flowNameForLogging}: Rendered Prompt:\n`, renderedPrompt);
+    
+    const result = await activeAI.generate<typeof GenerateSampleAnswerOutputSchemaInternal>({
+      prompt: renderedPrompt,
+      model: googleAI.model('gemini-1.5-flash-latest'),
+      output: { schema: GenerateSampleAnswerOutputSchemaInternal },
+      config: { responseMimeType: "application/json" },
+    });
+    
+    const output = result.output;
+    
     if (!output || !output.sampleAnswerText) {
+        console.warn(`[BYOK] ${flowNameForLogging}: AI output was null or sampleAnswerText was missing. Question: "${input.questionText}"`);
         return { sampleAnswerText: `Sorry, I couldn't generate a sample answer for the question: "${input.questionText}" at this moment. Consider the key concepts and try to structure your response logically.` };
     }
     return output;
+  } catch (error) {
+    console.error(`Error in ${flowNameForLogging}:`, error);
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+    return { 
+      sampleAnswerText: `Unable to generate sample answer due to an error: ${errorMsg}. Please try again later.` 
+    };
   }
-);
+}
+
+    

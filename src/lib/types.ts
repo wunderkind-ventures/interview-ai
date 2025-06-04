@@ -1,5 +1,4 @@
-
-import type { InterviewType, FaangLevel, InterviewStyle, Skill } from './constants';
+import type { InterviewType, FaangLevel, InterviewStyle, Skill, InterviewerPersona, RoleType } from './constants';
 import type { Timestamp } from 'firebase/firestore';
 
 
@@ -7,6 +6,7 @@ export interface InterviewSetupData {
   interviewType: InterviewType;
   interviewStyle: InterviewStyle;
   faangLevel: FaangLevel;
+  roleType?: RoleType;
   jobTitle?: string;
   jobDescription?: string;
   resume?: string;
@@ -14,10 +14,14 @@ export interface InterviewSetupData {
   targetCompany?: string;
   interviewFocus?: string;
   selectedThemeId?: string;
+  interviewerPersona?: InterviewerPersona | string;
+  caseStudyNotes?: string | null;
 }
 
-export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId'>> {
+export interface ThemedInterviewPackConfig extends Partial<Omit<InterviewSetupData, 'resume' | 'targetedSkills' | 'selectedThemeId' | 'roleType'>> {
   targetedSkills?: string[];
+  interviewerPersona?: InterviewerPersona | string;
+  roleType?: RoleType;
 }
 
 export interface ThemedInterviewPack {
@@ -70,11 +74,22 @@ export interface DeepDiveFeedback {
   suggestedStudyConcepts: string[];
 }
 
+export type AdminFeedbackTargetType = 'overall_session' | 'ai_question_quality' | 'ai_feedback_quality' | 'user_answer_quality';
+
+export interface AdminFeedbackItem {
+  adminId: string;
+  adminEmail?: string;
+  feedbackText: string;
+  targetType: AdminFeedbackTargetType;
+  targetQuestionId?: string;
+  createdAt: Timestamp;
+}
+
 export interface InterviewSessionData extends InterviewSetupData {
   questions: InterviewQuestion[];
   answers: Answer[];
   currentQuestionIndex: number;
-  currentQuestionStartTime?: number;
+  currentQuestionStartTime?: number | null;
   isLoading: boolean;
   error?: string | null;
   interviewStarted: boolean;
@@ -82,12 +97,14 @@ export interface InterviewSessionData extends InterviewSetupData {
   feedback?: InterviewFeedback | null;
   deepDives?: Record<string, DeepDiveFeedback>;
   sampleAnswers?: Record<string, string>;
-  currentCaseTurnNumber?: number;
+  currentCaseTurnNumber?: number | null;
   caseConversationHistory?: Array<{ questionText: string, answerText: string }>;
-  caseStudyNotes?: string;
+  previousConversation?: string;
   isLoggedToServer?: boolean;
-  firestoreDocId?: string; // To store the Firestore document ID of the logged session
-  completedAt?: Timestamp; // To store the server timestamp when it's logged
+  firestoreDocId?: string;
+  completedAt?: Timestamp | any;
+  adminFeedback?: AdminFeedbackItem[];
+  userId?: string;
 }
 
 export interface Achievement {
@@ -121,18 +138,16 @@ export interface SavedInterviewSetup {
   id?: string;
   userId?: string;
   title: string;
-  config: InterviewSetupData; // The actual setup data
+  config: InterviewSetupData;
   createdAt?: any;
   updatedAt?: any;
 }
 
-
-// Types for Resume Lab AI Flows
 export interface ResumeAnalysis {
   strengths: string[];
   areasForImprovement: string[];
-  clarityScore: number; // 1-5
-  impactScore: number; // 1-5
+  clarityScore: number;
+  impactScore: number;
   overallFeedback: string;
   actionableSuggestions: string[];
 }
@@ -145,3 +160,43 @@ export interface ResumeTailoringSuggestions {
   overallFitAssessment: string;
 }
 
+export interface AnalyzeTakeHomeSubmissionContext {
+    interviewType: string;
+    faangLevel: string;
+    jobTitle?: string;
+    interviewFocus?: string;
+}
+export interface AnalyzeTakeHomeSubmissionInput {
+    assignmentText: string;
+    idealSubmissionCharacteristics: string[];
+    userSubmissionText: string;
+    interviewContext: AnalyzeTakeHomeSubmissionContext;
+}
+
+export interface AnalyzeTakeHomeSubmissionOutput {
+    overallAssessment: string;
+    strengthsOfSubmission: string[];
+    areasForImprovementInSubmission: string[];
+    actionableSuggestionsForRevision: string[];
+}
+
+export interface SharedAssessmentDocument {
+  id?: string;
+  userId: string;
+  uploaderEmail?: string;
+  title: string;
+  assessmentType: InterviewType;
+  assessmentStyle?: InterviewStyle | '';
+  difficultyLevel?: FaangLevel | '';
+  content: string;
+  keywords?: string[];
+  notes?: string;
+  source?: string;
+  isPublic?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface AppSecrets {
+  geminiApiKey?: string;
+}

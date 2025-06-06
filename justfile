@@ -1,5 +1,25 @@
 # Option 1: Quick Incognito Test (RECOMMENDED)
 
+ngrok-stop:
+    ngrok http --url=interview-ai.ngrok.app 9002
+
+ngrok-start:
+    ngrok http --url=interview-ai.ngrok.app 9002
+
+ngrok-status:
+    ngrok status
+
+ngrok-logs:
+    ngrok logs
+
+ngrok-config:
+    curl ifconfig.me >> ngrok-config.txt
+    ssh -R 9002:localhost:9002 ubuntu@138.201.134.10
+
+
+git-clean:
+    git branch --merged | grep -Ev "(^\*|^\+|master|main|dev)" | xargs --no-run-if-empty git branch -d
+
 pulumi-sa:
     # Set up Google Cloud credentials
     export GOOGLE_APPLICATION_CREDENTIALS="$HOME/pulumi-sa-key.json" && gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
@@ -9,22 +29,22 @@ pulumi-deployer:
     gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
 pulumi-up: pulumi-sa
-    cd pulumi-gcp-byot-backend && pulumi up
+    cd pulumi-gcp-catalyst-backend && pulumi up
 
 pulumi-down: pulumi-sa
-    cd pulumi-gcp-byot-backend && pulumi destroy
+    cd pulumi-gcp-catalyst-backend && pulumi destroy
 
 pulumi-refresh: pulumi-sa
-    cd pulumi-gcp-byot-backend && pulumi refresh
+    cd pulumi-gcp-catalyst-backend && pulumi refresh
 
 pulumi-stack-output: pulumi-sa
-    cd pulumi-gcp-byot-backend && pulumi stack output
+    cd pulumi-gcp-catalyst-backend && pulumi stack output
 
 pulumi-stack-output-json: pulumi-sa
-    cd pulumi-gcp-byot-backend && pulumi stack output --json
+    cd pulumi-gcp-catalyst-backend && pulumi stack output --json
 
 pulumi-stack-output-json-pretty: pulumi-sa
-    cd pulumi-gcp-byot-backend && pulumi stack output --json | jq .
+    cd pulumi-gcp-catalyst-backend && pulumi stack output --json | jq .
 
 test-browser:
     # Open Chrome in incognito mode with the local server URL

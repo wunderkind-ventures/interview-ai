@@ -1,0 +1,7 @@
+name: dev-tunnel
+runtime: go
+description: Deploys a GCP-hosted tunnel server with NGINX and SSL
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: go

@@ -71,20 +71,30 @@ generate-ssh-key:
 configure-ssh-key:
 	pulumi config set --path sshKey "$(shell cat ~/.ssh/tunnel_rsa.pub)"
 
-preview:
-	pulumi preview
 
-up:
-	pulumi up --yes
+# Default environment if not overridden
+ENV ?= dev
 
-destroy:
-	pulumi destroy --yes
+# === Pulumi lifecycle ===
+init:
+	pulumi login
+	pulumi stack init catalyst-gcp-infra/$(ENV) || echo "Stack already exists"
+	pulumi config set gcp:project $(shell pulumi config get gcp:project)
+	pulumi config set gcp:region us-central1
+	pulumi config set catalyst-gcp-infra:environment $(ENV)
 
-refresh:
-	pulumi refresh --yes
+# === CI/CD style automation ===
+preview ENV=dev:
+	pulumi stack select catalyst-gcp-infra/$(ENV) && pulumi preview
 
-outputs:
-	pulumi stack output
+deploy ENV=dev:
+	pulumi stack select catalyst-gcp-infra/$(ENV) && pulumi up --yes
+
+destroy ENV=dev:
+	pulumi stack select catalyst-gcp-infra/$(ENV) && pulumi destroy --yes
+
+outputs ENV=dev:
+	pulumi stack select catalyst-gcp-infra/$(ENV) && pulumi stack output
 
 # === Build & format ===
 build:

@@ -1,14 +1,12 @@
 config:
   gcp:project: interviewai-mzf86
   gcp:region: us-central1
-  catalyst-gcp-infra:environment: dev
+  catalyst-gcp-infra:environment: stg
   catalyst-gcp-infra:catalystGcpProject: interviewai-mzf86
   catalyst-gcp-infra:catalystGcpRegion: us-central1
   catalyst-gcp-infra:defaultGeminiApiKey:
     secure: AAABALTCD9Ypvxs3a8E4O64pmAkGxxrycqyUf9pR2j+797vGDXHK1dNr9z7OhM66NMkAkpDGE53rErS+pFc=
-  catalyst-gcp-infra:nextjsBaseUrl: https://a3d7-74-108-65-105.ngrok-free.app # local-dev.wkv.ai
+  catalyst-gcp-infra:nextjsBaseUrl: https://catalyst-stg.wkv.ai
   catalyst-gcp-infra:gcpProject: interviewai-mzf86
   catalyst-gcp-infra:gcpRegion: us-central1
   catalyst-gcp-infra:alertEmail: kenneth@wkv.ai
-  catalyst-gcp-infra:sshPrivateKey:
-    secure: AAABAHTWYDI8e72sUATc3FGRk9xtSlKkr5/xU1wu0o+7Nf3qPpQmWBEJfULeOc3ihQg9hg==

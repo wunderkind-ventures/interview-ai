@@ -16,7 +16,6 @@ ngrok-config:
     curl ifconfig.me >> ngrok-config.txt
     ssh -R 9002:localhost:9002 ubuntu@138.201.134.10
 
-
 git-clean:
     git branch --merged | grep -Ev "(^\*|^\+|master|main|dev)" | xargs --no-run-if-empty git branch -d
 
@@ -56,3 +55,47 @@ test-browser-profile:
 
 add-pulumi-encryption-key:
     ENCRYPTION_KEY=$(openssl rand -base64 32) && pulumi config set --secret ENCRYPTION_KEY "$ENCRYPTION_KEY"
+
+# === Pulumi lifecycle ===
+init:
+	pulumi login
+	pulumi stack init $(STACK) || echo "Stack already exists"
+	pulumi config set gcp:project $(shell pulumi config get gcp:project)
+	pulumi config set gcp:region us-central1
+	pulumi config set environment $(STACK)
+
+generate-ssh-key:
+	ssh-keygen -t rsa -b 4096 -f ~/.ssh/tunnel_rsa -N "" || echo "Key already exists"
+	@echo "Public key:" && cat ~/.ssh/tunnel_rsa.pub
+
+configure-ssh-key:
+	pulumi config set --path sshKey "$(shell cat ~/.ssh/tunnel_rsa.pub)"
+
+preview:
+	pulumi preview
+
+up:
+	pulumi up --yes
+
+destroy:
+	pulumi destroy --yes
+
+refresh:
+	pulumi refresh --yes
+
+outputs:
+	pulumi stack output
+
+# === Build & format ===
+build:
+	go build ./...
+
+format:
+	go fmt ./...
+
+# === Tunnel commands ===
+tunnel-ip:
+	pulumi stack output instanceIP
+
+start-tunnel:
+	ssh -i ~/.ssh/tunnel_rsa -R 9000:localhost:3000 tunneladmin@$(just 9-tunnel-ip)

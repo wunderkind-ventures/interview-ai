@@ -4,9 +4,11 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/apigateway"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/cloudfunctions"
+	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/cloudfunctionsv2"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/logging"    // Added import
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/monitoring" // Added import
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/projects"
@@ -145,6 +147,96 @@ func main() {
 			return function, nil
 		}
 
+		// The Gen1 definition for removeApiKeyFunction is being removed.
+		// removeApiKeyFunction, err := createCloudFunction("RemoveAPIKeyGCF", "RemoveAPIKeyGCF",
+		// 	"../backends/catalyst-go-backend/functions/removeapikey",
+		// 	pulumi.StringMap{})
+		// if err != nil {
+		// 	return err
+		// }
+
+		// ========================================================================
+		// START: Updates for docsupport/parseresume Cloud Function
+		// ========================================================================
+
+		// Create a GCS bucket to store function source archives.
+		// This bucket is intended to be shared by multiple functions for their source code.
+		sourceBucket, err := storage.NewBucket(ctx, "pulumi-function-source-bucket", &storage.BucketArgs{
+			Name:                     pulumi.Sprintf("%s-function-sources", ctx.Project()), // Globally unique name
+			Location:                 pulumi.String("US"),                                  // Or your preferred region
+			UniformBucketLevelAccess: pulumi.Bool(true),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create source code bucket: %w", err)
+		}
+
+		// ========================================================================
+		// docsupport/parseresume Gen 2 Cloud Function
+		// This function handles parsing of resume files (.md, .docx).
+		// ========================================================================
+		// Path to the function code, relative to this Pulumi program
+		docsupportParseResumePath := filepath.Join("..", "backends", "catalyst-go-backend", "functions", "docsupport", "parseresume")
+		parseResumeArchive := pulumi.NewFileArchive(docsupportParseResumePath)
+
+		// Using a fixed name for the GCS object. Pulumi handles content-based updates.
+		parseResumeSourceArchiveObjectName := "docsupport-parseresume-source.zip"
+
+		parseResumeSourceArchiveObject, err := storage.NewBucketObject(ctx, "docsupport-parseresume-source-zip", &storage.BucketObjectArgs{
+			Bucket: sourceBucket.Name, // CORRECTLY Use the shared sourceBucket
+			Source: parseResumeArchive,
+			Name:   pulumi.String(parseResumeSourceArchiveObjectName),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to upload parseresume source archive: %w", err)
+		}
+
+		parseResumeFunction, err := cloudfunctionsv2.NewFunction(ctx, "docsupport-parseresume-function", &cloudfunctionsv2.FunctionArgs{
+			Project:  pulumi.String(gcpProject),
+			Location: pulumi.String(gcpRegion),
+			BuildConfig: &cloudfunctionsv2.FunctionBuildConfigArgs{
+				Runtime:    pulumi.String("go122"),       // Ensure this is the Go version used in your function's go.mod
+				EntryPoint: pulumi.String("ParseResume"), // The Go function name in its main.go
+				Source: &cloudfunctionsv2.FunctionBuildConfigSourceArgs{
+					StorageSource: &cloudfunctionsv2.FunctionBuildConfigSourceStorageSourceArgs{
+						Bucket: sourceBucket.Name,
+						Object: parseResumeSourceArchiveObject.Name,
+					},
+				},
+				// Add environment variables if your function needs them
+				// EnvironmentVariables: pulumi.StringMap{
+				//  "MY_ENV_VAR": pulumi.String("my_value"),
+				// },
+			},
+			ServiceConfig: &cloudfunctionsv2.FunctionServiceConfigArgs{
+				MaxInstanceCount: pulumi.Int(2), // Adjust based on expected load
+				MinInstanceCount: pulumi.Int(0), // Can be 0 to scale to zero for cost savings
+				AvailableMemory:  pulumi.String("256MiB"),
+				TimeoutSeconds:   pulumi.Int(60),
+				IngressSettings:  pulumi.String("ALLOW_ALL"), // Allows public HTTP access
+				// AllTrafficOnLatestRevision: pulumi.Bool(true), // Default behavior
+			},
+			Description: pulumi.String("Parses uploaded resume/document files (docx, md) and returns text."),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create parseresume function: %w", err)
+		}
+
+		// Allow unauthenticated (public) invocations for the HTTP trigger
+		_, err = cloudfunctionsv2.NewFunctionIamMember(ctx, "docsupport-parseresume-invoker", &cloudfunctionsv2.FunctionIamMemberArgs{
+			Project:       parseResumeFunction.Project,
+			Location:      parseResumeFunction.Location,
+			CloudFunction: parseResumeFunction.Name,
+			Role:          pulumi.String("roles/cloudfunctions.invoker"),
+			Member:        pulumi.String("allUsers"),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to set IAM invoker for parseresume function: %w", err)
+		}
+
+		// ========================================================================
+		// END: Updates for docsupport/parseresume Cloud Function
+		// ========================================================================
+
 		setApiKeyFunction, err := createCloudFunction("SetAPIKeyGCF", "SetAPIKeyGCF",
 			"../backends/catalyst-go-backend/functions/setapikey",
 			pulumi.StringMap{})
@@ -188,13 +280,15 @@ func main() {
 
 		openapiContent := pulumi.All(
 			setApiKeyFunction.HttpsTriggerUrl,
-			setApiKeyFunction.HttpsTriggerUrl,
-			removeApiKeyFunction.HttpsTriggerUrl,
 			removeApiKeyFunction.HttpsTriggerUrl,
 			getApiKeyStatusFunction.HttpsTriggerUrl,
-			getApiKeyStatusFunction.HttpsTriggerUrl,
 			proxyToGenkitFunction.HttpsTriggerUrl,
-			proxyToGenkitFunction.HttpsTriggerUrl,
+			parseResumeFunction.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput),
 		).ApplyT(func(args []interface{}) (string, error) {
 			stringArgs := make([]interface{}, len(args))
 			for i, arg := range args {
@@ -227,7 +321,10 @@ func main() {
 				},
 			},
 		}, pulumi.DependsOn([]pulumi.Resource{
-			setApiKeyFunction, removeApiKeyFunction, getApiKeyStatusFunction, proxyToGenkitFunction,
+			setApiKeyFunction,
+			removeApiKeyFunction,
+			getApiKeyStatusFunction,
+			proxyToGenkitFunction,
 		}))
 		if err != nil {
 			return err
@@ -326,15 +423,30 @@ func main() {
 
 		// --- Outputs ---
 		ctx.Export("catalystFunctionsServiceAccountEmail", functionsServiceAccount.Email)
+		ctx.Export("functionSourceBucketName", sourceBucket.Name)
 		ctx.Export("setApiKeyFunctionUrl", setApiKeyFunction.HttpsTriggerUrl)
 		ctx.Export("removeApiKeyFunctionUrl", removeApiKeyFunction.HttpsTriggerUrl)
 		ctx.Export("getApiKeyStatusFunctionUrl", getApiKeyStatusFunction.HttpsTriggerUrl)
 		ctx.Export("proxyToGenkitFunctionUrl", proxyToGenkitFunction.HttpsTriggerUrl)
+		ctx.Export("parseResumeFunctionUrl", parseResumeFunction.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+			if sc != nil && sc.Uri != nil {
+				return *sc.Uri
+			}
+			return ""
+		}).(pulumi.StringOutput))
+		ctx.Export("docsupportParseResumeFunctionUrl", parseResumeFunction.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) (string, error) {
+			if sc == nil || sc.Uri == nil {
+				// During initial creation, Uri might be nil briefly.
+				// Returning an empty string is okay; Pulumi will update the export once the URI is available.
+				return "", nil
+			}
+			return *sc.Uri, nil
+		}).(pulumi.StringOutput))
 		ctx.Export("apiGatewayDefaultHostname", gateway.DefaultHostname)
-		ctx.Export("apiGatewayId", api.ApiId)                     // Added for clarity
-		ctx.Export("apiConfigId", apiConfig.ID())                 // Added for clarity
-		ctx.Export("gatewayId", gateway.GatewayId)                // Added for clarity
-		ctx.Export("deploymentBucketName", deploymentBucket.Name) // Added for clarity
+		ctx.Export("apiGatewayId", api.ApiId)
+		ctx.Export("apiConfigId", apiConfig.ID())
+		ctx.Export("gatewayId", gateway.GatewayId)
+		ctx.Export("deploymentBucketName", deploymentBucket.Name)
 		ctx.Export("emailNotificationChannelId", emailChannel.ID())
 		ctx.Export("criticalErrorLogMetricName", criticalErrorLogMetric.Name)
 

@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"pulumi_modular_scaffold/config"
+	"catalyst-backend/catalyst/config"
 
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/cloudfunctionsv2"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/storage"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"pulumi_modular_scaffold/functions/component"
+	"catalyst-backend/catalyst/functions/component"
 )
 
 // func DeployParseResumeFunction(ctx *pulumi.Context, cfg *config.CatalystConfig, sourceBucket *storage.Bucket) (*cloudfunctionsv2.Function, error) {

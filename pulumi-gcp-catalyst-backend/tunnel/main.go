@@ -17,12 +17,12 @@ func main() {
 		}
 
 		namePrefix := fmt.Sprintf("tunnel-%s", env)
-		projectId := ctx.Project()
+		// projectId := ctx.Project()
 		zone := "us-central1-a"
 		machineType := "e2-micro"
 		image := "ubuntu-os-cloud/ubuntu-2204-lts"
 		username := "tunneladmin"
-		sshKey := "ssh-rsa AAAA... your_public_key_here"
+		sshKey := cfg.RequireSecret("sshPrivateKey")
 
 		// Firewall to allow SSH, HTTP, HTTPS, and tunnel ports
 		_, err := compute.NewFirewall(ctx, namePrefix+"-firewall", &compute.FirewallArgs{

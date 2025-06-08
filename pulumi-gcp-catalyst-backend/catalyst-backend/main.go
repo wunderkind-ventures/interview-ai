@@ -5,16 +5,16 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	tunnel "interview-ai/pulumi-gcp-catalyst-backend/tunnel"
+	config "catalyst-backend/config"
+	functions "catalyst-backend/functions"
+	component "catalyst-backend/functions/component"
+	gateway "catalyst-backend/gateway"
+	iam "catalyst-backend/iam"
+	monitoring "catalyst-backend/monitoring"
+	storage "catalyst-backend/storage"
+	utils "catalyst-backend/utils"
 
-	"./config"
-	"./functions"
-	"./functions/component"
-	"./gateway"
-	"./iam"
-	"./monitoring"
-	"./storage"
-	"./utils"
+	tunnel "catalyst-backend/tunnel/provision"
 )
 
 func main() {
@@ -116,7 +116,7 @@ func main() {
 			tunnelVpsIp, err := tunnel.DeployTunnelInstance(ctx, tunnel.TunnelConfig{
 				Zone:      "us-central1-a",
 				Username:  "tunneladmin",
-				SSHKey:    "ssh-rsa AAAA...your_key...",
+				SSHKey:    cfg.RequireSecret("sshPrivateKey"),
 				Machine:   "e2-micro",
 				Image:     "ubuntu-os-cloud/ubuntu-2204-lts",
 				PortRange: "9000-9100",

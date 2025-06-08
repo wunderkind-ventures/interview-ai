@@ -1,0 +1,7 @@
+config:
+  gcp:project: interviewai-mzf86
+  gcp:region: us-central1
+  dev-tunnel:sshPrivateKey:
+    secure: AAABAOf3YzXWPFNXk6sq6zB4KtWZRdOdCJGGqgSLzufi9zkYKRugmBatLMwZS2/j2Rynlw==
+  dev-tunnel:environment: dev
+  dev-tunnel:tunnelDomain: dev-tunnel.wkv.ai

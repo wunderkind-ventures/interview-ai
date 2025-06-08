@@ -3,7 +3,7 @@ package monitoring
 import (
 	"fmt"
 
-	"pulumi_modular_scaffold/config"
+	"catalyst-backend/config"
 
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/logging"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"

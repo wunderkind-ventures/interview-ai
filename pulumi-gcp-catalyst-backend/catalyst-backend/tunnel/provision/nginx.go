@@ -1,13 +1,15 @@
 package provision
 
 import (
-	"github.com/pulumi/pulumi-command/sdk/v3/go/command"
+	utils "catalyst-backend/utils"
+
+	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func SetupTunnelNginx(ctx *pulumi.Context, instanceIp pulumi.StringOutput, sshPrivateKey pulumi.StringInput, domain pulumi.StringInput, dependsOn pulumi.Resource) (*command.RemoteCommand, error) {
-	cmd, err := command.NewRemoteCommand(ctx, "configure-nginx-tunnel", &command.RemoteCommandArgs{
-		Connection: &command.ConnectionArgs{
+func SetupTunnelNginx(ctx *pulumi.Context, instanceIp pulumi.StringOutput, sshPrivateKey pulumi.StringInput, domain pulumi.StringInput, dependsOn pulumi.Resource) (*remote.Command, error) {
+	cmd, err := remote.NewCommand(ctx, "configure-nginx-tunnel", &remote.CommandArgs{
+		Connection: &remote.ConnectionArgs{
 			Host:       instanceIp,
 			User:       pulumi.String("tunneladmin"),
 			PrivateKey: sshPrivateKey,
@@ -31,8 +33,7 @@ EOF
 sudo ln -s /etc/nginx/sites-available/tunnel /etc/nginx/sites-enabled/tunnel
 sudo nginx -t && sudo systemctl reload nginx
 '`, domain),
-		Triggers: pulumi.StringArray{domain},
-	}, pulumi.DependsOn([]pulumi.Resource{dependsOn}))
+	}, pulumi.DependsOn(utils.FilterNilResources([]pulumi.Resource{dependsOn})))
 
 	return cmd, err
 }

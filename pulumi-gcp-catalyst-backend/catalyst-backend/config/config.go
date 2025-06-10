@@ -13,6 +13,8 @@ type CatalystConfig struct {
 	NextjsBaseUrl    string
 	DefaultGeminiKey pulumi.StringInput
 	OpenapiSpecPath  string
+	TunnelDomain     string
+	SshPrivateKey    pulumi.StringInput
 }
 
 func Load(ctx *pulumi.Context) (*CatalystConfig, error) {
@@ -24,6 +26,8 @@ func Load(ctx *pulumi.Context) (*CatalystConfig, error) {
 		AlertEmail:       cfg.Require("alertEmail"),
 		NextjsBaseUrl:    cfg.Require("nextjsBaseUrl"),
 		DefaultGeminiKey: cfg.RequireSecret("defaultGeminiApiKey"),
+		TunnelDomain:     cfg.Require("nextjsBaseUrl"),
+		SshPrivateKey:    cfg.RequireSecret("sshPrivateKey"),
 		OpenapiSpecPath:  "../backends/catalyst-go-backend/openapi-spec.yaml",
 	}, nil
 }

@@ -1,7 +1,0 @@
-name: catalyst-gcp-infra
-description: Catalyst Backend on GCP
-runtime: go
-config:
-  pulumi:tags:
-    value:
-      pulumi:template: go

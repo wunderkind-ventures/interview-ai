@@ -18,3 +18,13 @@ func MergeStringMaps(base, override pulumi.StringMap) pulumi.StringMap {
 func ExportURL(ctx *pulumi.Context, name string, output pulumi.StringOutput) {
 	ctx.Export(name, output)
 }
+
+func FilterNilResources(resources []pulumi.Resource) []pulumi.Resource {
+	var filtered []pulumi.Resource
+	for _, r := range resources {
+		if r != nil {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
+}

@@ -7,7 +7,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// CreateApi defines the API Gateway API resource (not the config).
 func CreateApi(ctx *pulumi.Context, name string, project string, environment string) (*apigateway.Api, error) {
 	apiName := fmt.Sprintf("%s-%s", name, environment)
 
@@ -20,4 +19,13 @@ func CreateApi(ctx *pulumi.Context, name string, project string, environment str
 	}
 
 	return api, nil
+}
+
+func CreateGateway(ctx *pulumi.Context, name string, apiId pulumi.StringInput, apiConfigId pulumi.IDInput, project, region string) (*apigateway.Gateway, error) {
+	return apigateway.NewGateway(ctx, name, &apigateway.GatewayArgs{
+		ApiConfig: apiConfigId.ToIDOutput().ToStringOutput(),
+		Project:   pulumi.String(project),
+		Region:    pulumi.String(region),
+		GatewayId: pulumi.String(name),
+	})
 }

@@ -1,6 +1,0 @@
-tunnel-config:
-    # Set the public hostname you want to use
-    pulumi config set tunnelDomain "$(DEV_TUNNEL_DOMAIN)"
-
-    # Securely store your private key
-    pulumi config set --secret sshPrivateKey "$(cat ~/.ssh/id_rsa)"

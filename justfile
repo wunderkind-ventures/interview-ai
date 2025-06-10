@@ -1,5 +1,4 @@
 # Option 1: Quick Incognito Test (RECOMMENDED)
-
 ngrok-stop:
     ngrok http --url=interview-ai.ngrok.app 9002
 
@@ -21,7 +20,8 @@ git-clean:
 
 pulumi-sa:
     # Set up Google Cloud credentials
-    export GOOGLE_APPLICATION_CREDENTIALS="$HOME/pulumi-sa-key.json" && gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+    export GOOGLE_APPLICATION_CREDENTIALS="$HOME/pulumi-sa-key.json" \
+      && gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
 pulumi-deployer:
     export GOOGLE_APPLICATION_CREDENTIALS="$HOME/pulumi-deployer-key.json"
@@ -56,13 +56,13 @@ test-browser-profile:
 add-pulumi-encryption-key:
     ENCRYPTION_KEY=$(openssl rand -base64 32) && pulumi config set --secret ENCRYPTION_KEY "$ENCRYPTION_KEY"
 
-# === Pulumi lifecycle ===
-init:
-	pulumi login
-	pulumi stack init $(STACK) || echo "Stack already exists"
-	pulumi config set gcp:project $(shell pulumi config get gcp:project)
-	pulumi config set gcp:region us-central1
-	pulumi config set environment $(STACK)
+# # === Pulumi lifecycle ===
+# init:
+# 	pulumi login
+# 	pulumi stack init $(STACK) || echo "Stack already exists"
+# 	pulumi config set gcp:project $(shell pulumi config get gcp:project)
+# 	pulumi config set gcp:region us-central1
+# 	pulumi config set environment $(STACK)
 
 generate-ssh-key:
 	ssh-keygen -t rsa -b 4096 -f ~/.ssh/tunnel_rsa -N "" || echo "Key already exists"
@@ -73,28 +73,30 @@ configure-ssh-key:
 
 
 # Default environment if not overridden
-ENV ?= dev
+# ENV ?= dev
 
 # === Pulumi lifecycle ===
 init:
-	pulumi login
-	pulumi stack init catalyst-gcp-infra/$(ENV) || echo "Stack already exists"
-	pulumi config set gcp:project $(shell pulumi config get gcp:project)
-	pulumi config set gcp:region us-central1
-	pulumi config set catalyst-gcp-infra:environment $(ENV)
+	pulumi login && \
+	pulumi stack init catalyst-/$(ENV) || echo "Stack already exists" && \
+	pulumi config set gcp:project $(shell pulumi config get gcp:project) && \
+	pulumi config set gcp:region us-central1 && \
+	pulumi config set catalyst:environment $(ENV) && \
+	pulumi config set tunnelDomain $(DEV_TUNNEL_DOMAIN) && \
+	pulumi config set --secret sshPrivateKey "$(cat ~/.ssh/id_rsa)"
 
 # === CI/CD style automation ===
-preview ENV=dev:
-	pulumi stack select catalyst-gcp-infra/$(ENV) && pulumi preview
+preview ENV:
+	pulumi stack select catalyst-/$(ENV) && pulumi preview
 
-deploy ENV=dev:
-	pulumi stack select catalyst-gcp-infra/$(ENV) && pulumi up --yes
+deploy ENV:
+	pulumi stack select catalyst-/$(ENV) && pulumi up --yes
 
-destroy ENV=dev:
-	pulumi stack select catalyst-gcp-infra/$(ENV) && pulumi destroy --yes
+destroy ENV:
+	pulumi stack select catalyst-/$(ENV) && pulumi destroy --yes
 
-outputs ENV=dev:
-	pulumi stack select catalyst-gcp-infra/$(ENV) && pulumi stack output
+outputs ENV:
+	pulumi stack select catalyst-/$(ENV) && pulumi stack output
 
 # === Build & format ===
 build:
@@ -108,4 +110,4 @@ tunnel-ip:
 	pulumi stack output instanceIP
 
 start-tunnel:
-	ssh -i ~/.ssh/tunnel_rsa -R 9000:localhost:3000 tunneladmin@$(just 9-tunnel-ip)
+	ssh -i ~/.ssh/tunnel_rsa -R 9000:localhost:3000 tunneladmin@$(just tunnel-ip)

@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"catalyst-backend/utils"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -15,11 +16,14 @@ func CreateApiConfig(
 	apiId pulumi.StringInput,
 	openapiSpecPath string,
 	triggerUrls []pulumi.StringInput,
-	dependsOn pulumi.ResourceArray,
+	dependsOn []pulumi.Resource,
 	project string,
 ) (*apigateway.ApiConfig, error) {
-	// Combine function URLs and apply to interpolate the spec file
-	openapiContent := pulumi.All(triggerUrls...).ApplyT(func(args []interface{}) (string, error) {
+	inputs := make([]interface{}, len(triggerUrls))
+	for i, v := range triggerUrls {
+		inputs[i] = v
+	}
+	openapiContent := pulumi.All(inputs...).ApplyT(func(args []interface{}) (string, error) {
 		replacements := make([]string, len(args))
 		for i, arg := range args {
 			replacements[i] = arg.(string)
@@ -31,28 +35,28 @@ func CreateApiConfig(
 		}
 		template := string(rawBytes)
 
-		// Simple template formatting using Sprintf
 		spec := fmt.Sprintf(template, convertToInterfaces(replacements)...)
 		return base64.StdEncoding.EncodeToString([]byte(spec)), nil
 	}).(pulumi.StringOutput)
 
-	return apigateway.NewApiConfig(ctx, name, &apigateway.ApiConfigArgs{
-		Api:         apiId,
-		Project:     pulumi.String(project),
-		DisplayName: pulumi.Sprintf("%s config", name),
-		OpenapiDocuments: apigateway.ApiConfigOpenapiDocumentArray{
-			&apigateway.ApiConfigOpenapiDocumentArgs{
-				Document: &apigateway.ApiConfigOpenapiDocumentDocumentArgs{
-					Path:     pulumi.String("openapi-spec.yaml"),
-					Contents: openapiContent,
+	return apigateway.NewApiConfig(ctx, name,
+		&apigateway.ApiConfigArgs{
+			Api:         apiId,
+			Project:     pulumi.String(project),
+			DisplayName: pulumi.String("Catalyst API Config"),
+			OpenapiDocuments: apigateway.ApiConfigOpenapiDocumentArray{
+				&apigateway.ApiConfigOpenapiDocumentArgs{
+					Document: &apigateway.ApiConfigOpenapiDocumentDocumentArgs{
+						Path:     pulumi.String("openapi-spec.yaml"),
+						Contents: openapiContent,
+					},
 				},
 			},
 		},
-		DependsOn: dependsOn,
-	})
+		pulumi.DependsOn(utils.FilterNilResources(dependsOn)),
+	)
 }
 
-// helper to convert []string to []interface{} for fmt.Sprintf
 func convertToInterfaces(values []string) []interface{} {
 	args := make([]interface{}, len(values))
 	for i, v := range values {

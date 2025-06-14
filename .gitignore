@@ -56,3 +56,7 @@ firestore-debug.log
 /backends/byot-go-backend/vendor/
 
 /debugging/
+
+# obsidian
+.obsidian/
+docs/research/Obsidian-1.8.10.dmg

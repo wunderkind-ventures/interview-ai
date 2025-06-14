@@ -59,4 +59,5 @@ firestore-debug.log
 
 # obsidian
 .obsidian/
-docs/research/Obsidian-1.8.10.dmg
+/docs/research/Obsidian-1.8.10.dmg
+*.dmg

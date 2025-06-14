@@ -1,4 +1,3 @@
-
 # Product Requirements Document: InterviewAI
 
 **Version:** 1.0 (Reflecting current implemented features)
@@ -30,9 +29,12 @@
 
 ### 4.1. AI-Driven Interview Simulation
 *   **Interview Types Supported:**
-    *   Product Sense
+    *   Product Design (e.g., "How would you improve X product?")
+    *   Product Strategy (e.g., market entry, competitive response)
+    *   Estimation/Analytical (e.g., market sizing, metric definition)
+    *   Root Cause Analysis (e.g., "Metric X dropped, why?")
     *   Technical System Design
-    *   Behavioral
+    *   Behavioral (using the STAR method)
     *   Machine Learning (Conceptual & System Design)
     *   Data Structures & Algorithms
 *   **Interview Styles:**

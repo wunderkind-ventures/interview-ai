@@ -126,7 +126,7 @@ func main() {
 		}
 
 		// Create the API Gateway API
-		api, err := gateway.CreateApi(ctx, "catalyst-backend-api"+nameSuffix, cfg.GcpProject, cfg.Environment)
+		api, err := gateway.CreateApi(ctx, "catalyst-backend-api", cfg.GcpProject, cfg.Environment)
 		if err != nil {
 			return err
 		}

@@ -62,6 +62,10 @@ export async function clarifyInterviewQuestion(
     }
   };
 
+  // Validate input for prompt generation separately if needed, or rely on ClarifyInterviewQuestionInputSchema
+  // For now, we assume saneInput is compatible with GenerateClarificationPromptInput
+  const promptText = generateClarificationPromptString(saneInput);
+
   try {
     const renderedPrompt = renderPromptTemplate(RAW_CLARIFY_INTERVIEW_QUESTION_PROMPT, saneInput);
     console.log(`[BYOK] ${flowNameForLogging}: Rendered Prompt:\n`, renderedPrompt);

@@ -94,6 +94,6 @@ func DeployTunnelStack(ctx *pulumi.Context, cfg TunnelConfig) (pulumi.StringOutp
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 
-	tunnelUrl := pulumi.Sprintf("https://%s", cfg.Domain)
+	tunnelUrl := pulumi.Sprintf("%s", cfg.Domain)
 	return instanceIP, tunnelUrl, nil
 }

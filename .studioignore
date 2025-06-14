@@ -11,5 +11,6 @@ firebase-debug.log
 *.map
 .git/
 package-lock.json
-/backends/catalyst-go-backend/vendor/
-/backends/byot-go-backend/vendor/
+/pulumi-gcp-catalyst-backend/catalyst-backend/vendor/
+/scripts/
+/utils/

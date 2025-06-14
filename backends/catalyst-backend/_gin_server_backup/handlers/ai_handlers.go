@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"interview-ai/catalyst-go-backend/middleware"
+	"interview-ai/catalyst-backend/middleware"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"github.com/gin-gonic/gin"

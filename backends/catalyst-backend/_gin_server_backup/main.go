@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"interview-ai/catalyst-go-backend/handlers"
-	"interview-ai/catalyst-go-backend/middleware"
+	"interview-ai/catalyst-backend/handlers"
+	"interview-ai/catalyst-backend/middleware"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	firebase "firebase.google.com/go/v4"

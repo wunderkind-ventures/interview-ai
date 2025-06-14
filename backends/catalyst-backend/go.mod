@@ -1,4 +1,4 @@
-module interview-ai/catalyst-go-backend
+module interview-ai/catalyst-backend
 
 go 1.23.0
 

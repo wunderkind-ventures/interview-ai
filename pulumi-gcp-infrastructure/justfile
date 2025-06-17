@@ -1,0 +1,18 @@
+just copy-enabled-apis: 
+    gcloud services list --enabled --project=interviewai-mzf86 --format="value(name)" | sed 's|projects/[0-9]*/services/||' > /tmp/enabled_apis.txt && echo "Found $(wc -l < /tmp/enabled_apis.txt) APIs to replicate"
+
+just copy-enabled-apis-to-project {project}:
+    gcloud services list --enabled --project={project} --format="value(name)" | sed 's|projects/[0-9]*/services/||' > /tmp/enabled_apis.txt && echo "Found $(wc -l < /tmp/enabled_apis.txt) APIs to replicate"
+
+just enable-apis-in-project {project}:
+    gcloud services enable --project={project} $(cat /tmp/enabled_apis.txt)
+
+just list-enabled-apis-in-project {project}:
+    gcloud services list --enabled --project={project} --format="value(name)" | sort > /tmp/enabled_apis.txt && echo "Found $(wc -l < /tmp/enabled_apis.txt) APIs to replicate"
+
+just list-enabled-apis-in-project-with-sed {project}:
+    gcloud services list --enabled --project={project} --format="value(name)" | sed 's|projects/[0-9]*/services/||' > /tmp/enabled_apis.txt && echo "Found $(wc -l < /tmp/enabled_apis.txt) APIs to replicate"
+
+just list-enabled-apis:
+    gcloud services list --enabled --project=interviewai-mzf86 --format="value(name)" | sort > /tmp/enabled_apis.txt && echo "Found $(wc -l < /tmp/enabled_apis.txt) APIs to replicate"
+

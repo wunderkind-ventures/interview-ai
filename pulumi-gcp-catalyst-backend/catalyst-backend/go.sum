@@ -148,6 +148,8 @@ github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
 github.com/pulumi/esc v0.14.2 h1:xHpjJXzKs1hk/QPpgwe1Rmif3VWA0QcZ7jDvTFYX/jM=
 github.com/pulumi/esc v0.14.2/go.mod h1:0dNzCWIiRUmdfFrhHdeBzU4GiDPBhSfpeWDNApZwZ08=
+github.com/pulumi/pulumi-akamai/sdk/v8 v8.1.1 h1:DfHmISyvTrM+7m5QX+G8YGaGZLSO6AWiBcx+9ElWyuw=
+github.com/pulumi/pulumi-akamai/sdk/v8 v8.1.1/go.mod h1:zvR+LvzukrkTuXmLwZTeruEO0DBSGNUSewHbzld+Oa4=
 github.com/pulumi/pulumi-command/sdk v1.1.0 h1:CFCa5B825ZVg2VHoNESnPIQU7QhxXthIfe6EVpR5ohE=
 github.com/pulumi/pulumi-command/sdk v1.1.0/go.mod h1:DhLf389o85xzbpu59VEZRxBzzBG9Tv3zMxUW+NA2pq4=
 github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 h1:21oSj+TKlKTzQcxN9Hik7iSNNHPUQXN4s3itOnahy/w=

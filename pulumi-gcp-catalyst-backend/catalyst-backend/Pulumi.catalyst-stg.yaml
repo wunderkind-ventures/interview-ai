@@ -5,7 +5,7 @@ config:
   catalyst-gcp-infra:catalystGcpProject: interviewai-mzf86
   catalyst-gcp-infra:catalystGcpRegion: us-central1
   catalyst-gcp-infra:defaultGeminiApiKey:
-    secure: AAABALTCD9Ypvxs3a8E4O64pmAkGxxrycqyUf9pR2j+797vGDXHK1dNr9z7OhM66NMkAkpDGE53rErS+pFc=
+    secure: AAABAFLxpHdMunK7KmTN1p2Qn7u+5JDWSYHMfxqWMz1yHkJ8fyh8hV1OakaaYsXfBOGDQaJ9uRPUJo6taKtr/p/6COxv/aQ=
   catalyst-gcp-infra:nextjsBaseUrl: https://catalyst-stg.wkv.ai
   catalyst-gcp-infra:gcpProject: interviewai-mzf86
   catalyst-gcp-infra:gcpRegion: us-central1

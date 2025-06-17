@@ -1,0 +1,2330 @@
+{
+    "version": 3,
+    "deployment": {
+        "manifest": {
+            "time": "2025-06-09T13:57:29.151555-04:00",
+            "magic": "74d6dfeae46fede71a19e4a0f7952621dc8201c350e75f575ba8b9ef0249d0ba",
+            "version": "v3.175.0"
+        },
+        "secrets_providers": {
+            "type": "service",
+            "state": {
+                "url": "https://api.pulumi.com",
+                "owner": "wunderkennd-org",
+                "project": "catalyst-gcp-infra",
+                "stack": "catalyst-dev"
+            }
+        },
+        "metadata": {},
+        "resources": [
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "custom": false,
+                "type": "pulumi:pulumi:Stack",
+                "outputs": {
+                    "apiConfigId": "projects/interviewai-mzf86/locations/global/apis/catalyst-backend-api-dev/configs/terraform-20250603030340790100000001",
+                    "apiGatewayDefaultHostname": "catalyst-backend-gateway-dev-1ntw604r.uc.gateway.dev",
+                    "apiGatewayId": "catalyst-backend-api-dev",
+                    "catalystFunctionsServiceAccountEmail": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "criticalErrorLogMetricName": "cloud-function-critical-errors-dev",
+                    "deploymentBucketName": "functions-deployment-bucket-dev",
+                    "emailNotificationChannelId": "projects/interviewai-mzf86/notificationChannels/5460613297985113620",
+                    "gatewayId": "catalyst-backend-gateway-dev",
+                    "getApiKeyStatusFunctionUrl": "https://us-central1-interviewai-mzf86.cloudfunctions.net/GetAPIKeyStatusGCF-dev",
+                    "proxyToGenkitFunctionUrl": "https://us-central1-interviewai-mzf86.cloudfunctions.net/ProxyToGenkitGCF-dev",
+                    "removeApiKeyFunctionUrl": "https://us-central1-interviewai-mzf86.cloudfunctions.net/RemoveAPIKeyGCF-dev",
+                    "setApiKeyFunctionUrl": "https://us-central1-interviewai-mzf86.cloudfunctions.net/SetAPIKeyGCF-dev"
+                },
+                "created": "2025-06-03T02:29:06.368975Z",
+                "modified": "2025-06-03T02:29:06.368975Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::catalyst:function:Gen1Function::SetAPIKeyGCF-dev",
+                "custom": false,
+                "type": "catalyst:function:Gen1Function",
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "created": "2025-06-09T17:41:55.903483Z",
+                "modified": "2025-06-09T17:41:55.903483Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0",
+                "custom": true,
+                "id": "dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "type": "pulumi:providers:gcp",
+                "inputs": {
+                    "__internal": {},
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "version": "7.38.0"
+                },
+                "outputs": {
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "version": "7.38.0"
+                },
+                "created": "2025-06-03T02:29:07.202221Z",
+                "modified": "2025-06-03T02:29:07.202221Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::catalyst:function:Gen1Function::RemoveAPIKeyGCF-dev",
+                "custom": false,
+                "type": "catalyst:function:Gen1Function",
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "created": "2025-06-09T17:41:57.392403Z",
+                "modified": "2025-06-09T17:41:57.392403Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::catalyst:function:Gen1Function::ProxyToGenkitGCF-dev",
+                "custom": false,
+                "type": "catalyst:function:Gen1Function",
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "created": "2025-06-09T17:41:57.648961Z",
+                "modified": "2025-06-09T17:41:57.648961Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::catalyst:function:Gen1Function::GetAPIKeyStatusGCF-dev",
+                "custom": false,
+                "type": "catalyst:function:Gen1Function",
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "created": "2025-06-09T17:41:57.779768Z",
+                "modified": "2025-06-09T17:41:57.779768Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::catalyst:function:Gen2Function::ParseResume-dev",
+                "custom": false,
+                "type": "catalyst:function:Gen2Function",
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "created": "2025-06-09T17:41:58.071143Z",
+                "modified": "2025-06-09T17:41:58.071143Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev",
+                "custom": true,
+                "id": "functions-deployment-bucket-dev",
+                "type": "gcp:storage/bucket:Bucket",
+                "inputs": {
+                    "__defaults": [
+                        "forceDestroy",
+                        "storageClass"
+                    ],
+                    "forceDestroy": false,
+                    "location": "us-central1",
+                    "name": "functions-deployment-bucket-dev",
+                    "project": "interviewai-mzf86",
+                    "storageClass": "STANDARD"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"read\":240000000000,\"update\":240000000000},\"schema_version\":\"1\"}",
+                    "autoclass": null,
+                    "cors": [],
+                    "customPlacementConfig": null,
+                    "defaultEventBasedHold": false,
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAPEEMajUOdc3JGWqQ9in1zFDLycOSLTBfJf0O4zwyA=="
+                    },
+                    "enableObjectRetention": false,
+                    "encryption": null,
+                    "forceDestroy": false,
+                    "id": "functions-deployment-bucket-dev",
+                    "labels": {},
+                    "lifecycleRules": [],
+                    "location": "US-CENTRAL1",
+                    "logging": null,
+                    "name": "functions-deployment-bucket-dev",
+                    "project": "interviewai-mzf86",
+                    "projectNumber": 130237704747,
+                    "publicAccessPrevention": "inherited",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAKO52eYjqshIKs/O71LT673c0TdG3lviO7MZMowXmA=="
+                    },
+                    "requesterPays": false,
+                    "retentionPolicy": null,
+                    "rpo": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/functions-deployment-bucket-dev",
+                    "softDeletePolicy": {
+                        "effectiveTime": "2025-06-03T03:00:37.640Z",
+                        "retentionDurationSeconds": 604800
+                    },
+                    "storageClass": "STANDARD",
+                    "uniformBucketLevelAccess": false,
+                    "url": "gs://functions-deployment-bucket-dev",
+                    "versioning": null,
+                    "website": null
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-03T03:00:37.958098Z",
+                "modified": "2025-06-09T17:57:27.936199Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/serviceAccounts/catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                "type": "gcp:serviceaccount/account:Account",
+                "inputs": {
+                    "__defaults": [
+                        "disabled"
+                    ],
+                    "accountId": "catalyst-functions-sa-dev",
+                    "disabled": false,
+                    "displayName": "Service Account for Catalyst Cloud Functions (dev)",
+                    "project": "interviewai-mzf86"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000}}",
+                    "accountId": "catalyst-functions-sa-dev",
+                    "createIgnoreAlreadyExists": null,
+                    "description": "",
+                    "disabled": false,
+                    "displayName": "Service Account for Catalyst Cloud Functions (dev)",
+                    "email": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "id": "projects/interviewai-mzf86/serviceAccounts/catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "name": "projects/interviewai-mzf86/serviceAccounts/catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "uniqueId": "112483685416436438898"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "created": "2025-06-03T03:00:56.441595Z",
+                "modified": "2025-06-03T03:00:56.441595Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:monitoring/notificationChannel:NotificationChannel::emailNotificationChannel-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/notificationChannels/5460613297985113620",
+                "type": "gcp:monitoring/notificationChannel:NotificationChannel",
+                "inputs": {
+                    "__defaults": [
+                        "enabled",
+                        "forceDelete"
+                    ],
+                    "displayName": "Email Alert Channel (dev)",
+                    "enabled": true,
+                    "forceDelete": false,
+                    "labels": {
+                        "email_address": "kenneth@wkv.ai"
+                    },
+                    "project": "interviewai-mzf86",
+                    "type": "email"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000}}",
+                    "description": "",
+                    "displayName": "Email Alert Channel (dev)",
+                    "enabled": true,
+                    "forceDelete": false,
+                    "id": "projects/interviewai-mzf86/notificationChannels/5460613297985113620",
+                    "labels": {
+                        "email_address": "kenneth@wkv.ai"
+                    },
+                    "name": "projects/interviewai-mzf86/notificationChannels/5460613297985113620",
+                    "project": "interviewai-mzf86",
+                    "sensitiveLabels": null,
+                    "type": "email",
+                    "userLabels": {},
+                    "verificationStatus": ""
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "created": "2025-06-03T03:00:38.738478Z",
+                "modified": "2025-06-09T17:57:27.980772Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:logging/metric:Metric::cloud-function-critical-errors-dev",
+                "custom": true,
+                "id": "cloud-function-critical-errors-dev",
+                "type": "gcp:logging/metric:Metric",
+                "inputs": {
+                    "__defaults": [],
+                    "description": "Counts critical errors logged by Cloud Functions in dev environment.",
+                    "filter": "resource.type=\"cloud_function\" severity\u003e=ERROR textPayload:\"CRITICAL_ERROR\"",
+                    "labelExtractors": {
+                        "function_name": "EXTRACT(resource.labels.function_name)"
+                    },
+                    "metricDescriptor": {
+                        "__defaults": [],
+                        "labels": [
+                            {
+                                "__defaults": [],
+                                "description": "Name of the Cloud Function",
+                                "key": "function_name",
+                                "valueType": "STRING"
+                            }
+                        ],
+                        "metricKind": "DELTA",
+                        "unit": "1",
+                        "valueType": "INT64"
+                    },
+                    "name": "cloud-function-critical-errors-dev",
+                    "project": "interviewai-mzf86"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000}}",
+                    "bucketName": "",
+                    "bucketOptions": null,
+                    "description": "Counts critical errors logged by Cloud Functions in dev environment.",
+                    "disabled": false,
+                    "filter": "resource.type=\"cloud_function\" severity\u003e=ERROR textPayload:\"CRITICAL_ERROR\"",
+                    "id": "cloud-function-critical-errors-dev",
+                    "labelExtractors": {
+                        "function_name": "EXTRACT(resource.labels.function_name)"
+                    },
+                    "metricDescriptor": {
+                        "displayName": "",
+                        "labels": [
+                            {
+                                "description": "Name of the Cloud Function",
+                                "key": "function_name",
+                                "valueType": "STRING"
+                            }
+                        ],
+                        "metricKind": "DELTA",
+                        "unit": "1",
+                        "valueType": "INT64"
+                    },
+                    "name": "cloud-function-critical-errors-dev",
+                    "project": "interviewai-mzf86",
+                    "valueExtractor": ""
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "created": "2025-06-03T03:00:38.541098Z",
+                "modified": "2025-06-03T03:00:38.541098Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:monitoring/alertPolicy:AlertPolicy::criticalErrorAlertPolicy-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/alertPolicies/7818158032243538677",
+                "type": "gcp:monitoring/alertPolicy:AlertPolicy",
+                "inputs": {
+                    "__defaults": [
+                        "enabled"
+                    ],
+                    "combiner": "OR",
+                    "conditions": [
+                        {
+                            "__defaults": [],
+                            "conditionThreshold": {
+                                "__defaults": [],
+                                "aggregations": [
+                                    {
+                                        "__defaults": [],
+                                        "alignmentPeriod": "300s",
+                                        "perSeriesAligner": "ALIGN_COUNT"
+                                    }
+                                ],
+                                "comparison": "COMPARISON_GT",
+                                "duration": "300s",
+                                "filter": "metric.type=\"logging.googleapis.com/user/cloud-function-critical-errors-dev\" resource.type=\"cloud_function\"",
+                                "thresholdValue": 0
+                            },
+                            "displayName": "Log-based metric: Critical Errors \u003e 0"
+                        }
+                    ],
+                    "displayName": "Critical Errors in Cloud Functions Alert (dev)",
+                    "documentation": {
+                        "__defaults": [],
+                        "content": "One or more Cloud Functions in the dev environment have logged a CRITICAL_ERROR message. Please investigate the logs for details.",
+                        "mimeType": "text/markdown"
+                    },
+                    "enabled": true,
+                    "notificationChannels": [
+                        "projects/interviewai-mzf86/notificationChannels/5460613297985113620"
+                    ],
+                    "project": "interviewai-mzf86"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000}}",
+                    "alertStrategy": null,
+                    "combiner": "OR",
+                    "conditions": [
+                        {
+                            "conditionAbsent": null,
+                            "conditionMatchedLog": null,
+                            "conditionMonitoringQueryLanguage": null,
+                            "conditionPrometheusQueryLanguage": null,
+                            "conditionThreshold": {
+                                "aggregations": [
+                                    {
+                                        "alignmentPeriod": "300s",
+                                        "crossSeriesReducer": "",
+                                        "groupByFields": [],
+                                        "perSeriesAligner": "ALIGN_COUNT"
+                                    }
+                                ],
+                                "comparison": "COMPARISON_GT",
+                                "denominatorAggregations": [],
+                                "denominatorFilter": "",
+                                "duration": "300s",
+                                "evaluationMissingData": "",
+                                "filter": "metric.type=\"logging.googleapis.com/user/cloud-function-critical-errors-dev\" resource.type=\"cloud_function\"",
+                                "forecastOptions": null,
+                                "thresholdValue": 0,
+                                "trigger": null
+                            },
+                            "displayName": "Log-based metric: Critical Errors \u003e 0",
+                            "name": "projects/interviewai-mzf86/alertPolicies/7818158032243538677/conditions/7818158032243537702"
+                        }
+                    ],
+                    "creationRecords": [
+                        {
+                            "mutateTime": "2025-06-03T03:00:41.221704841Z",
+                            "mutatedBy": "pulumi-deployer@interviewai-mzf86.iam.gserviceaccount.com"
+                        }
+                    ],
+                    "displayName": "Critical Errors in Cloud Functions Alert (dev)",
+                    "documentation": {
+                        "content": "One or more Cloud Functions in the dev environment have logged a CRITICAL_ERROR message. Please investigate the logs for details.",
+                        "links": [],
+                        "mimeType": "text/markdown",
+                        "subject": ""
+                    },
+                    "enabled": true,
+                    "id": "projects/interviewai-mzf86/alertPolicies/7818158032243538677",
+                    "name": "projects/interviewai-mzf86/alertPolicies/7818158032243538677",
+                    "notificationChannels": [
+                        "projects/interviewai-mzf86/notificationChannels/5460613297985113620"
+                    ],
+                    "project": "interviewai-mzf86",
+                    "severity": "",
+                    "userLabels": {}
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:logging/metric:Metric::cloud-function-critical-errors-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:monitoring/notificationChannel:NotificationChannel::emailNotificationChannel-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "conditions": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:logging/metric:Metric::cloud-function-critical-errors-dev"
+                    ],
+                    "notificationChannels": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:monitoring/notificationChannel:NotificationChannel::emailNotificationChannel-dev"
+                    ]
+                },
+                "created": "2025-06-03T03:00:43.298017Z",
+                "modified": "2025-06-09T17:57:27.982895Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::ProxyToGenkitGCF-dev-source.zip",
+                "custom": true,
+                "id": "functions-deployment-bucket-dev-ProxyToGenkitGCF-dev-source.zip",
+                "type": "gcp:storage/bucketObject:BucketObject",
+                "inputs": {
+                    "__defaults": [],
+                    "bucket": "functions-deployment-bucket-dev",
+                    "detectMd5hash": "omxmWpZBQW2Gc4gX57WjSQ==",
+                    "name": "ProxyToGenkitGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "5af88ee101d5f53d409f98827126008445967b5a93f814e625a85b45c405d60a"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":240000000000,\"delete\":240000000000,\"update\":240000000000}}",
+                    "bucket": "functions-deployment-bucket-dev",
+                    "cacheControl": "",
+                    "content": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAExOPlhN8OsQEt27nhXnMJ1CNi1S4uXqelYeHPeXK46V"
+                    },
+                    "contentDisposition": "",
+                    "contentEncoding": "",
+                    "contentLanguage": "",
+                    "contentType": "application/zip",
+                    "crc32c": "u//1sw==",
+                    "customerEncryption": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAEbnx4SEZ8cY8fcmxo0rxT1B/xdBGIe2ECN6nSiMyp23"
+                    },
+                    "detectMd5hash": "omxmWpZBQW2Gc4gX57WjSQ==",
+                    "eventBasedHold": false,
+                    "generation": 1749490921197650,
+                    "id": "functions-deployment-bucket-dev-ProxyToGenkitGCF-dev-source.zip",
+                    "kmsKeyName": "",
+                    "md5hash": "omxmWpZBQW2Gc4gX57WjSQ==",
+                    "mediaLink": "https://storage.googleapis.com/download/storage/v1/b/functions-deployment-bucket-dev/o/ProxyToGenkitGCF-dev-source.zip?generation=1749490921197650\u0026alt=media",
+                    "metadata": {},
+                    "name": "ProxyToGenkitGCF-dev-source.zip",
+                    "outputName": "ProxyToGenkitGCF-dev-source.zip",
+                    "retention": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/functions-deployment-bucket-dev/o/ProxyToGenkitGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "5af88ee101d5f53d409f98827126008445967b5a93f814e625a85b45c405d60a"
+                    },
+                    "storageClass": "STANDARD",
+                    "temporaryHold": false
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "bucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "content",
+                    "customerEncryption"
+                ],
+                "created": "2025-06-09T17:42:01.341487Z",
+                "modified": "2025-06-09T17:57:27.951307Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::GetAPIKeyStatusGCF-dev-source.zip",
+                "custom": true,
+                "id": "functions-deployment-bucket-dev-GetAPIKeyStatusGCF-dev-source.zip",
+                "type": "gcp:storage/bucketObject:BucketObject",
+                "inputs": {
+                    "__defaults": [],
+                    "bucket": "functions-deployment-bucket-dev",
+                    "detectMd5hash": "0WLS24qjA1WnHJDpcaE7nQ==",
+                    "name": "GetAPIKeyStatusGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "3017d9d9e9027092390690fc23ab65fba276975b6bb6d6beecea15601e088ca1"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":240000000000,\"delete\":240000000000,\"update\":240000000000}}",
+                    "bucket": "functions-deployment-bucket-dev",
+                    "cacheControl": "",
+                    "content": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAGEDIzRU14/W9SILbardI6oZDpx3BfZWj4buSgoU2ThD"
+                    },
+                    "contentDisposition": "",
+                    "contentEncoding": "",
+                    "contentLanguage": "",
+                    "contentType": "application/zip",
+                    "crc32c": "hs83Jw==",
+                    "customerEncryption": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAEvy5qOE8mPpIcC/SzQtz8nYjLCL2WYhrjb2ldF33XZP"
+                    },
+                    "detectMd5hash": "0WLS24qjA1WnHJDpcaE7nQ==",
+                    "eventBasedHold": false,
+                    "generation": 1749490921334158,
+                    "id": "functions-deployment-bucket-dev-GetAPIKeyStatusGCF-dev-source.zip",
+                    "kmsKeyName": "",
+                    "md5hash": "0WLS24qjA1WnHJDpcaE7nQ==",
+                    "mediaLink": "https://storage.googleapis.com/download/storage/v1/b/functions-deployment-bucket-dev/o/GetAPIKeyStatusGCF-dev-source.zip?generation=1749490921334158\u0026alt=media",
+                    "metadata": {},
+                    "name": "GetAPIKeyStatusGCF-dev-source.zip",
+                    "outputName": "GetAPIKeyStatusGCF-dev-source.zip",
+                    "retention": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/functions-deployment-bucket-dev/o/GetAPIKeyStatusGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "3017d9d9e9027092390690fc23ab65fba276975b6bb6d6beecea15601e088ca1"
+                    },
+                    "storageClass": "STANDARD",
+                    "temporaryHold": false
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "bucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "content",
+                    "customerEncryption"
+                ],
+                "created": "2025-06-09T17:42:01.446821Z",
+                "modified": "2025-06-09T17:57:27.932579Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::RemoveAPIKeyGCF-dev-source.zip",
+                "custom": true,
+                "id": "functions-deployment-bucket-dev-RemoveAPIKeyGCF-dev-source.zip",
+                "type": "gcp:storage/bucketObject:BucketObject",
+                "inputs": {
+                    "__defaults": [],
+                    "bucket": "functions-deployment-bucket-dev",
+                    "detectMd5hash": "ylOJR3Gi9+mXWUzOB/Flkg==",
+                    "name": "RemoveAPIKeyGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "cc1cccf3467a6d4b3f27eb9b20f15335a5b3837f8cfcab3f34f0b52af226d5d7"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":240000000000,\"delete\":240000000000,\"update\":240000000000}}",
+                    "bucket": "functions-deployment-bucket-dev",
+                    "cacheControl": "",
+                    "content": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAMlEBIREYKvQBQmpu8IYvw0ajZmj1G3ydsv7Aq+Klup7"
+                    },
+                    "contentDisposition": "",
+                    "contentEncoding": "",
+                    "contentLanguage": "",
+                    "contentType": "application/zip",
+                    "crc32c": "qAU52Q==",
+                    "customerEncryption": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAB2VJX0xZYXhA658H/e0Gis/Na+EAprh4il6uebt/DiN"
+                    },
+                    "detectMd5hash": "ylOJR3Gi9+mXWUzOB/Flkg==",
+                    "eventBasedHold": false,
+                    "generation": 1749490921731336,
+                    "id": "functions-deployment-bucket-dev-RemoveAPIKeyGCF-dev-source.zip",
+                    "kmsKeyName": "",
+                    "md5hash": "ylOJR3Gi9+mXWUzOB/Flkg==",
+                    "mediaLink": "https://storage.googleapis.com/download/storage/v1/b/functions-deployment-bucket-dev/o/RemoveAPIKeyGCF-dev-source.zip?generation=1749490921731336\u0026alt=media",
+                    "metadata": {},
+                    "name": "RemoveAPIKeyGCF-dev-source.zip",
+                    "outputName": "RemoveAPIKeyGCF-dev-source.zip",
+                    "retention": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/functions-deployment-bucket-dev/o/RemoveAPIKeyGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "cc1cccf3467a6d4b3f27eb9b20f15335a5b3837f8cfcab3f34f0b52af226d5d7"
+                    },
+                    "storageClass": "STANDARD",
+                    "temporaryHold": false
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "bucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "content",
+                    "customerEncryption"
+                ],
+                "created": "2025-06-09T17:42:01.838448Z",
+                "modified": "2025-06-09T17:57:27.936414Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::SetAPIKeyGCF-dev-source.zip",
+                "custom": true,
+                "id": "functions-deployment-bucket-dev-SetAPIKeyGCF-dev-source.zip",
+                "type": "gcp:storage/bucketObject:BucketObject",
+                "inputs": {
+                    "__defaults": [],
+                    "bucket": "functions-deployment-bucket-dev",
+                    "detectMd5hash": "Z5Z4i7xfil/LFvb5/imfJQ==",
+                    "name": "SetAPIKeyGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "b82632758fab452b3ce1c8ef4f93e0179b779dc7c62aa06121261d9ab9446717"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":240000000000,\"delete\":240000000000,\"update\":240000000000}}",
+                    "bucket": "functions-deployment-bucket-dev",
+                    "cacheControl": "",
+                    "content": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAF//lMOIJDp0BthnXlk37Z8Ow/Ykr3jmATezeqs1nAQI"
+                    },
+                    "contentDisposition": "",
+                    "contentEncoding": "",
+                    "contentLanguage": "",
+                    "contentType": "application/zip",
+                    "crc32c": "01e4kQ==",
+                    "customerEncryption": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABABm7yF7IC6wTPcuB7wmW3ppx/OCv/qG7FAWSDjUZdpbW"
+                    },
+                    "detectMd5hash": "Z5Z4i7xfil/LFvb5/imfJQ==",
+                    "eventBasedHold": false,
+                    "generation": 1749490921969139,
+                    "id": "functions-deployment-bucket-dev-SetAPIKeyGCF-dev-source.zip",
+                    "kmsKeyName": "",
+                    "md5hash": "Z5Z4i7xfil/LFvb5/imfJQ==",
+                    "mediaLink": "https://storage.googleapis.com/download/storage/v1/b/functions-deployment-bucket-dev/o/SetAPIKeyGCF-dev-source.zip?generation=1749490921969139\u0026alt=media",
+                    "metadata": {},
+                    "name": "SetAPIKeyGCF-dev-source.zip",
+                    "outputName": "SetAPIKeyGCF-dev-source.zip",
+                    "retention": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/functions-deployment-bucket-dev/o/SetAPIKeyGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "b82632758fab452b3ce1c8ef4f93e0179b779dc7c62aa06121261d9ab9446717"
+                    },
+                    "storageClass": "STANDARD",
+                    "temporaryHold": false
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "bucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "content",
+                    "customerEncryption"
+                ],
+                "created": "2025-06-09T17:42:02.156911Z",
+                "modified": "2025-06-09T17:57:27.918903Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:projects/iAMMember:IAMMember::catalyst-functions-sa-dev-roles/secretmanager.secretAccessor",
+                "custom": true,
+                "id": "interviewai-mzf86/roles/secretmanager.secretAccessor/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                "type": "gcp:projects/iAMMember:IAMMember",
+                "inputs": {
+                    "__defaults": [],
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.secretAccessor"
+                },
+                "outputs": {
+                    "condition": null,
+                    "etag": "BwY3JxkWYDk=",
+                    "id": "interviewai-mzf86/roles/secretmanager.secretAccessor/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.secretAccessor"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "member": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ]
+                },
+                "created": "2025-06-09T17:42:08.161774Z",
+                "modified": "2025-06-09T17:42:08.161774Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:projects/iAMMember:IAMMember::catalyst-functions-sa-dev-roles/secretmanager.secretVersionManager",
+                "custom": true,
+                "id": "interviewai-mzf86/roles/secretmanager.secretVersionManager/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                "type": "gcp:projects/iAMMember:IAMMember",
+                "inputs": {
+                    "__defaults": [],
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.secretVersionManager"
+                },
+                "outputs": {
+                    "condition": null,
+                    "etag": "BwY3JxkWYDk=",
+                    "id": "interviewai-mzf86/roles/secretmanager.secretVersionManager/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.secretVersionManager"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "member": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ]
+                },
+                "created": "2025-06-09T17:42:08.344208Z",
+                "modified": "2025-06-09T17:42:08.344208Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:projects/iAMMember:IAMMember::catalyst-functions-sa-dev-roles/secretmanager.admin",
+                "custom": true,
+                "id": "interviewai-mzf86/roles/secretmanager.admin/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                "type": "gcp:projects/iAMMember:IAMMember",
+                "inputs": {
+                    "__defaults": [],
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.admin"
+                },
+                "outputs": {
+                    "condition": null,
+                    "etag": "BwY3JxkWYDk=",
+                    "id": "interviewai-mzf86/roles/secretmanager.admin/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.admin"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "member": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ]
+                },
+                "created": "2025-06-09T17:42:08.457729Z",
+                "modified": "2025-06-09T17:42:08.457729Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:compute/firewall:Firewall::tunnel-us-central1-a-firewall",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/global/firewalls/tunnel-us-central1-a-firewall-862f014",
+                "type": "gcp:compute/firewall:Firewall",
+                "inputs": {
+                    "__defaults": [
+                        "name",
+                        "priority"
+                    ],
+                    "allows": [
+                        {
+                            "__defaults": [],
+                            "ports": [
+                                "22",
+                                "80",
+                                "443",
+                                "9000-9100"
+                            ],
+                            "protocol": "tcp"
+                        }
+                    ],
+                    "direction": "INGRESS",
+                    "name": "tunnel-us-central1-a-firewall-862f014",
+                    "network": "https://www.googleapis.com/compute/v1/projects/interviewai-mzf86/global/networks/default",
+                    "priority": 1000,
+                    "sourceRanges": [
+                        "0.0.0.0/0"
+                    ]
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000},\"schema_version\":\"1\"}",
+                    "allows": [
+                        {
+                            "ports": [
+                                "22",
+                                "80",
+                                "443",
+                                "9000-9100"
+                            ],
+                            "protocol": "tcp"
+                        }
+                    ],
+                    "creationTimestamp": "2025-06-09T10:42:00.422-07:00",
+                    "denies": [],
+                    "description": "",
+                    "destinationRanges": [],
+                    "direction": "INGRESS",
+                    "disabled": false,
+                    "enableLogging": null,
+                    "id": "projects/interviewai-mzf86/global/firewalls/tunnel-us-central1-a-firewall-862f014",
+                    "logConfig": null,
+                    "name": "tunnel-us-central1-a-firewall-862f014",
+                    "network": "https://www.googleapis.com/compute/v1/projects/interviewai-mzf86/global/networks/default",
+                    "priority": 1000,
+                    "project": "interviewai-mzf86",
+                    "selfLink": "https://www.googleapis.com/compute/v1/projects/interviewai-mzf86/global/firewalls/tunnel-us-central1-a-firewall-862f014",
+                    "sourceRanges": [
+                        "0.0.0.0/0"
+                    ],
+                    "sourceServiceAccounts": [],
+                    "sourceTags": [],
+                    "targetServiceAccounts": [],
+                    "targetTags": []
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "created": "2025-06-09T17:42:21.461777Z",
+                "modified": "2025-06-09T17:57:28.069175Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:compute/instance:Instance::tunnel-us-central1-a-server",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/zones/us-central1-a/instances/tunnel-us-central1-a-server-01b67c5",
+                "type": "gcp:compute/instance:Instance",
+                "inputs": {
+                    "__defaults": [
+                        "canIpForward",
+                        "deletionProtection",
+                        "name"
+                    ],
+                    "bootDisk": {
+                        "__defaults": [
+                            "autoDelete",
+                            "mode"
+                        ],
+                        "autoDelete": true,
+                        "initializeParams": {
+                            "__defaults": [],
+                            "image": "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-2204-jammy-v20250606"
+                        },
+                        "mode": "READ_WRITE"
+                    },
+                    "canIpForward": false,
+                    "deletionProtection": false,
+                    "machineType": "e2-micro",
+                    "metadata": {
+                        "ssh-keys": {
+                            "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                            "ciphertext": "AAABALJIxPI65Gt6I7XkU/XbDFFWtws9tFiHkhX0VJEga8hEIoKA+5DtO9M4vDn3tfHgocVEAlwdZ2o1SF8WSM7i"
+                        },
+                        "startup-script": "#!/bin/bash\nsudo apt update \u0026\u0026 sudo apt install -y nginx certbot python3-certbot-nginx autossh ufw\nsudo ufw allow OpenSSH\nsudo ufw allow \"Nginx Full\"\nsudo ufw --force enable\nadduser --disabled-password --gecos \"\" tunneladmin\nusermod -aG sudo tunneladmin\necho 'tunneladmin ALL=(ALL) NOPASSWD:ALL' \u003e\u003e /etc/sudoers.d/tunneladmin\n"
+                    },
+                    "name": "tunnel-us-central1-a-server-01b67c5",
+                    "networkInterfaces": [
+                        {
+                            "__defaults": [],
+                            "accessConfigs": [
+                                {
+                                    "__defaults": []
+                                }
+                            ],
+                            "network": "https://www.googleapis.com/compute/v1/projects/interviewai-mzf86/global/networks/default"
+                        }
+                    ],
+                    "tags": [
+                        "ssh-tunnel"
+                    ],
+                    "zone": "us-central1-a"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000},\"schema_version\":\"6\"}",
+                    "advancedMachineFeatures": null,
+                    "allowStoppingForUpdate": null,
+                    "attachedDisks": [],
+                    "bootDisk": {
+                        "autoDelete": true,
+                        "deviceName": "persistent-disk-0",
+                        "diskEncryptionKeyRaw": {
+                            "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                            "ciphertext": "AAABALyLLi5NwL2LWgjh7ryEwCarxu5nUvsXJZ+K9eBmUQ=="
+                        },
+                        "diskEncryptionKeySha256": "",
+                        "initializeParams": {
+                            "enableConfidentialCompute": false,
+                            "image": "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-2204-jammy-v20250606",
+                            "labels": {},
+                            "provisionedIops": 0,
+                            "provisionedThroughput": 0,
+                            "resourceManagerTags": {},
+                            "size": 10,
+                            "storagePool": "",
+                            "type": "pd-standard"
+                        },
+                        "kmsKeySelfLink": "",
+                        "mode": "READ_WRITE",
+                        "source": "https://www.googleapis.com/compute/v1/projects/interviewai-mzf86/zones/us-central1-a/disks/tunnel-us-central1-a-server-01b67c5"
+                    },
+                    "canIpForward": false,
+                    "confidentialInstanceConfig": null,
+                    "cpuPlatform": "Intel Broadwell",
+                    "currentStatus": "RUNNING",
+                    "deletionProtection": false,
+                    "description": "",
+                    "desiredStatus": null,
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABANt6upP58ytUDQoZXpcXDmc+dvbn2aUKb/EHklYi8Q=="
+                    },
+                    "enableDisplay": false,
+                    "guestAccelerators": [],
+                    "hostname": "",
+                    "id": "projects/interviewai-mzf86/zones/us-central1-a/instances/tunnel-us-central1-a-server-01b67c5",
+                    "instanceId": "1888766756871905795",
+                    "labelFingerprint": "42WmSpB8rSM=",
+                    "labels": {},
+                    "machineType": "e2-micro",
+                    "metadata": {
+                        "ssh-keys": {
+                            "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                            "ciphertext": "AAABAI/VRyHUsVPbAxgJwlZiT8sBR9RqVJI+sYmTKWQ2YbR3Dog5F7c/1XPAvzTQsvD456I8c8r4rUKhsQ91hcoH"
+                        },
+                        "startup-script": "#!/bin/bash\nsudo apt update \u0026\u0026 sudo apt install -y nginx certbot python3-certbot-nginx autossh ufw\nsudo ufw allow OpenSSH\nsudo ufw allow \"Nginx Full\"\nsudo ufw --force enable\nadduser --disabled-password --gecos \"\" tunneladmin\nusermod -aG sudo tunneladmin\necho 'tunneladmin ALL=(ALL) NOPASSWD:ALL' \u003e\u003e /etc/sudoers.d/tunneladmin\n"
+                    },
+                    "metadataFingerprint": "KYf-Cl9AwTs=",
+                    "metadataStartupScript": null,
+                    "minCpuPlatform": "",
+                    "name": "tunnel-us-central1-a-server-01b67c5",
+                    "networkInterfaces": [
+                        {
+                            "accessConfigs": [
+                                {
+                                    "natIp": "34.123.127.52",
+                                    "networkTier": "PREMIUM",
+                                    "publicPtrDomainName": "",
+                                    "securityPolicy": ""
+                                }
+                            ],
+                            "aliasIpRanges": [],
+                            "internalIpv6PrefixLength": 0,
+                            "ipv6AccessConfigs": [],
+                            "ipv6AccessType": "",
+                            "ipv6Address": "",
+                            "name": "nic0",
+                            "network": "https://www.googleapis.com/compute/v1/projects/interviewai-mzf86/global/networks/default",
+                            "networkAttachment": "",
+                            "networkIp": "10.128.0.3",
+                            "nicType": "",
+                            "queueCount": 0,
+                            "securityPolicy": "",
+                            "stackType": "IPV4_ONLY",
+                            "subnetwork": "https://www.googleapis.com/compute/v1/projects/interviewai-mzf86/regions/us-central1/subnetworks/default",
+                            "subnetworkProject": "interviewai-mzf86"
+                        }
+                    ],
+                    "networkPerformanceConfig": null,
+                    "params": null,
+                    "partnerMetadata": null,
+                    "project": "interviewai-mzf86",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABALY0Hco+KaENxyXoyLF+xN2B8fEcpXe2G+/E0T9pyw=="
+                    },
+                    "reservationAffinity": null,
+                    "resourcePolicies": null,
+                    "scheduling": {
+                        "automaticRestart": true,
+                        "instanceTerminationAction": "",
+                        "localSsdRecoveryTimeout": null,
+                        "maintenanceInterval": "",
+                        "maxRunDuration": null,
+                        "minNodeCpus": 0,
+                        "nodeAffinities": [],
+                        "onHostMaintenance": "MIGRATE",
+                        "onInstanceStopAction": null,
+                        "preemptible": false,
+                        "provisioningModel": "STANDARD"
+                    },
+                    "scratchDisks": [],
+                    "selfLink": "https://www.googleapis.com/compute/v1/projects/interviewai-mzf86/zones/us-central1-a/instances/tunnel-us-central1-a-server-01b67c5",
+                    "serviceAccount": null,
+                    "shieldedInstanceConfig": {
+                        "enableIntegrityMonitoring": true,
+                        "enableSecureBoot": false,
+                        "enableVtpm": true
+                    },
+                    "tags": [
+                        "ssh-tunnel"
+                    ],
+                    "tagsFingerprint": "KFMPjjLX7Ko=",
+                    "zone": "us-central1-a"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-09T17:42:26.380203Z",
+                "modified": "2025-06-09T17:57:28.168152Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:apigateway/api:Api::catalyst-backend-api-dev-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/global/apis/catalyst-backend-api-dev-dev",
+                "type": "gcp:apigateway/api:Api",
+                "inputs": {
+                    "__defaults": [],
+                    "apiId": "catalyst-backend-api-dev-dev",
+                    "project": "interviewai-mzf86"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000}}",
+                    "apiId": "catalyst-backend-api-dev-dev",
+                    "createTime": "2025-06-09T17:41:59.980338263Z",
+                    "displayName": "catalyst-backend-api-dev-dev",
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABADZpJuO/1tUFIMvISgctqA9WUF4Z/dhlhzm/AOt3Ow=="
+                    },
+                    "id": "projects/interviewai-mzf86/locations/global/apis/catalyst-backend-api-dev-dev",
+                    "labels": {},
+                    "managedService": "catalyst-backend-api-dev-dev-3gb4q17ajsaz6.apigateway.interviewai-mzf86.cloud.goog",
+                    "name": "projects/interviewai-mzf86/locations/global/apis/catalyst-backend-api-dev-dev",
+                    "project": "interviewai-mzf86",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABADjHUWXpcXhLNElJgtnKINFE7NcXKoIsbYFy4/h8CQ=="
+                    }
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-09T17:43:41.951013Z",
+                "modified": "2025-06-09T17:57:28.047401Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:apigateway/api:Api::catalyst-backend-api-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/global/apis/catalyst-backend-api-dev",
+                "type": "gcp:apigateway/api:Api",
+                "inputs": {
+                    "__defaults": [],
+                    "apiId": "catalyst-backend-api-dev",
+                    "project": "interviewai-mzf86"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000}}",
+                    "apiId": "catalyst-backend-api-dev",
+                    "createTime": "2025-06-03T03:00:37.852234500Z",
+                    "displayName": "catalyst-backend-api-dev",
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAIuNI08H11bXbkzDyWNw2elgpCMzZ3VxlfMXDdil0Q=="
+                    },
+                    "id": "projects/interviewai-mzf86/locations/global/apis/catalyst-backend-api-dev",
+                    "labels": {},
+                    "managedService": "catalyst-backend-api-dev-3u9s1bi83j1l9.apigateway.interviewai-mzf86.cloud.goog",
+                    "name": "projects/interviewai-mzf86/locations/global/apis/catalyst-backend-api-dev",
+                    "project": "interviewai-mzf86",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAGVpRQWqhE4w7d9UHmqp8Vv2Z350aRmZjiKmTiKfXQ=="
+                    }
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-03T03:02:19.94963Z",
+                "modified": "2025-06-09T17:57:27.996724Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:projects/iAMMember:IAMMember::functionsSaSecretVersionManager-dev",
+                "custom": true,
+                "id": "interviewai-mzf86/roles/secretmanager.secretVersionManager/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                "type": "gcp:projects/iAMMember:IAMMember",
+                "inputs": {
+                    "__defaults": [],
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.secretVersionManager"
+                },
+                "outputs": {
+                    "condition": null,
+                    "etag": "BwY3JxkWYDk=",
+                    "id": "interviewai-mzf86/roles/secretmanager.secretVersionManager/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.secretVersionManager"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "member": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ]
+                },
+                "created": "2025-06-03T03:01:05.271072Z",
+                "modified": "2025-06-09T17:57:28.081732Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:projects/iAMMember:IAMMember::functionsSaSecretAdmin-dev",
+                "custom": true,
+                "id": "interviewai-mzf86/roles/secretmanager.admin/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                "type": "gcp:projects/iAMMember:IAMMember",
+                "inputs": {
+                    "__defaults": [],
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.admin"
+                },
+                "outputs": {
+                    "condition": null,
+                    "etag": "BwY3JxkWYDk=",
+                    "id": "interviewai-mzf86/roles/secretmanager.admin/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.admin"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "member": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ]
+                },
+                "created": "2025-06-03T04:41:02.762224Z",
+                "modified": "2025-06-09T17:57:28.255162Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:projects/iAMMember:IAMMember::functionsSaSecretAccessor-dev",
+                "custom": true,
+                "id": "interviewai-mzf86/roles/secretmanager.secretAccessor/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                "type": "gcp:projects/iAMMember:IAMMember",
+                "inputs": {
+                    "__defaults": [],
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.secretAccessor"
+                },
+                "outputs": {
+                    "condition": null,
+                    "etag": "BwY3JxkWYDk=",
+                    "id": "interviewai-mzf86/roles/secretmanager.secretAccessor/serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "member": "serviceAccount:catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "project": "interviewai-mzf86",
+                    "role": "roles/secretmanager.secretAccessor"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "member": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ]
+                },
+                "created": "2025-06-03T03:01:05.446703Z",
+                "modified": "2025-06-09T17:57:28.56723Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::RemoveAPIKeyGCF-dev-source",
+                "custom": true,
+                "id": "functions-deployment-bucket-dev-RemoveAPIKeyGCF-dev-source.zip",
+                "type": "gcp:storage/bucketObject:BucketObject",
+                "inputs": {
+                    "__defaults": [],
+                    "bucket": "functions-deployment-bucket-dev",
+                    "detectMd5hash": "ylOJR3Gi9+mXWUzOB/Flkg==",
+                    "name": "RemoveAPIKeyGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "cc1cccf3467a6d4b3f27eb9b20f15335a5b3837f8cfcab3f34f0b52af226d5d7"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":240000000000,\"delete\":240000000000,\"update\":240000000000}}",
+                    "bucket": "functions-deployment-bucket-dev",
+                    "cacheControl": "",
+                    "content": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABACN8GL1jqXAorgVN042cOY+Uqyo6D7mFrn+kD+Npvrtf"
+                    },
+                    "contentDisposition": "",
+                    "contentEncoding": "",
+                    "contentLanguage": "",
+                    "contentType": "application/zip",
+                    "crc32c": "qAU52Q==",
+                    "customerEncryption": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAPQcCU1Nm5BUNwOod2cLV695m46W14mh8DUJVkuRG/yu"
+                    },
+                    "detectMd5hash": "ylOJR3Gi9+mXWUzOB/Flkg==",
+                    "eventBasedHold": false,
+                    "generation": 1749490921731336,
+                    "id": "functions-deployment-bucket-dev-RemoveAPIKeyGCF-dev-source.zip",
+                    "kmsKeyName": "",
+                    "md5hash": "ylOJR3Gi9+mXWUzOB/Flkg==",
+                    "mediaLink": "https://storage.googleapis.com/download/storage/v1/b/functions-deployment-bucket-dev/o/RemoveAPIKeyGCF-dev-source.zip?generation=1749490921731336\u0026alt=media",
+                    "metadata": {},
+                    "name": "RemoveAPIKeyGCF-dev-source.zip",
+                    "outputName": "RemoveAPIKeyGCF-dev-source.zip",
+                    "retention": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/functions-deployment-bucket-dev/o/RemoveAPIKeyGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "cc1cccf3467a6d4b3f27eb9b20f15335a5b3837f8cfcab3f34f0b52af226d5d7"
+                    },
+                    "storageClass": "STANDARD",
+                    "temporaryHold": false
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "bucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "content",
+                    "customerEncryption"
+                ],
+                "created": "2025-06-03T03:00:39.24481Z",
+                "modified": "2025-06-09T17:57:27.942806Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::SetAPIKeyGCF-dev-source",
+                "custom": true,
+                "id": "functions-deployment-bucket-dev-SetAPIKeyGCF-dev-source.zip",
+                "type": "gcp:storage/bucketObject:BucketObject",
+                "inputs": {
+                    "__defaults": [],
+                    "bucket": "functions-deployment-bucket-dev",
+                    "detectMd5hash": "Z5Z4i7xfil/LFvb5/imfJQ==",
+                    "name": "SetAPIKeyGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "b82632758fab452b3ce1c8ef4f93e0179b779dc7c62aa06121261d9ab9446717"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":240000000000,\"delete\":240000000000,\"update\":240000000000}}",
+                    "bucket": "functions-deployment-bucket-dev",
+                    "cacheControl": "",
+                    "content": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAK2FzHkihIGWaf3CvxAMRiqOID3w9vHEFmxypOk5NsCl"
+                    },
+                    "contentDisposition": "",
+                    "contentEncoding": "",
+                    "contentLanguage": "",
+                    "contentType": "application/zip",
+                    "crc32c": "01e4kQ==",
+                    "customerEncryption": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAC64jKaPPp7J07hE8oInjJZ6S8ghQli6HuYjMZFsdug9"
+                    },
+                    "detectMd5hash": "Z5Z4i7xfil/LFvb5/imfJQ==",
+                    "eventBasedHold": false,
+                    "generation": 1749490921969139,
+                    "id": "functions-deployment-bucket-dev-SetAPIKeyGCF-dev-source.zip",
+                    "kmsKeyName": "",
+                    "md5hash": "Z5Z4i7xfil/LFvb5/imfJQ==",
+                    "mediaLink": "https://storage.googleapis.com/download/storage/v1/b/functions-deployment-bucket-dev/o/SetAPIKeyGCF-dev-source.zip?generation=1749490921969139\u0026alt=media",
+                    "metadata": {},
+                    "name": "SetAPIKeyGCF-dev-source.zip",
+                    "outputName": "SetAPIKeyGCF-dev-source.zip",
+                    "retention": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/functions-deployment-bucket-dev/o/SetAPIKeyGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "b82632758fab452b3ce1c8ef4f93e0179b779dc7c62aa06121261d9ab9446717"
+                    },
+                    "storageClass": "STANDARD",
+                    "temporaryHold": false
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "bucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "content",
+                    "customerEncryption"
+                ],
+                "created": "2025-06-03T03:00:38.738359Z",
+                "modified": "2025-06-09T17:57:27.924302Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::GetAPIKeyStatusGCF-dev-source",
+                "custom": true,
+                "id": "functions-deployment-bucket-dev-GetAPIKeyStatusGCF-dev-source.zip",
+                "type": "gcp:storage/bucketObject:BucketObject",
+                "inputs": {
+                    "__defaults": [],
+                    "bucket": "functions-deployment-bucket-dev",
+                    "detectMd5hash": "0WLS24qjA1WnHJDpcaE7nQ==",
+                    "name": "GetAPIKeyStatusGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "3017d9d9e9027092390690fc23ab65fba276975b6bb6d6beecea15601e088ca1"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":240000000000,\"delete\":240000000000,\"update\":240000000000}}",
+                    "bucket": "functions-deployment-bucket-dev",
+                    "cacheControl": "",
+                    "content": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAC/gEa0HnDRFPBDZjFPZjeyk63zCVqXGRO7UojVpBHFO"
+                    },
+                    "contentDisposition": "",
+                    "contentEncoding": "",
+                    "contentLanguage": "",
+                    "contentType": "application/zip",
+                    "crc32c": "hs83Jw==",
+                    "customerEncryption": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAJ99ipajwMDAeDjLnmTIwVcVSCEhauKMd7Lpp4d4PFtq"
+                    },
+                    "detectMd5hash": "0WLS24qjA1WnHJDpcaE7nQ==",
+                    "eventBasedHold": false,
+                    "generation": 1749490921334158,
+                    "id": "functions-deployment-bucket-dev-GetAPIKeyStatusGCF-dev-source.zip",
+                    "kmsKeyName": "",
+                    "md5hash": "0WLS24qjA1WnHJDpcaE7nQ==",
+                    "mediaLink": "https://storage.googleapis.com/download/storage/v1/b/functions-deployment-bucket-dev/o/GetAPIKeyStatusGCF-dev-source.zip?generation=1749490921334158\u0026alt=media",
+                    "metadata": {},
+                    "name": "GetAPIKeyStatusGCF-dev-source.zip",
+                    "outputName": "GetAPIKeyStatusGCF-dev-source.zip",
+                    "retention": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/functions-deployment-bucket-dev/o/GetAPIKeyStatusGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "3017d9d9e9027092390690fc23ab65fba276975b6bb6d6beecea15601e088ca1"
+                    },
+                    "storageClass": "STANDARD",
+                    "temporaryHold": false
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "bucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "content",
+                    "customerEncryption"
+                ],
+                "created": "2025-06-03T03:00:38.983209Z",
+                "modified": "2025-06-09T17:57:27.930655Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::ProxyToGenkitGCF-dev-source",
+                "custom": true,
+                "id": "functions-deployment-bucket-dev-ProxyToGenkitGCF-dev-source.zip",
+                "type": "gcp:storage/bucketObject:BucketObject",
+                "inputs": {
+                    "__defaults": [],
+                    "bucket": "functions-deployment-bucket-dev",
+                    "detectMd5hash": "omxmWpZBQW2Gc4gX57WjSQ==",
+                    "name": "ProxyToGenkitGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "5af88ee101d5f53d409f98827126008445967b5a93f814e625a85b45c405d60a"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":240000000000,\"delete\":240000000000,\"update\":240000000000}}",
+                    "bucket": "functions-deployment-bucket-dev",
+                    "cacheControl": "",
+                    "content": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAJEH9RHJoOusUPaQQH9XRKcAbOZs5EvHfNw+hTnUURxn"
+                    },
+                    "contentDisposition": "",
+                    "contentEncoding": "",
+                    "contentLanguage": "",
+                    "contentType": "application/zip",
+                    "crc32c": "u//1sw==",
+                    "customerEncryption": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABANo4/WPhwgFn5eAmnNIj2rIivyWKEvwA8z/i6lCPcPnZ"
+                    },
+                    "detectMd5hash": "omxmWpZBQW2Gc4gX57WjSQ==",
+                    "eventBasedHold": false,
+                    "generation": 1749490921197650,
+                    "id": "functions-deployment-bucket-dev-ProxyToGenkitGCF-dev-source.zip",
+                    "kmsKeyName": "",
+                    "md5hash": "omxmWpZBQW2Gc4gX57WjSQ==",
+                    "mediaLink": "https://storage.googleapis.com/download/storage/v1/b/functions-deployment-bucket-dev/o/ProxyToGenkitGCF-dev-source.zip?generation=1749490921197650\u0026alt=media",
+                    "metadata": {},
+                    "name": "ProxyToGenkitGCF-dev-source.zip",
+                    "outputName": "ProxyToGenkitGCF-dev-source.zip",
+                    "retention": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/functions-deployment-bucket-dev/o/ProxyToGenkitGCF-dev-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "5af88ee101d5f53d409f98827126008445967b5a93f814e625a85b45c405d60a"
+                    },
+                    "storageClass": "STANDARD",
+                    "temporaryHold": false
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "bucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "content",
+                    "customerEncryption"
+                ],
+                "created": "2025-06-03T03:00:39.573483Z",
+                "modified": "2025-06-09T17:57:27.931375Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::RemoveAPIKeyGCF-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/us-central1/functions/RemoveAPIKeyGCF-dev",
+                "type": "gcp:cloudfunctions/function:Function",
+                "inputs": {
+                    "__defaults": [
+                        "ingressSettings",
+                        "timeout"
+                    ],
+                    "availableMemoryMb": 256,
+                    "entryPoint": "RemoveAPIKeyGCF",
+                    "environmentVariables": {
+                        "GCP_PROJECT_ID": "interviewai-mzf86"
+                    },
+                    "ingressSettings": "ALLOW_ALL",
+                    "name": "RemoveAPIKeyGCF-dev",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "runtime": "go121",
+                    "serviceAccountEmail": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "sourceArchiveBucket": "functions-deployment-bucket-dev",
+                    "sourceArchiveObject": "RemoveAPIKeyGCF-dev-source.zip",
+                    "timeout": 60,
+                    "triggerHttp": true
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"read\":300000000000,\"update\":300000000000}}",
+                    "availableMemoryMb": 256,
+                    "buildEnvironmentVariables": null,
+                    "buildServiceAccount": "projects/interviewai-mzf86/serviceAccounts/130237704747-compute@developer.gserviceaccount.com",
+                    "buildWorkerPool": "",
+                    "description": "",
+                    "dockerRegistry": "ARTIFACT_REGISTRY",
+                    "dockerRepository": "",
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAJGuTKe8eJGa/a7QwjoZwyxiD8dr+oJ/+u+Ig9QK4g=="
+                    },
+                    "entryPoint": "RemoveAPIKeyGCF",
+                    "environmentVariables": {
+                        "GCP_PROJECT_ID": "interviewai-mzf86"
+                    },
+                    "eventTrigger": null,
+                    "httpsTriggerSecurityLevel": "SECURE_OPTIONAL",
+                    "httpsTriggerUrl": "https://us-central1-interviewai-mzf86.cloudfunctions.net/RemoveAPIKeyGCF-dev",
+                    "id": "projects/interviewai-mzf86/locations/us-central1/functions/RemoveAPIKeyGCF-dev",
+                    "ingressSettings": "ALLOW_ALL",
+                    "kmsKeyName": "",
+                    "labels": {},
+                    "maxInstances": 0,
+                    "minInstances": 0,
+                    "name": "RemoveAPIKeyGCF-dev",
+                    "project": "interviewai-mzf86",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAGalxzCN6BIpCVgwisJcXFTRFYCsfNLLE3WRoo2wOA=="
+                    },
+                    "region": "us-central1",
+                    "runtime": "go121",
+                    "secretEnvironmentVariables": [],
+                    "secretVolumes": [],
+                    "serviceAccountEmail": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "sourceArchiveBucket": "functions-deployment-bucket-dev",
+                    "sourceArchiveObject": "RemoveAPIKeyGCF-dev-source.zip",
+                    "sourceRepository": null,
+                    "status": "ACTIVE",
+                    "timeout": 60,
+                    "triggerHttp": true,
+                    "versionId": "1",
+                    "vpcConnector": "",
+                    "vpcConnectorEgressSettings": ""
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::RemoveAPIKeyGCF-dev-source"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "serviceAccountEmail": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ],
+                    "sourceArchiveBucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ],
+                    "sourceArchiveObject": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::RemoveAPIKeyGCF-dev-source"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-03T03:03:20.863315Z",
+                "modified": "2025-06-09T17:57:28.085626Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::SetAPIKeyGCF-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/us-central1/functions/SetAPIKeyGCF-dev",
+                "type": "gcp:cloudfunctions/function:Function",
+                "inputs": {
+                    "__defaults": [
+                        "ingressSettings",
+                        "timeout"
+                    ],
+                    "availableMemoryMb": 256,
+                    "entryPoint": "SetAPIKeyGCF",
+                    "environmentVariables": {
+                        "GCP_PROJECT_ID": "interviewai-mzf86"
+                    },
+                    "ingressSettings": "ALLOW_ALL",
+                    "name": "SetAPIKeyGCF-dev",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "runtime": "go121",
+                    "serviceAccountEmail": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "sourceArchiveBucket": "functions-deployment-bucket-dev",
+                    "sourceArchiveObject": "SetAPIKeyGCF-dev-source.zip",
+                    "timeout": 60,
+                    "triggerHttp": true
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"read\":300000000000,\"update\":300000000000}}",
+                    "availableMemoryMb": 256,
+                    "buildEnvironmentVariables": null,
+                    "buildServiceAccount": "projects/interviewai-mzf86/serviceAccounts/130237704747-compute@developer.gserviceaccount.com",
+                    "buildWorkerPool": "",
+                    "description": "",
+                    "dockerRegistry": "ARTIFACT_REGISTRY",
+                    "dockerRepository": "",
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAItYl0PNPXTkabYz+nYbgyPO8y9U8Ris0QqeW0wabQ=="
+                    },
+                    "entryPoint": "SetAPIKeyGCF",
+                    "environmentVariables": {
+                        "GCP_PROJECT_ID": "interviewai-mzf86"
+                    },
+                    "eventTrigger": null,
+                    "httpsTriggerSecurityLevel": "SECURE_OPTIONAL",
+                    "httpsTriggerUrl": "https://us-central1-interviewai-mzf86.cloudfunctions.net/SetAPIKeyGCF-dev",
+                    "id": "projects/interviewai-mzf86/locations/us-central1/functions/SetAPIKeyGCF-dev",
+                    "ingressSettings": "ALLOW_ALL",
+                    "kmsKeyName": "",
+                    "labels": {},
+                    "maxInstances": 0,
+                    "minInstances": 0,
+                    "name": "SetAPIKeyGCF-dev",
+                    "project": "interviewai-mzf86",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABACOXYDjVLd2Zzl4uKdgThT1yCpQpwAMF+FgmBym8qw=="
+                    },
+                    "region": "us-central1",
+                    "runtime": "go121",
+                    "secretEnvironmentVariables": [],
+                    "secretVolumes": [],
+                    "serviceAccountEmail": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "sourceArchiveBucket": "functions-deployment-bucket-dev",
+                    "sourceArchiveObject": "SetAPIKeyGCF-dev-source.zip",
+                    "sourceRepository": null,
+                    "status": "ACTIVE",
+                    "timeout": 60,
+                    "triggerHttp": true,
+                    "versionId": "1",
+                    "vpcConnector": "",
+                    "vpcConnectorEgressSettings": ""
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::SetAPIKeyGCF-dev-source"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "serviceAccountEmail": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ],
+                    "sourceArchiveBucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ],
+                    "sourceArchiveObject": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::SetAPIKeyGCF-dev-source"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-03T03:03:21.09326Z",
+                "modified": "2025-06-09T17:57:28.058949Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::GetAPIKeyStatusGCF-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/us-central1/functions/GetAPIKeyStatusGCF-dev",
+                "type": "gcp:cloudfunctions/function:Function",
+                "inputs": {
+                    "__defaults": [
+                        "ingressSettings",
+                        "timeout"
+                    ],
+                    "availableMemoryMb": 256,
+                    "entryPoint": "GetAPIKeyStatusGCF",
+                    "environmentVariables": {
+                        "GCP_PROJECT_ID": "interviewai-mzf86"
+                    },
+                    "ingressSettings": "ALLOW_ALL",
+                    "name": "GetAPIKeyStatusGCF-dev",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "runtime": "go121",
+                    "serviceAccountEmail": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "sourceArchiveBucket": "functions-deployment-bucket-dev",
+                    "sourceArchiveObject": "GetAPIKeyStatusGCF-dev-source.zip",
+                    "timeout": 60,
+                    "triggerHttp": true
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"read\":300000000000,\"update\":300000000000}}",
+                    "availableMemoryMb": 256,
+                    "buildEnvironmentVariables": null,
+                    "buildServiceAccount": "projects/interviewai-mzf86/serviceAccounts/130237704747-compute@developer.gserviceaccount.com",
+                    "buildWorkerPool": "",
+                    "description": "",
+                    "dockerRegistry": "ARTIFACT_REGISTRY",
+                    "dockerRepository": "",
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAEfvwqbqYuLOMPbuY30OE1vkOQUcqsjcw3bCAwSWjg=="
+                    },
+                    "entryPoint": "GetAPIKeyStatusGCF",
+                    "environmentVariables": {
+                        "GCP_PROJECT_ID": "interviewai-mzf86"
+                    },
+                    "eventTrigger": null,
+                    "httpsTriggerSecurityLevel": "SECURE_OPTIONAL",
+                    "httpsTriggerUrl": "https://us-central1-interviewai-mzf86.cloudfunctions.net/GetAPIKeyStatusGCF-dev",
+                    "id": "projects/interviewai-mzf86/locations/us-central1/functions/GetAPIKeyStatusGCF-dev",
+                    "ingressSettings": "ALLOW_ALL",
+                    "kmsKeyName": "",
+                    "labels": {},
+                    "maxInstances": 0,
+                    "minInstances": 0,
+                    "name": "GetAPIKeyStatusGCF-dev",
+                    "project": "interviewai-mzf86",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAPhIRJg6KjewGCw8/IvXY/N3xsbZHdRRYnVLk6zJZg=="
+                    },
+                    "region": "us-central1",
+                    "runtime": "go121",
+                    "secretEnvironmentVariables": [],
+                    "secretVolumes": [],
+                    "serviceAccountEmail": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "sourceArchiveBucket": "functions-deployment-bucket-dev",
+                    "sourceArchiveObject": "GetAPIKeyStatusGCF-dev-source.zip",
+                    "sourceRepository": null,
+                    "status": "ACTIVE",
+                    "timeout": 60,
+                    "triggerHttp": true,
+                    "versionId": "1",
+                    "vpcConnector": "",
+                    "vpcConnectorEgressSettings": ""
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::GetAPIKeyStatusGCF-dev-source",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "serviceAccountEmail": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ],
+                    "sourceArchiveBucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ],
+                    "sourceArchiveObject": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::GetAPIKeyStatusGCF-dev-source"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-03T03:03:40.204118Z",
+                "modified": "2025-06-09T17:57:28.01801Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/functionIamMember:FunctionIamMember::RemoveAPIKeyGCF-invoker-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/us-central1/functions/RemoveAPIKeyGCF-dev/roles/cloudfunctions.invoker/allUsers",
+                "type": "gcp:cloudfunctions/functionIamMember:FunctionIamMember",
+                "inputs": {
+                    "__defaults": [],
+                    "cloudFunction": "projects/interviewai-mzf86/locations/us-central1/functions/RemoveAPIKeyGCF-dev",
+                    "member": "allUsers",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "role": "roles/cloudfunctions.invoker"
+                },
+                "outputs": {
+                    "cloudFunction": "projects/interviewai-mzf86/locations/us-central1/functions/RemoveAPIKeyGCF-dev",
+                    "condition": null,
+                    "etag": "BwY2oh+So3M=",
+                    "id": "projects/interviewai-mzf86/locations/us-central1/functions/RemoveAPIKeyGCF-dev/roles/cloudfunctions.invoker/allUsers",
+                    "member": "allUsers",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "role": "roles/cloudfunctions.invoker"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::RemoveAPIKeyGCF-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "cloudFunction": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::RemoveAPIKeyGCF-dev"
+                    ],
+                    "project": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::RemoveAPIKeyGCF-dev"
+                    ],
+                    "region": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::RemoveAPIKeyGCF-dev"
+                    ]
+                },
+                "created": "2025-06-03T03:03:26.411081Z",
+                "modified": "2025-06-09T17:57:28.046342Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/functionIamMember:FunctionIamMember::SetAPIKeyGCF-invoker-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/us-central1/functions/SetAPIKeyGCF-dev/roles/cloudfunctions.invoker/allUsers",
+                "type": "gcp:cloudfunctions/functionIamMember:FunctionIamMember",
+                "inputs": {
+                    "__defaults": [],
+                    "cloudFunction": "projects/interviewai-mzf86/locations/us-central1/functions/SetAPIKeyGCF-dev",
+                    "member": "allUsers",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "role": "roles/cloudfunctions.invoker"
+                },
+                "outputs": {
+                    "cloudFunction": "projects/interviewai-mzf86/locations/us-central1/functions/SetAPIKeyGCF-dev",
+                    "condition": null,
+                    "etag": "BwY2oh+XNao=",
+                    "id": "projects/interviewai-mzf86/locations/us-central1/functions/SetAPIKeyGCF-dev/roles/cloudfunctions.invoker/allUsers",
+                    "member": "allUsers",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "role": "roles/cloudfunctions.invoker"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::SetAPIKeyGCF-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "cloudFunction": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::SetAPIKeyGCF-dev"
+                    ],
+                    "project": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::SetAPIKeyGCF-dev"
+                    ],
+                    "region": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::SetAPIKeyGCF-dev"
+                    ]
+                },
+                "created": "2025-06-03T03:03:26.761437Z",
+                "modified": "2025-06-09T17:57:28.048387Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/functionIamMember:FunctionIamMember::GetAPIKeyStatusGCF-invoker-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/us-central1/functions/GetAPIKeyStatusGCF-dev/roles/cloudfunctions.invoker/allUsers",
+                "type": "gcp:cloudfunctions/functionIamMember:FunctionIamMember",
+                "inputs": {
+                    "__defaults": [],
+                    "cloudFunction": "projects/interviewai-mzf86/locations/us-central1/functions/GetAPIKeyStatusGCF-dev",
+                    "member": "allUsers",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "role": "roles/cloudfunctions.invoker"
+                },
+                "outputs": {
+                    "cloudFunction": "projects/interviewai-mzf86/locations/us-central1/functions/GetAPIKeyStatusGCF-dev",
+                    "condition": null,
+                    "etag": "BwY2oiCuXe0=",
+                    "id": "projects/interviewai-mzf86/locations/us-central1/functions/GetAPIKeyStatusGCF-dev/roles/cloudfunctions.invoker/allUsers",
+                    "member": "allUsers",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "role": "roles/cloudfunctions.invoker"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::GetAPIKeyStatusGCF-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "cloudFunction": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::GetAPIKeyStatusGCF-dev"
+                    ],
+                    "project": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::GetAPIKeyStatusGCF-dev"
+                    ],
+                    "region": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::GetAPIKeyStatusGCF-dev"
+                    ]
+                },
+                "created": "2025-06-03T03:03:45.324221Z",
+                "modified": "2025-06-09T17:57:28.047467Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::pulumi-function-source-bucket",
+                "custom": true,
+                "id": "catalyst-gcp-infra-function-sources",
+                "type": "gcp:storage/bucket:Bucket",
+                "inputs": {
+                    "__defaults": [
+                        "forceDestroy",
+                        "storageClass"
+                    ],
+                    "forceDestroy": false,
+                    "location": "US",
+                    "name": "catalyst-gcp-infra-function-sources",
+                    "storageClass": "STANDARD",
+                    "uniformBucketLevelAccess": true
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"read\":240000000000,\"update\":240000000000},\"schema_version\":\"1\"}",
+                    "autoclass": null,
+                    "cors": [],
+                    "customPlacementConfig": null,
+                    "defaultEventBasedHold": false,
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAMrAe6gRHLTDrZOVtKHHB1ny7P6TWdC3FZHxN9mvgg=="
+                    },
+                    "enableObjectRetention": false,
+                    "encryption": null,
+                    "forceDestroy": false,
+                    "id": "catalyst-gcp-infra-function-sources",
+                    "labels": {},
+                    "lifecycleRules": [],
+                    "location": "US",
+                    "logging": null,
+                    "name": "catalyst-gcp-infra-function-sources",
+                    "project": "interviewai-mzf86",
+                    "projectNumber": 130237704747,
+                    "publicAccessPrevention": "inherited",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAHy4PIHFcw2DI6FxdRvseQkPaRKbfqv8fru7MbhfRQ=="
+                    },
+                    "requesterPays": false,
+                    "retentionPolicy": null,
+                    "rpo": "DEFAULT",
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/catalyst-gcp-infra-function-sources",
+                    "softDeletePolicy": {
+                        "effectiveTime": "2025-06-06T03:18:57.978Z",
+                        "retentionDurationSeconds": 604800
+                    },
+                    "storageClass": "STANDARD",
+                    "uniformBucketLevelAccess": true,
+                    "url": "gs://catalyst-gcp-infra-function-sources",
+                    "versioning": null,
+                    "website": null
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-06T03:18:58.163354Z",
+                "modified": "2025-06-09T17:57:27.889221Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::docsupport-parseresume-source-zip",
+                "custom": true,
+                "id": "catalyst-gcp-infra-function-sources-docsupport-parseresume-source.zip",
+                "type": "gcp:storage/bucketObject:BucketObject",
+                "inputs": {
+                    "__defaults": [],
+                    "bucket": "catalyst-gcp-infra-function-sources",
+                    "detectMd5hash": "7b3dr8uxN7k2pSc8xb9w0A==",
+                    "name": "docsupport-parseresume-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "b3da25a21d6fe2cf9dd51066c1bb2aef08924792c6f5f31cf727d3f2bc3dc2c5"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":240000000000,\"delete\":240000000000,\"update\":240000000000}}",
+                    "bucket": "catalyst-gcp-infra-function-sources",
+                    "cacheControl": "",
+                    "content": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAEvfbo2Jvl5asHE7SfrVwMAhZaQaqNCJ8EJDNxnhvw16"
+                    },
+                    "contentDisposition": "",
+                    "contentEncoding": "",
+                    "contentLanguage": "",
+                    "contentType": "application/zip",
+                    "crc32c": "o04f+A==",
+                    "customerEncryption": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAH4eduFIO2xW1PwfBHQP9wnMdNbXt9LBh223FBWnOgeM"
+                    },
+                    "detectMd5hash": "7b3dr8uxN7k2pSc8xb9w0A==",
+                    "eventBasedHold": false,
+                    "generation": 1749179939056253,
+                    "id": "catalyst-gcp-infra-function-sources-docsupport-parseresume-source.zip",
+                    "kmsKeyName": "",
+                    "md5hash": "7b3dr8uxN7k2pSc8xb9w0A==",
+                    "mediaLink": "https://storage.googleapis.com/download/storage/v1/b/catalyst-gcp-infra-function-sources/o/docsupport-parseresume-source.zip?generation=1749179939056253\u0026alt=media",
+                    "metadata": {},
+                    "name": "docsupport-parseresume-source.zip",
+                    "outputName": "docsupport-parseresume-source.zip",
+                    "retention": null,
+                    "selfLink": "https://www.googleapis.com/storage/v1/b/catalyst-gcp-infra-function-sources/o/docsupport-parseresume-source.zip",
+                    "source": {
+                        "4dabf18193072939515e22adb298388d": "0def7320c3a5731c473e5ecbe6d01bc7",
+                        "assets": {},
+                        "hash": "b3da25a21d6fe2cf9dd51066c1bb2aef08924792c6f5f31cf727d3f2bc3dc2c5"
+                    },
+                    "storageClass": "STANDARD",
+                    "temporaryHold": false
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::pulumi-function-source-bucket"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "bucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::pulumi-function-source-bucket"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "content",
+                    "customerEncryption"
+                ],
+                "created": "2025-06-06T03:18:59.188328Z",
+                "modified": "2025-06-09T17:57:27.917878Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::ProxyToGenkitGCF-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/us-central1/functions/ProxyToGenkitGCF-dev",
+                "type": "gcp:cloudfunctions/function:Function",
+                "inputs": {
+                    "__defaults": [
+                        "ingressSettings",
+                        "timeout"
+                    ],
+                    "availableMemoryMb": 256,
+                    "entryPoint": "ProxyToGenkitGCF",
+                    "environmentVariables": {
+                        "DEFAULT_GEMINI_API_KEY": {
+                            "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                            "ciphertext": "AAABAMz46FIRUP87hO7IrRvmJwbzTUqYcJ1G7uu6SQmEutPrHW44ohiGxdCKKq8/vxAr/gLc18hK9JNglW+HXg=="
+                        },
+                        "GCP_PROJECT_ID": "interviewai-mzf86",
+                        "NEXTJS_BASE_URL": "https://a3d7-74-108-65-105.ngrok-free.app"
+                    },
+                    "ingressSettings": "ALLOW_ALL",
+                    "name": "ProxyToGenkitGCF-dev",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "runtime": "go121",
+                    "serviceAccountEmail": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "sourceArchiveBucket": "functions-deployment-bucket-dev",
+                    "sourceArchiveObject": "ProxyToGenkitGCF-dev-source.zip",
+                    "timeout": 60,
+                    "triggerHttp": true
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"read\":300000000000,\"update\":300000000000}}",
+                    "availableMemoryMb": 256,
+                    "buildEnvironmentVariables": null,
+                    "buildServiceAccount": "projects/interviewai-mzf86/serviceAccounts/130237704747-compute@developer.gserviceaccount.com",
+                    "buildWorkerPool": "",
+                    "description": "",
+                    "dockerRegistry": "ARTIFACT_REGISTRY",
+                    "dockerRepository": "",
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAPDZ8HxfaEmkGCAlKvYNj2g0tNarQfv+Qcjay1PKbA=="
+                    },
+                    "entryPoint": "ProxyToGenkitGCF",
+                    "environmentVariables": {
+                        "DEFAULT_GEMINI_API_KEY": {
+                            "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                            "ciphertext": "AAABAG0F+IDLZoJljMziM1S0Zj9diOl2NQBu/9T53sSU2E0SqSyL1TglfG9ylxysP/6ZHuCzjbltQDwW8TnWiA=="
+                        },
+                        "GCP_PROJECT_ID": "interviewai-mzf86",
+                        "NEXTJS_BASE_URL": "https://a3d7-74-108-65-105.ngrok-free.app"
+                    },
+                    "eventTrigger": null,
+                    "httpsTriggerSecurityLevel": "SECURE_OPTIONAL",
+                    "httpsTriggerUrl": "https://us-central1-interviewai-mzf86.cloudfunctions.net/ProxyToGenkitGCF-dev",
+                    "id": "projects/interviewai-mzf86/locations/us-central1/functions/ProxyToGenkitGCF-dev",
+                    "ingressSettings": "ALLOW_ALL",
+                    "kmsKeyName": "",
+                    "labels": {},
+                    "maxInstances": 0,
+                    "minInstances": 0,
+                    "name": "ProxyToGenkitGCF-dev",
+                    "project": "interviewai-mzf86",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAMFhor7Os8aAAzhC2rPtkSWCqQ9ayMS2BpA27yT2aQ=="
+                    },
+                    "region": "us-central1",
+                    "runtime": "go121",
+                    "secretEnvironmentVariables": [],
+                    "secretVolumes": [],
+                    "serviceAccountEmail": "catalyst-functions-sa-dev@interviewai-mzf86.iam.gserviceaccount.com",
+                    "sourceArchiveBucket": "functions-deployment-bucket-dev",
+                    "sourceArchiveObject": "ProxyToGenkitGCF-dev-source.zip",
+                    "sourceRepository": null,
+                    "status": "ACTIVE",
+                    "timeout": 60,
+                    "triggerHttp": true,
+                    "versionId": "3",
+                    "vpcConnector": "",
+                    "vpcConnectorEgressSettings": ""
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::ProxyToGenkitGCF-dev-source"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "serviceAccountEmail": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:serviceaccount/account:Account::catalyst-functions-sa-dev"
+                    ],
+                    "sourceArchiveBucket": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucket:Bucket::functions-deployment-bucket-dev"
+                    ],
+                    "sourceArchiveObject": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:storage/bucketObject:BucketObject::ProxyToGenkitGCF-dev-source"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-03T03:03:30.176188Z",
+                "modified": "2025-06-09T17:57:28.101207Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/functionIamMember:FunctionIamMember::ProxyToGenkitGCF-invoker-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/us-central1/functions/ProxyToGenkitGCF-dev/roles/cloudfunctions.invoker/allUsers",
+                "type": "gcp:cloudfunctions/functionIamMember:FunctionIamMember",
+                "inputs": {
+                    "__defaults": [],
+                    "cloudFunction": "projects/interviewai-mzf86/locations/us-central1/functions/ProxyToGenkitGCF-dev",
+                    "member": "allUsers",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "role": "roles/cloudfunctions.invoker"
+                },
+                "outputs": {
+                    "cloudFunction": "projects/interviewai-mzf86/locations/us-central1/functions/ProxyToGenkitGCF-dev",
+                    "condition": null,
+                    "etag": "BwY2oiAUaMg=",
+                    "id": "projects/interviewai-mzf86/locations/us-central1/functions/ProxyToGenkitGCF-dev/roles/cloudfunctions.invoker/allUsers",
+                    "member": "allUsers",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1",
+                    "role": "roles/cloudfunctions.invoker"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::ProxyToGenkitGCF-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "cloudFunction": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::ProxyToGenkitGCF-dev"
+                    ],
+                    "project": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::ProxyToGenkitGCF-dev"
+                    ],
+                    "region": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::ProxyToGenkitGCF-dev"
+                    ]
+                },
+                "created": "2025-06-03T03:03:35.013036Z",
+                "modified": "2025-06-09T17:57:28.047452Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:apigateway/apiConfig:ApiConfig::catalyst-api-config-v1-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/global/apis/catalyst-backend-api-dev/configs/terraform-20250603030340790100000001",
+                "type": "gcp:apigateway/apiConfig:ApiConfig",
+                "inputs": {
+                    "__defaults": [],
+                    "api": "catalyst-backend-api-dev",
+                    "displayName": "Catalyst API Config v1 (dev)",
+                    "openapiDocuments": [
+                        {
+                            "__defaults": [],
+                            "document": {
+                                "__defaults": [],
+                                "contents": "c3dhZ2dlcjogJzIuMCcKaW5mbzoKICB0aXRsZTogSW50ZXJ2aWV3QUkgQ2F0YWx5c3QgQmFja2VuZCBBUEkKICBkZXNjcmlwdGlvbjogQVBJIGZvciBtYW5hZ2luZyB1c2VyLXByb3ZpZGVkIEFQSSBrZXlzIGFuZCBwcm94eWluZyBBSSByZXF1ZXN0cyBmb3IgSW50ZXJ2aWV3QUkuCiAgdmVyc2lvbjogJzEuMC4wJwojIFRoZSBob3N0IHdpbGwgYmUgYXV0b21hdGljYWxseSBnZW5lcmF0ZWQgd2hlbiB5b3UgZGVwbG95IHlvdXIgQVBJIEdhdGV3YXkuCiMgRXhhbXBsZTogY2F0YWx5c3QtZ2F0ZXdheS14eHh4eHgtdWMuYS5ydW4uYXBwCiMgWW91IGNhbiB1cGRhdGUgdGhpcyBmaWVsZCBsYXRlciBhZnRlciBkZXBsb3ltZW50IGlmIG5lZWRlZC4KaG9zdDogeW91ci1nYXRld2F5LWlkLnVjLmdhdGV3YXkuZGV2IApzY2hlbWVzOgogIC0gaHR0cHMKcHJvZHVjZXM6CiAgLSBhcHBsaWNhdGlvbi9qc29uCmNvbnN1bWVzOgogIC0gYXBwbGljYXRpb24vanNvbgoKIyBEaXNhYmxlIGFsbCBzZWN1cml0eSAtIGxldCBDbG91ZCBGdW5jdGlvbnMgaGFuZGxlIGF1dGhlbnRpY2F0aW9uCnNlY3VyaXR5OiBbXQoKcGF0aHM6CiAgL2FwaS91c2VyL3NldC1hcGkta2V5OgogICAgb3B0aW9uczoKICAgICAgc3VtbWFyeTogSGFuZGxlIENPUlMgcHJlZmxpZ2h0IHJlcXVlc3RzIGZvciBTZXQgQVBJIEtleQogICAgICBvcGVyYXRpb25JZDogY29yc1NldEFwaUtleQogICAgICBzZWN1cml0eTogW10gICMgRXhwbGljaXRseSBkaXNhYmxlIHNlY3VyaXR5CiAgICAgIHgtZ29vZ2xlLWJhY2tlbmQ6CiAgICAgICAgYWRkcmVzczogImh0dHBzOi8vdXMtY2VudHJhbDEtaW50ZXJ2aWV3YWktbXpmODYuY2xvdWRmdW5jdGlvbnMubmV0L1NldEFQSUtleUdDRi1kZXYiICMgUGxhY2Vob2xkZXIgZm9yIFNldEFQSUtleUdDRiBVUkwgKDFzdCkKICAgICAgICBkaXNhYmxlX2F1dGg6IHRydWUgICMgRGlzYWJsZSBBUEkgR2F0ZXdheSBhdXRoIHByb2Nlc3NpbmcKICAgICAgcmVzcG9uc2VzOgogICAgICAgICcyMDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IENPUlMgcHJlZmxpZ2h0IHJlc3BvbnNlCiAgICAgICAgICBoZWFkZXJzOgogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1PcmlnaW46CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LU1ldGhvZHM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LUhlYWRlcnM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LUNyZWRlbnRpYWxzOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZyAjIEFkZGVkIGJhc2VkIG9uIGNvbW1vbiBDT1JTIHNldHVwCiAgICBwb3N0OgogICAgICBzdW1tYXJ5OiBTdG9yZXMgb3IgdXBkYXRlcyBhIHVzZXIncyBHZW1pbmkgQVBJIGtleSBzZWN1cmVseS4KICAgICAgZGVzY3JpcHRpb246IFJlcXVpcmVzIEZpcmViYXNlIEpXVCBhdXRoZW50aWNhdGlvbi4gVGhlIEFQSSBrZXkgaXMgcHJvdmlkZWQgaW4gdGhlIHJlcXVlc3QgYm9keS4KICAgICAgb3BlcmF0aW9uSWQ6IHNldFVzZXJBcGlLZXkKICAgICAgc2VjdXJpdHk6IFtdICAjIEV4cGxpY2l0bHkgZGlzYWJsZSBzZWN1cml0eQogICAgICBwYXJhbWV0ZXJzOgogICAgICAgIC0gbmFtZTogYm9keQogICAgICAgICAgaW46IGJvZHkKICAgICAgICAgIHJlcXVpcmVkOiB0cnVlCiAgICAgICAgICBzY2hlbWE6CiAgICAgICAgICAgIHR5cGU6IG9iamVjdAogICAgICAgICAgICByZXF1aXJlZDoKICAgICAgICAgICAgICAtIGFwaUtleQogICAgICAgICAgICBwcm9wZXJ0aWVzOgogICAgICAgICAgICAgIGFwaUtleToKICAgICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICAgICAgZGVzY3JpcHRpb246IFRoZSB1c2VyJ3MgR2VtaW5pIEFQSSBrZXkuCiAgICAgIHgtZ29vZ2xlLWJhY2tlbmQ6CiAgICAgICAgYWRkcmVzczogImh0dHBzOi8vdXMtY2VudHJhbDEtaW50ZXJ2aWV3YWktbXpmODYuY2xvdWRmdW5jdGlvbnMubmV0L1NldEFQSUtleUdDRi1kZXYiICMgUGxhY2Vob2xkZXIgZm9yIFNldEFQSUtleUdDRiBVUkwgKDJuZCkKICAgICAgICBkaXNhYmxlX2F1dGg6IHRydWUgICMgRGlzYWJsZSBBUEkgR2F0ZXdheSBhdXRoIHByb2Nlc3NpbmcKICAgICAgcmVzcG9uc2VzOgogICAgICAgICcyMDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IEFQSSBrZXkgc3RvcmVkIHN1Y2Nlc3NmdWxseS4KICAgICAgICAgIHNjaGVtYToKICAgICAgICAgICAgdHlwZTogb2JqZWN0CiAgICAgICAgICAgIHByb3BlcnRpZXM6CiAgICAgICAgICAgICAgbWVzc2FnZToKICAgICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICAgICAgZXhhbXBsZTogQVBJIGtleSBzdG9yZWQgc3VjY2Vzc2Z1bGx5CiAgICAgICAgJzQwMCc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogQmFkIFJlcXVlc3QgKGUuZy4sIG1pc3NpbmcgYXBpS2V5LCBpbnZhbGlkIEpTT04pLgogICAgICAgICc0MDEnOgogICAgICAgICAgZGVzY3JpcHRpb246IFVuYXV0aG9yaXplZCAoZS5nLiwgRmlyZWJhc2UgdG9rZW4gaW52YWxpZCBvciBtaXNzaW5nKS4KICAgICAgICAnNTAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBJbnRlcm5hbCBTZXJ2ZXIgRXJyb3IgKGUuZy4sIGZhaWxlZCB0byBpbnRlcmFjdCB3aXRoIFNlY3JldCBNYW5hZ2VyKS4KCiAgL2FwaS91c2VyL3JlbW92ZS1hcGkta2V5OgogICAgb3B0aW9uczoKICAgICAgc3VtbWFyeTogSGFuZGxlIENPUlMgcHJlZmxpZ2h0IHJlcXVlc3RzIGZvciBSZW1vdmUgQVBJIEtleQogICAgICBvcGVyYXRpb25JZDogY29yc1JlbW92ZUFwaUtleQogICAgICBzZWN1cml0eTogW10gICMgRXhwbGljaXRseSBkaXNhYmxlIHNlY3VyaXR5CiAgICAgIHgtZ29vZ2xlLWJhY2tlbmQ6CiAgICAgICAgYWRkcmVzczogImh0dHBzOi8vdXMtY2VudHJhbDEtaW50ZXJ2aWV3YWktbXpmODYuY2xvdWRmdW5jdGlvbnMubmV0L1JlbW92ZUFQSUtleUdDRi1kZXYiICMgUGxhY2Vob2xkZXIgZm9yIFJlbW92ZUFQSUtleUdDRiBVUkwgKDNyZCkKICAgICAgICBkaXNhYmxlX2F1dGg6IHRydWUgICMgRGlzYWJsZSBBUEkgR2F0ZXdheSBhdXRoIHByb2Nlc3NpbmcKICAgICAgcmVzcG9uc2VzOgogICAgICAgICcyMDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IENPUlMgcHJlZmxpZ2h0IHJlc3BvbnNlCiAgICAgICAgICBoZWFkZXJzOgogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1PcmlnaW46CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LU1ldGhvZHM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LUhlYWRlcnM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LUNyZWRlbnRpYWxzOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZyAjIEFkZGVkCiAgICBwb3N0OgogICAgICBzdW1tYXJ5OiBSZW1vdmVzIGEgdXNlcidzIHN0b3JlZCBHZW1pbmkgQVBJIGtleS4KICAgICAgZGVzY3JpcHRpb246IFJlcXVpcmVzIEZpcmViYXNlIEpXVCBhdXRoZW50aWNhdGlvbi4KICAgICAgb3BlcmF0aW9uSWQ6IHJlbW92ZVVzZXJBcGlLZXkKICAgICAgc2VjdXJpdHk6IFtdICAjIEV4cGxpY2l0bHkgZGlzYWJsZSBzZWN1cml0eQogICAgICB4LWdvb2dsZS1iYWNrZW5kOgogICAgICAgIGFkZHJlc3M6ICJodHRwczovL3VzLWNlbnRyYWwxLWludGVydmlld2FpLW16Zjg2LmNsb3VkZnVuY3Rpb25zLm5ldC9SZW1vdmVBUElLZXlHQ0YtZGV2IiAjIFBsYWNlaG9sZGVyIGZvciBSZW1vdmVBUElLZXlHQ0YgVVJMICg0dGgpCiAgICAgICAgZGlzYWJsZV9hdXRoOiB0cnVlICAjIERpc2FibGUgQVBJIEdhdGV3YXkgYXV0aCBwcm9jZXNzaW5nCiAgICAgIHJlc3BvbnNlczoKICAgICAgICAnMjAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBBUEkga2V5IHJlbW92ZWQgc3VjY2Vzc2Z1bGx5IG9yIHdhcyBub3QgZm91bmQuCiAgICAgICAgICBzY2hlbWE6CiAgICAgICAgICAgIHR5cGU6IG9iamVjdAogICAgICAgICAgICBwcm9wZXJ0aWVzOgogICAgICAgICAgICAgIG1lc3NhZ2U6CiAgICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcKICAgICAgICAgICAgICAgIGV4YW1wbGU6IEFQSSBrZXkgcmVtb3ZlZCBzdWNjZXNzZnVsbHkKICAgICAgICAnNDAxJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBVbmF1dGhvcml6ZWQuCiAgICAgICAgJzUwMCc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogSW50ZXJuYWwgU2VydmVyIEVycm9yLgoKICAvYXBpL3VzZXIvYXBpLWtleS1zdGF0dXM6CiAgICBvcHRpb25zOgogICAgICBzdW1tYXJ5OiBIYW5kbGUgQ09SUyBwcmVmbGlnaHQgcmVxdWVzdHMgZm9yIEFQSSBLZXkgU3RhdHVzCiAgICAgIG9wZXJhdGlvbklkOiBjb3JzQXBpS2V5U3RhdHVzCiAgICAgIHNlY3VyaXR5OiBbXSAgIyBFeHBsaWNpdGx5IGRpc2FibGUgc2VjdXJpdHkKICAgICAgeC1nb29nbGUtYmFja2VuZDoKICAgICAgICBhZGRyZXNzOiAiaHR0cHM6Ly91cy1jZW50cmFsMS1pbnRlcnZpZXdhaS1temY4Ni5jbG91ZGZ1bmN0aW9ucy5uZXQvR2V0QVBJS2V5U3RhdHVzR0NGLWRldiIgIyBQbGFjZWhvbGRlciBmb3IgR2V0QVBJS2V5U3RhdHVzR0NGIFVSTCAoNXRoKQogICAgICAgIGRpc2FibGVfYXV0aDogdHJ1ZSAgIyBEaXNhYmxlIEFQSSBHYXRld2F5IGF1dGggcHJvY2Vzc2luZwogICAgICByZXNwb25zZXM6CiAgICAgICAgJzIwMCc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogQ09SUyBwcmVmbGlnaHQgcmVzcG9uc2UKICAgICAgICAgIGhlYWRlcnM6CiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LU9yaWdpbjoKICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcKICAgICAgICAgICAgQWNjZXNzLUNvbnRyb2wtQWxsb3ctTWV0aG9kczoKICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcKICAgICAgICAgICAgQWNjZXNzLUNvbnRyb2wtQWxsb3ctSGVhZGVyczoKICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcKICAgICAgICAgICAgQWNjZXNzLUNvbnRyb2wtQWxsb3ctQ3JlZGVudGlhbHM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nICMgQWRkZWQKICAgIGdldDoKICAgICAgc3VtbWFyeTogQ2hlY2tzIGlmIGEgdXNlciBoYXMgYW4gYWN0aXZlIEdlbWluaSBBUEkga2V5IHN0b3JlZC4KICAgICAgZGVzY3JpcHRpb246IFJlcXVpcmVzIEZpcmViYXNlIEpXVCBhdXRoZW50aWNhdGlvbi4KICAgICAgb3BlcmF0aW9uSWQ6IGdldFVzZXJBcGlLZXlTdGF0dXMKICAgICAgc2VjdXJpdHk6IFtdICAjIEV4cGxpY2l0bHkgZGlzYWJsZSBzZWN1cml0eQogICAgICB4LWdvb2dsZS1iYWNrZW5kOgogICAgICAgIGFkZHJlc3M6ICJodHRwczovL3VzLWNlbnRyYWwxLWludGVydmlld2FpLW16Zjg2LmNsb3VkZnVuY3Rpb25zLm5ldC9HZXRBUElLZXlTdGF0dXNHQ0YtZGV2IiAjIFBsYWNlaG9sZGVyIGZvciBHZXRBUElLZXlTdGF0dXNHQ0YgVVJMICg2dGgpCiAgICAgICAgZGlzYWJsZV9hdXRoOiB0cnVlICAjIERpc2FibGUgQVBJIEdhdGV3YXkgYXV0aCBwcm9jZXNzaW5nCiAgICAgIHJlc3BvbnNlczoKICAgICAgICAnMjAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBTdGF0dXMgb2YgdGhlIHVzZXIncyBBUEkga2V5LgogICAgICAgICAgc2NoZW1hOgogICAgICAgICAgICB0eXBlOiBvYmplY3QKICAgICAgICAgICAgcHJvcGVydGllczoKICAgICAgICAgICAgICBoYXNLZXk6CiAgICAgICAgICAgICAgICB0eXBlOiBib29sZWFuCiAgICAgICAgICAgICAgc3RhdHVzOgogICAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgJzQwMSc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogVW5hdXRob3JpemVkLgogICAgICAgICc1MDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IEludGVybmFsIFNlcnZlciBFcnJvci4KCiAgL2FwaS9haS9nZW5raXQve2Zsb3dOYW1lfToKICAgIG9wdGlvbnM6CiAgICAgIHN1bW1hcnk6IEhhbmRsZSBDT1JTIHByZWZsaWdodCByZXF1ZXN0cyBmb3IgR2Vua2l0IEZsb3cKICAgICAgb3BlcmF0aW9uSWQ6IGNvcnNHZW5raXRGbG93CiAgICAgIHNlY3VyaXR5OiBbXSAgIyBFeHBsaWNpdGx5IGRpc2FibGUgc2VjdXJpdHkKICAgICAgcGFyYW1ldGVyczoKICAgICAgICAtIG5hbWU6IGZsb3dOYW1lCiAgICAgICAgICBpbjogcGF0aAogICAgICAgICAgcmVxdWlyZWQ6IHRydWUKICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICB4LWdvb2dsZS1iYWNrZW5kOgogICAgICAgIGFkZHJlc3M6ICJodHRwczovL3VzLWNlbnRyYWwxLWludGVydmlld2FpLW16Zjg2LmNsb3VkZnVuY3Rpb25zLm5ldC9Qcm94eVRvR2Vua2l0R0NGLWRldiIgIyBQbGFjZWhvbGRlciBmb3IgUHJveHlUb0dlbmtpdEdDRiBVUkwgKDd0aCkKICAgICAgICBwYXRoX3RyYW5zbGF0aW9uOiBBUFBFTkRfUEFUSF9UT19BRERSRVNTCiAgICAgICAgZGlzYWJsZV9hdXRoOiB0cnVlICAjIERpc2FibGUgQVBJIEdhdGV3YXkgYXV0aCBwcm9jZXNzaW5nCiAgICAgIHJlc3BvbnNlczoKICAgICAgICAnMjAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBDT1JTIHByZWZsaWdodCByZXNwb25zZQogICAgICAgICAgaGVhZGVyczoKICAgICAgICAgICAgQWNjZXNzLUNvbnRyb2wtQWxsb3ctT3JpZ2luOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1NZXRob2RzOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1IZWFkZXJzOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1DcmVkZW50aWFsczoKICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcgIyBBZGRlZAogICAgcG9zdDoKICAgICAgc3VtbWFyeTogUHJveGllcyBhIHJlcXVlc3QgdG8gYSBzcGVjaWZpZWQgR2Vua2l0IEFJIGZsb3cuCiAgICAgIGRlc2NyaXB0aW9uOiBSZXF1aXJlcyBGaXJlYmFzZSBKV1QgYXV0aGVudGljYXRpb24uIFRoZSBzcGVjaWZpYyBBSSBmbG93IGlzIGRldGVybWluZWQgYnkgdGhlIGBmbG93TmFtZWAgcGF0aCBwYXJhbWV0ZXIuIFRoZSByZXF1ZXN0IGJvZHkgaXMgZm9yd2FyZGVkIHRvIHRoZSBHZW5raXQgZmxvdy4KICAgICAgb3BlcmF0aW9uSWQ6IHByb3h5VG9HZW5raXRGbG93CiAgICAgIHNlY3VyaXR5OiBbXSAgIyBFeHBsaWNpdGx5IGRpc2FibGUgc2VjdXJpdHkKICAgICAgcGFyYW1ldGVyczoKICAgICAgICAtIG5hbWU6IGZsb3dOYW1lCiAgICAgICAgICBpbjogcGF0aAogICAgICAgICAgcmVxdWlyZWQ6IHRydWUKICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgZGVzY3JpcHRpb246IFRoZSBuYW1lIG9mIHRoZSBHZW5raXQgZmxvdyB0byBleGVjdXRlIChlLmcuLCBjdXN0b21pemVJbnRlcnZpZXdRdWVzdGlvbnMpLgogICAgICAgIC0gbmFtZTogYm9keQogICAgICAgICAgaW46IGJvZHkKICAgICAgICAgIHJlcXVpcmVkOiB0cnVlCiAgICAgICAgICBzY2hlbWE6CiAgICAgICAgICAgIHR5cGU6IG9iamVjdAogICAgICAgICAgICBhZGRpdGlvbmFsUHJvcGVydGllczogdHJ1ZSAKICAgICAgICAgICAgZGVzY3JpcHRpb246IFRoZSBKU09OIHBheWxvYWQgdG8gYmUgZm9yd2FyZGVkIHRvIHRoZSBHZW5raXQgQUkgZmxvdy4KICAgICAgeC1nb29nbGUtYmFja2VuZDoKICAgICAgICBhZGRyZXNzOiAiaHR0cHM6Ly91cy1jZW50cmFsMS1pbnRlcnZpZXdhaS1temY4Ni5jbG91ZGZ1bmN0aW9ucy5uZXQvUHJveHlUb0dlbmtpdEdDRi1kZXYiICMgUGxhY2Vob2xkZXIgZm9yIFByb3h5VG9HZW5raXRHQ0YgVVJMICg4dGgpCiAgICAgICAgcGF0aF90cmFuc2xhdGlvbjogQVBQRU5EX1BBVEhfVE9fQUREUkVTUwogICAgICAgIGRpc2FibGVfYXV0aDogdHJ1ZSAgIyBEaXNhYmxlIEFQSSBHYXRld2F5IGF1dGggcHJvY2Vzc2luZwogICAgICByZXNwb25zZXM6CiAgICAgICAgJzIwMCc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogU3VjY2Vzc2Z1bCByZXNwb25zZSBmcm9tIHRoZSBHZW5raXQgQUkgZmxvdy4KICAgICAgICAnNDAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBCYWQgUmVxdWVzdCAoZS5nLiwgaW52YWxpZCBpbnB1dCB0byB0aGUgQUkgZmxvdywgZmxvd05hbWUgbm90IGZvdW5kIGJ5IHByb3h5IGxvZ2ljKS4KICAgICAgICAnNDAxJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBVbmF1dGhvcml6ZWQgKEZpcmViYXNlIHRva2VuIGludmFsaWQpLgogICAgICAgICc1MDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IEludGVybmFsIFNlcnZlciBFcnJvciAoZS5nLiwgcHJveHkgZmFpbHVyZSwgZXJyb3IgaW4gQUkgZmxvdyBleGVjdXRpb24pLgogICAgICAgICc1MDMnOgogICAgICAgICAgZGVzY3JpcHRpb246IFNlcnZpY2UgVW5hdmFpbGFibGUgKGUuZy4sIGZhaWxlZCB0byBjYWxsIHRoZSBOZXh0LmpzIGJhY2tlbmQpLg==",
+                                "path": "openapi-spec.yaml"
+                            }
+                        }
+                    ],
+                    "project": "interviewai-mzf86"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000}}",
+                    "api": "catalyst-backend-api-dev",
+                    "apiConfigId": "terraform-20250603030340790100000001",
+                    "apiConfigIdPrefix": null,
+                    "displayName": "Catalyst API Config v1 (dev)",
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAOGii3QL2f1QLST9Pb4UhpsN95vxAi7+zTo4hN9tzg=="
+                    },
+                    "gatewayConfig": null,
+                    "grpcServices": [],
+                    "id": "projects/interviewai-mzf86/locations/global/apis/catalyst-backend-api-dev/configs/terraform-20250603030340790100000001",
+                    "labels": {},
+                    "managedServiceConfigs": [],
+                    "name": "projects/130237704747/locations/global/apis/catalyst-backend-api-dev/configs/terraform-20250603030340790100000001",
+                    "openapiDocuments": [
+                        {
+                            "document": {
+                                "contents": "c3dhZ2dlcjogJzIuMCcKaW5mbzoKICB0aXRsZTogSW50ZXJ2aWV3QUkgQ2F0YWx5c3QgQmFja2VuZCBBUEkKICBkZXNjcmlwdGlvbjogQVBJIGZvciBtYW5hZ2luZyB1c2VyLXByb3ZpZGVkIEFQSSBrZXlzIGFuZCBwcm94eWluZyBBSSByZXF1ZXN0cyBmb3IgSW50ZXJ2aWV3QUkuCiAgdmVyc2lvbjogJzEuMC4wJwojIFRoZSBob3N0IHdpbGwgYmUgYXV0b21hdGljYWxseSBnZW5lcmF0ZWQgd2hlbiB5b3UgZGVwbG95IHlvdXIgQVBJIEdhdGV3YXkuCiMgRXhhbXBsZTogY2F0YWx5c3QtZ2F0ZXdheS14eHh4eHgtdWMuYS5ydW4uYXBwCiMgWW91IGNhbiB1cGRhdGUgdGhpcyBmaWVsZCBsYXRlciBhZnRlciBkZXBsb3ltZW50IGlmIG5lZWRlZC4KaG9zdDogeW91ci1nYXRld2F5LWlkLnVjLmdhdGV3YXkuZGV2IApzY2hlbWVzOgogIC0gaHR0cHMKcHJvZHVjZXM6CiAgLSBhcHBsaWNhdGlvbi9qc29uCmNvbnN1bWVzOgogIC0gYXBwbGljYXRpb24vanNvbgoKIyBEaXNhYmxlIGFsbCBzZWN1cml0eSAtIGxldCBDbG91ZCBGdW5jdGlvbnMgaGFuZGxlIGF1dGhlbnRpY2F0aW9uCnNlY3VyaXR5OiBbXQoKcGF0aHM6CiAgL2FwaS91c2VyL3NldC1hcGkta2V5OgogICAgb3B0aW9uczoKICAgICAgc3VtbWFyeTogSGFuZGxlIENPUlMgcHJlZmxpZ2h0IHJlcXVlc3RzIGZvciBTZXQgQVBJIEtleQogICAgICBvcGVyYXRpb25JZDogY29yc1NldEFwaUtleQogICAgICBzZWN1cml0eTogW10gICMgRXhwbGljaXRseSBkaXNhYmxlIHNlY3VyaXR5CiAgICAgIHgtZ29vZ2xlLWJhY2tlbmQ6CiAgICAgICAgYWRkcmVzczogImh0dHBzOi8vdXMtY2VudHJhbDEtaW50ZXJ2aWV3YWktbXpmODYuY2xvdWRmdW5jdGlvbnMubmV0L1NldEFQSUtleUdDRi1kZXYiICMgUGxhY2Vob2xkZXIgZm9yIFNldEFQSUtleUdDRiBVUkwgKDFzdCkKICAgICAgICBkaXNhYmxlX2F1dGg6IHRydWUgICMgRGlzYWJsZSBBUEkgR2F0ZXdheSBhdXRoIHByb2Nlc3NpbmcKICAgICAgcmVzcG9uc2VzOgogICAgICAgICcyMDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IENPUlMgcHJlZmxpZ2h0IHJlc3BvbnNlCiAgICAgICAgICBoZWFkZXJzOgogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1PcmlnaW46CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LU1ldGhvZHM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LUhlYWRlcnM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LUNyZWRlbnRpYWxzOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZyAjIEFkZGVkIGJhc2VkIG9uIGNvbW1vbiBDT1JTIHNldHVwCiAgICBwb3N0OgogICAgICBzdW1tYXJ5OiBTdG9yZXMgb3IgdXBkYXRlcyBhIHVzZXIncyBHZW1pbmkgQVBJIGtleSBzZWN1cmVseS4KICAgICAgZGVzY3JpcHRpb246IFJlcXVpcmVzIEZpcmViYXNlIEpXVCBhdXRoZW50aWNhdGlvbi4gVGhlIEFQSSBrZXkgaXMgcHJvdmlkZWQgaW4gdGhlIHJlcXVlc3QgYm9keS4KICAgICAgb3BlcmF0aW9uSWQ6IHNldFVzZXJBcGlLZXkKICAgICAgc2VjdXJpdHk6IFtdICAjIEV4cGxpY2l0bHkgZGlzYWJsZSBzZWN1cml0eQogICAgICBwYXJhbWV0ZXJzOgogICAgICAgIC0gbmFtZTogYm9keQogICAgICAgICAgaW46IGJvZHkKICAgICAgICAgIHJlcXVpcmVkOiB0cnVlCiAgICAgICAgICBzY2hlbWE6CiAgICAgICAgICAgIHR5cGU6IG9iamVjdAogICAgICAgICAgICByZXF1aXJlZDoKICAgICAgICAgICAgICAtIGFwaUtleQogICAgICAgICAgICBwcm9wZXJ0aWVzOgogICAgICAgICAgICAgIGFwaUtleToKICAgICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICAgICAgZGVzY3JpcHRpb246IFRoZSB1c2VyJ3MgR2VtaW5pIEFQSSBrZXkuCiAgICAgIHgtZ29vZ2xlLWJhY2tlbmQ6CiAgICAgICAgYWRkcmVzczogImh0dHBzOi8vdXMtY2VudHJhbDEtaW50ZXJ2aWV3YWktbXpmODYuY2xvdWRmdW5jdGlvbnMubmV0L1NldEFQSUtleUdDRi1kZXYiICMgUGxhY2Vob2xkZXIgZm9yIFNldEFQSUtleUdDRiBVUkwgKDJuZCkKICAgICAgICBkaXNhYmxlX2F1dGg6IHRydWUgICMgRGlzYWJsZSBBUEkgR2F0ZXdheSBhdXRoIHByb2Nlc3NpbmcKICAgICAgcmVzcG9uc2VzOgogICAgICAgICcyMDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IEFQSSBrZXkgc3RvcmVkIHN1Y2Nlc3NmdWxseS4KICAgICAgICAgIHNjaGVtYToKICAgICAgICAgICAgdHlwZTogb2JqZWN0CiAgICAgICAgICAgIHByb3BlcnRpZXM6CiAgICAgICAgICAgICAgbWVzc2FnZToKICAgICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICAgICAgZXhhbXBsZTogQVBJIGtleSBzdG9yZWQgc3VjY2Vzc2Z1bGx5CiAgICAgICAgJzQwMCc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogQmFkIFJlcXVlc3QgKGUuZy4sIG1pc3NpbmcgYXBpS2V5LCBpbnZhbGlkIEpTT04pLgogICAgICAgICc0MDEnOgogICAgICAgICAgZGVzY3JpcHRpb246IFVuYXV0aG9yaXplZCAoZS5nLiwgRmlyZWJhc2UgdG9rZW4gaW52YWxpZCBvciBtaXNzaW5nKS4KICAgICAgICAnNTAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBJbnRlcm5hbCBTZXJ2ZXIgRXJyb3IgKGUuZy4sIGZhaWxlZCB0byBpbnRlcmFjdCB3aXRoIFNlY3JldCBNYW5hZ2VyKS4KCiAgL2FwaS91c2VyL3JlbW92ZS1hcGkta2V5OgogICAgb3B0aW9uczoKICAgICAgc3VtbWFyeTogSGFuZGxlIENPUlMgcHJlZmxpZ2h0IHJlcXVlc3RzIGZvciBSZW1vdmUgQVBJIEtleQogICAgICBvcGVyYXRpb25JZDogY29yc1JlbW92ZUFwaUtleQogICAgICBzZWN1cml0eTogW10gICMgRXhwbGljaXRseSBkaXNhYmxlIHNlY3VyaXR5CiAgICAgIHgtZ29vZ2xlLWJhY2tlbmQ6CiAgICAgICAgYWRkcmVzczogImh0dHBzOi8vdXMtY2VudHJhbDEtaW50ZXJ2aWV3YWktbXpmODYuY2xvdWRmdW5jdGlvbnMubmV0L1JlbW92ZUFQSUtleUdDRi1kZXYiICMgUGxhY2Vob2xkZXIgZm9yIFJlbW92ZUFQSUtleUdDRiBVUkwgKDNyZCkKICAgICAgICBkaXNhYmxlX2F1dGg6IHRydWUgICMgRGlzYWJsZSBBUEkgR2F0ZXdheSBhdXRoIHByb2Nlc3NpbmcKICAgICAgcmVzcG9uc2VzOgogICAgICAgICcyMDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IENPUlMgcHJlZmxpZ2h0IHJlc3BvbnNlCiAgICAgICAgICBoZWFkZXJzOgogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1PcmlnaW46CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LU1ldGhvZHM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LUhlYWRlcnM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LUNyZWRlbnRpYWxzOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZyAjIEFkZGVkCiAgICBwb3N0OgogICAgICBzdW1tYXJ5OiBSZW1vdmVzIGEgdXNlcidzIHN0b3JlZCBHZW1pbmkgQVBJIGtleS4KICAgICAgZGVzY3JpcHRpb246IFJlcXVpcmVzIEZpcmViYXNlIEpXVCBhdXRoZW50aWNhdGlvbi4KICAgICAgb3BlcmF0aW9uSWQ6IHJlbW92ZVVzZXJBcGlLZXkKICAgICAgc2VjdXJpdHk6IFtdICAjIEV4cGxpY2l0bHkgZGlzYWJsZSBzZWN1cml0eQogICAgICB4LWdvb2dsZS1iYWNrZW5kOgogICAgICAgIGFkZHJlc3M6ICJodHRwczovL3VzLWNlbnRyYWwxLWludGVydmlld2FpLW16Zjg2LmNsb3VkZnVuY3Rpb25zLm5ldC9SZW1vdmVBUElLZXlHQ0YtZGV2IiAjIFBsYWNlaG9sZGVyIGZvciBSZW1vdmVBUElLZXlHQ0YgVVJMICg0dGgpCiAgICAgICAgZGlzYWJsZV9hdXRoOiB0cnVlICAjIERpc2FibGUgQVBJIEdhdGV3YXkgYXV0aCBwcm9jZXNzaW5nCiAgICAgIHJlc3BvbnNlczoKICAgICAgICAnMjAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBBUEkga2V5IHJlbW92ZWQgc3VjY2Vzc2Z1bGx5IG9yIHdhcyBub3QgZm91bmQuCiAgICAgICAgICBzY2hlbWE6CiAgICAgICAgICAgIHR5cGU6IG9iamVjdAogICAgICAgICAgICBwcm9wZXJ0aWVzOgogICAgICAgICAgICAgIG1lc3NhZ2U6CiAgICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcKICAgICAgICAgICAgICAgIGV4YW1wbGU6IEFQSSBrZXkgcmVtb3ZlZCBzdWNjZXNzZnVsbHkKICAgICAgICAnNDAxJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBVbmF1dGhvcml6ZWQuCiAgICAgICAgJzUwMCc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogSW50ZXJuYWwgU2VydmVyIEVycm9yLgoKICAvYXBpL3VzZXIvYXBpLWtleS1zdGF0dXM6CiAgICBvcHRpb25zOgogICAgICBzdW1tYXJ5OiBIYW5kbGUgQ09SUyBwcmVmbGlnaHQgcmVxdWVzdHMgZm9yIEFQSSBLZXkgU3RhdHVzCiAgICAgIG9wZXJhdGlvbklkOiBjb3JzQXBpS2V5U3RhdHVzCiAgICAgIHNlY3VyaXR5OiBbXSAgIyBFeHBsaWNpdGx5IGRpc2FibGUgc2VjdXJpdHkKICAgICAgeC1nb29nbGUtYmFja2VuZDoKICAgICAgICBhZGRyZXNzOiAiaHR0cHM6Ly91cy1jZW50cmFsMS1pbnRlcnZpZXdhaS1temY4Ni5jbG91ZGZ1bmN0aW9ucy5uZXQvR2V0QVBJS2V5U3RhdHVzR0NGLWRldiIgIyBQbGFjZWhvbGRlciBmb3IgR2V0QVBJS2V5U3RhdHVzR0NGIFVSTCAoNXRoKQogICAgICAgIGRpc2FibGVfYXV0aDogdHJ1ZSAgIyBEaXNhYmxlIEFQSSBHYXRld2F5IGF1dGggcHJvY2Vzc2luZwogICAgICByZXNwb25zZXM6CiAgICAgICAgJzIwMCc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogQ09SUyBwcmVmbGlnaHQgcmVzcG9uc2UKICAgICAgICAgIGhlYWRlcnM6CiAgICAgICAgICAgIEFjY2Vzcy1Db250cm9sLUFsbG93LU9yaWdpbjoKICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcKICAgICAgICAgICAgQWNjZXNzLUNvbnRyb2wtQWxsb3ctTWV0aG9kczoKICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcKICAgICAgICAgICAgQWNjZXNzLUNvbnRyb2wtQWxsb3ctSGVhZGVyczoKICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcKICAgICAgICAgICAgQWNjZXNzLUNvbnRyb2wtQWxsb3ctQ3JlZGVudGlhbHM6CiAgICAgICAgICAgICAgdHlwZTogc3RyaW5nICMgQWRkZWQKICAgIGdldDoKICAgICAgc3VtbWFyeTogQ2hlY2tzIGlmIGEgdXNlciBoYXMgYW4gYWN0aXZlIEdlbWluaSBBUEkga2V5IHN0b3JlZC4KICAgICAgZGVzY3JpcHRpb246IFJlcXVpcmVzIEZpcmViYXNlIEpXVCBhdXRoZW50aWNhdGlvbi4KICAgICAgb3BlcmF0aW9uSWQ6IGdldFVzZXJBcGlLZXlTdGF0dXMKICAgICAgc2VjdXJpdHk6IFtdICAjIEV4cGxpY2l0bHkgZGlzYWJsZSBzZWN1cml0eQogICAgICB4LWdvb2dsZS1iYWNrZW5kOgogICAgICAgIGFkZHJlc3M6ICJodHRwczovL3VzLWNlbnRyYWwxLWludGVydmlld2FpLW16Zjg2LmNsb3VkZnVuY3Rpb25zLm5ldC9HZXRBUElLZXlTdGF0dXNHQ0YtZGV2IiAjIFBsYWNlaG9sZGVyIGZvciBHZXRBUElLZXlTdGF0dXNHQ0YgVVJMICg2dGgpCiAgICAgICAgZGlzYWJsZV9hdXRoOiB0cnVlICAjIERpc2FibGUgQVBJIEdhdGV3YXkgYXV0aCBwcm9jZXNzaW5nCiAgICAgIHJlc3BvbnNlczoKICAgICAgICAnMjAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBTdGF0dXMgb2YgdGhlIHVzZXIncyBBUEkga2V5LgogICAgICAgICAgc2NoZW1hOgogICAgICAgICAgICB0eXBlOiBvYmplY3QKICAgICAgICAgICAgcHJvcGVydGllczoKICAgICAgICAgICAgICBoYXNLZXk6CiAgICAgICAgICAgICAgICB0eXBlOiBib29sZWFuCiAgICAgICAgICAgICAgc3RhdHVzOgogICAgICAgICAgICAgICAgdHlwZTogc3RyaW5nCiAgICAgICAgJzQwMSc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogVW5hdXRob3JpemVkLgogICAgICAgICc1MDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IEludGVybmFsIFNlcnZlciBFcnJvci4KCiAgL2FwaS9haS9nZW5raXQve2Zsb3dOYW1lfToKICAgIG9wdGlvbnM6CiAgICAgIHN1bW1hcnk6IEhhbmRsZSBDT1JTIHByZWZsaWdodCByZXF1ZXN0cyBmb3IgR2Vua2l0IEZsb3cKICAgICAgb3BlcmF0aW9uSWQ6IGNvcnNHZW5raXRGbG93CiAgICAgIHNlY3VyaXR5OiBbXSAgIyBFeHBsaWNpdGx5IGRpc2FibGUgc2VjdXJpdHkKICAgICAgcGFyYW1ldGVyczoKICAgICAgICAtIG5hbWU6IGZsb3dOYW1lCiAgICAgICAgICBpbjogcGF0aAogICAgICAgICAgcmVxdWlyZWQ6IHRydWUKICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICB4LWdvb2dsZS1iYWNrZW5kOgogICAgICAgIGFkZHJlc3M6ICJodHRwczovL3VzLWNlbnRyYWwxLWludGVydmlld2FpLW16Zjg2LmNsb3VkZnVuY3Rpb25zLm5ldC9Qcm94eVRvR2Vua2l0R0NGLWRldiIgIyBQbGFjZWhvbGRlciBmb3IgUHJveHlUb0dlbmtpdEdDRiBVUkwgKDd0aCkKICAgICAgICBwYXRoX3RyYW5zbGF0aW9uOiBBUFBFTkRfUEFUSF9UT19BRERSRVNTCiAgICAgICAgZGlzYWJsZV9hdXRoOiB0cnVlICAjIERpc2FibGUgQVBJIEdhdGV3YXkgYXV0aCBwcm9jZXNzaW5nCiAgICAgIHJlc3BvbnNlczoKICAgICAgICAnMjAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBDT1JTIHByZWZsaWdodCByZXNwb25zZQogICAgICAgICAgaGVhZGVyczoKICAgICAgICAgICAgQWNjZXNzLUNvbnRyb2wtQWxsb3ctT3JpZ2luOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1NZXRob2RzOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1IZWFkZXJzOgogICAgICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgICBBY2Nlc3MtQ29udHJvbC1BbGxvdy1DcmVkZW50aWFsczoKICAgICAgICAgICAgICB0eXBlOiBzdHJpbmcgIyBBZGRlZAogICAgcG9zdDoKICAgICAgc3VtbWFyeTogUHJveGllcyBhIHJlcXVlc3QgdG8gYSBzcGVjaWZpZWQgR2Vua2l0IEFJIGZsb3cuCiAgICAgIGRlc2NyaXB0aW9uOiBSZXF1aXJlcyBGaXJlYmFzZSBKV1QgYXV0aGVudGljYXRpb24uIFRoZSBzcGVjaWZpYyBBSSBmbG93IGlzIGRldGVybWluZWQgYnkgdGhlIGBmbG93TmFtZWAgcGF0aCBwYXJhbWV0ZXIuIFRoZSByZXF1ZXN0IGJvZHkgaXMgZm9yd2FyZGVkIHRvIHRoZSBHZW5raXQgZmxvdy4KICAgICAgb3BlcmF0aW9uSWQ6IHByb3h5VG9HZW5raXRGbG93CiAgICAgIHNlY3VyaXR5OiBbXSAgIyBFeHBsaWNpdGx5IGRpc2FibGUgc2VjdXJpdHkKICAgICAgcGFyYW1ldGVyczoKICAgICAgICAtIG5hbWU6IGZsb3dOYW1lCiAgICAgICAgICBpbjogcGF0aAogICAgICAgICAgcmVxdWlyZWQ6IHRydWUKICAgICAgICAgIHR5cGU6IHN0cmluZwogICAgICAgICAgZGVzY3JpcHRpb246IFRoZSBuYW1lIG9mIHRoZSBHZW5raXQgZmxvdyB0byBleGVjdXRlIChlLmcuLCBjdXN0b21pemVJbnRlcnZpZXdRdWVzdGlvbnMpLgogICAgICAgIC0gbmFtZTogYm9keQogICAgICAgICAgaW46IGJvZHkKICAgICAgICAgIHJlcXVpcmVkOiB0cnVlCiAgICAgICAgICBzY2hlbWE6CiAgICAgICAgICAgIHR5cGU6IG9iamVjdAogICAgICAgICAgICBhZGRpdGlvbmFsUHJvcGVydGllczogdHJ1ZSAKICAgICAgICAgICAgZGVzY3JpcHRpb246IFRoZSBKU09OIHBheWxvYWQgdG8gYmUgZm9yd2FyZGVkIHRvIHRoZSBHZW5raXQgQUkgZmxvdy4KICAgICAgeC1nb29nbGUtYmFja2VuZDoKICAgICAgICBhZGRyZXNzOiAiaHR0cHM6Ly91cy1jZW50cmFsMS1pbnRlcnZpZXdhaS1temY4Ni5jbG91ZGZ1bmN0aW9ucy5uZXQvUHJveHlUb0dlbmtpdEdDRi1kZXYiICMgUGxhY2Vob2xkZXIgZm9yIFByb3h5VG9HZW5raXRHQ0YgVVJMICg4dGgpCiAgICAgICAgcGF0aF90cmFuc2xhdGlvbjogQVBQRU5EX1BBVEhfVE9fQUREUkVTUwogICAgICAgIGRpc2FibGVfYXV0aDogdHJ1ZSAgIyBEaXNhYmxlIEFQSSBHYXRld2F5IGF1dGggcHJvY2Vzc2luZwogICAgICByZXNwb25zZXM6CiAgICAgICAgJzIwMCc6CiAgICAgICAgICBkZXNjcmlwdGlvbjogU3VjY2Vzc2Z1bCByZXNwb25zZSBmcm9tIHRoZSBHZW5raXQgQUkgZmxvdy4KICAgICAgICAnNDAwJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBCYWQgUmVxdWVzdCAoZS5nLiwgaW52YWxpZCBpbnB1dCB0byB0aGUgQUkgZmxvdywgZmxvd05hbWUgbm90IGZvdW5kIGJ5IHByb3h5IGxvZ2ljKS4KICAgICAgICAnNDAxJzoKICAgICAgICAgIGRlc2NyaXB0aW9uOiBVbmF1dGhvcml6ZWQgKEZpcmViYXNlIHRva2VuIGludmFsaWQpLgogICAgICAgICc1MDAnOgogICAgICAgICAgZGVzY3JpcHRpb246IEludGVybmFsIFNlcnZlciBFcnJvciAoZS5nLiwgcHJveHkgZmFpbHVyZSwgZXJyb3IgaW4gQUkgZmxvdyBleGVjdXRpb24pLgogICAgICAgICc1MDMnOgogICAgICAgICAgZGVzY3JpcHRpb246IFNlcnZpY2UgVW5hdmFpbGFibGUgKGUuZy4sIGZhaWxlZCB0byBjYWxsIHRoZSBOZXh0LmpzIGJhY2tlbmQpLg==",
+                                "path": "openapi-spec.yaml"
+                            }
+                        }
+                    ],
+                    "project": "interviewai-mzf86",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAB7IDEb1luShNU17WeA8VfGcpG9bnIeHfGhvvqbvpw=="
+                    },
+                    "serviceConfigId": "terraform-20250603030340790100000001-2n60nln45dr84"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:apigateway/api:Api::catalyst-backend-api-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::GetAPIKeyStatusGCF-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::ProxyToGenkitGCF-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::RemoveAPIKeyGCF-dev",
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::SetAPIKeyGCF-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "api": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:apigateway/api:Api::catalyst-backend-api-dev"
+                    ],
+                    "openapiDocuments": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::GetAPIKeyStatusGCF-dev",
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::ProxyToGenkitGCF-dev",
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::RemoveAPIKeyGCF-dev",
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:cloudfunctions/function:Function::SetAPIKeyGCF-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-03T03:05:55.276584Z",
+                "modified": "2025-06-09T17:57:28.434412Z"
+            },
+            {
+                "urn": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:apigateway/gateway:Gateway::catalyst-backend-gateway-dev",
+                "custom": true,
+                "id": "projects/interviewai-mzf86/locations/us-central1/gateways/catalyst-backend-gateway-dev",
+                "type": "gcp:apigateway/gateway:Gateway",
+                "inputs": {
+                    "__defaults": [],
+                    "apiConfig": "projects/130237704747/locations/global/apis/catalyst-backend-api-dev/configs/terraform-20250603030340790100000001",
+                    "gatewayId": "catalyst-backend-gateway-dev",
+                    "project": "interviewai-mzf86",
+                    "region": "us-central1"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000}}",
+                    "apiConfig": "projects/130237704747/locations/global/apis/catalyst-backend-api-dev/configs/terraform-20250603030340790100000001",
+                    "defaultHostname": "catalyst-backend-gateway-dev-1ntw604r.uc.gateway.dev",
+                    "displayName": "catalyst-backend-gateway-dev",
+                    "effectiveLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAJ3JR/nfOGgEhjt+s9s+3EwhQnbJiKsjAkdwa95Q/Q=="
+                    },
+                    "gatewayId": "catalyst-backend-gateway-dev",
+                    "id": "projects/interviewai-mzf86/locations/us-central1/gateways/catalyst-backend-gateway-dev",
+                    "labels": {},
+                    "name": "projects/interviewai-mzf86/locations/us-central1/gateways/catalyst-backend-gateway-dev",
+                    "project": "interviewai-mzf86",
+                    "pulumiLabels": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "AAABAJa1H5xnidwKzzlvmYs9ktKJKi4SN+4si2BwxgnTVQ=="
+                    },
+                    "region": "us-central1"
+                },
+                "parent": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:pulumi:Stack::catalyst-gcp-infra-catalyst-dev",
+                "dependencies": [
+                    "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:apigateway/apiConfig:ApiConfig::catalyst-api-config-v1-dev"
+                ],
+                "provider": "urn:pulumi:catalyst-dev::catalyst-gcp-infra::pulumi:providers:gcp::default_7_38_0::dbf54114-0aa3-4a75-9bc6-bc6368c52717",
+                "propertyDependencies": {
+                    "apiConfig": [
+                        "urn:pulumi:catalyst-dev::catalyst-gcp-infra::gcp:apigateway/apiConfig:ApiConfig::catalyst-api-config-v1-dev"
+                    ]
+                },
+                "additionalSecretOutputs": [
+                    "effectiveLabels",
+                    "pulumiLabels"
+                ],
+                "created": "2025-06-03T03:07:49.736571Z",
+                "modified": "2025-06-09T17:57:28.122952Z"
+            }
+        ]
+    }
+}

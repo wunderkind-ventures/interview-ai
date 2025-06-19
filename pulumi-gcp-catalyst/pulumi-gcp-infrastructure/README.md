@@ -24,7 +24,7 @@ This Pulumi Go program replicates your GCP project configurations across multipl
 ### 1. Initialize Dependencies
 
 ```bash
-cd pulumi-gcp-infrastructure
+cd pulumi-gcp-catalyst
 go mod tidy
 ```
 

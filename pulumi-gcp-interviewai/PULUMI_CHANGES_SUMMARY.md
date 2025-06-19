@@ -162,7 +162,7 @@ vertexAISetupInstructions:
 ### **Deploy Infrastructure**
 ```bash
 # Development
-cd pulumi-gcp-catalyst-backend/catalyst-backend
+cd pulumi-gcp-interviewai/catalyst-backend
 pulumi stack select catalyst-dev  
 pulumi up
 

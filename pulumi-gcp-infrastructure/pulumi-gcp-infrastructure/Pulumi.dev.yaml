@@ -2,4 +2,6 @@ config:
   gcp:project: wkv-interviewai-dev
   gcp:region: us-central1
   gcp:zone: us-central1-a
+  apis_to_enable:
+    
 

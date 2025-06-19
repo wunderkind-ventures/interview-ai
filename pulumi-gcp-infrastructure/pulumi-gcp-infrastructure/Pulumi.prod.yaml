@@ -1,5 +1,5 @@
 config:
-  gcp:project: interviewai-mzf86
+  gcp:project: wkv-interviewai-prod
   gcp:region: us-central1
   gcp:zone: us-central1-a
 

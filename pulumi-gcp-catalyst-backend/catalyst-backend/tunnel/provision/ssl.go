@@ -16,7 +16,17 @@ func SetupSSLCertificate(ctx *pulumi.Context, instanceIp pulumi.StringOutput, ss
 			PrivateKey: sshPrivateKey,
 		},
 		Create: pulumi.Sprintf(`bash -c '
-		sudo certbot --nginx -d %s --non-interactive --agree-tos -m admin@%s --redirect || exit 1
+		# Ensure SSH connection is stable
+		sudo tee -a /etc/ssh/sshd_config.d/keepalive.conf <<EOF
+ClientAliveInterval 60
+ClientAliveCountMax 3
+TCPKeepAlive yes
+EOF
+
+		sudo systemctl restart sshd
+		
+		# Run certbot with increased timeout
+		sudo timeout 300 certbot --nginx -d %s --non-interactive --agree-tos -m admin@%s --redirect || exit 1
 	'`, domain, domain),
 	}, pulumi.DependsOn(utils.FilterNilResources([]pulumi.Resource{dependsOn})))
 

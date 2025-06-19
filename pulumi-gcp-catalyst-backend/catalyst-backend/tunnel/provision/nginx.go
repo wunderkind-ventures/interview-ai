@@ -15,6 +15,35 @@ func SetupTunnelNginx(ctx *pulumi.Context, instanceIp pulumi.StringOutput, sshPr
 			PrivateKey: sshPrivateKey,
 		},
 		Create: pulumi.Sprintf(`bash -c '
+# Configure SSH keep-alive
+sudo tee /etc/ssh/sshd_config.d/keepalive.conf <<EOF
+ClientAliveInterval 60
+ClientAliveCountMax 3
+TCPKeepAlive yes
+EOF
+
+sudo systemctl restart sshd
+
+# Configure autossh for persistent connections
+sudo tee /etc/systemd/system/autossh-tunnel.service <<EOF
+[Unit]
+Description=AutoSSH tunnel service
+After=network.target
+
+[Service]
+Environment="AUTOSSH_GATETIME=0"
+ExecStart=/usr/bin/autossh -M 0 -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -N -R 9000:localhost:9000 localhost
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable autossh-tunnel
+sudo systemctl start autossh-tunnel
+
 sudo tee /etc/nginx/sites-available/tunnel <<EOF
 server {
     listen 80;
@@ -26,11 +55,14 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300;
+        proxy_connect_timeout 300;
+        proxy_send_timeout 300;
     }
 }
 EOF
 
-sudo ln -s /etc/nginx/sites-available/tunnel /etc/nginx/sites-enabled/tunnel
+sudo ln -sf /etc/nginx/sites-available/tunnel /etc/nginx/sites-enabled/tunnel
 sudo nginx -t && sudo systemctl reload nginx
 '`, domain),
 	}, pulumi.DependsOn(utils.FilterNilResources([]pulumi.Resource{dependsOn})))

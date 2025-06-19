@@ -11,6 +11,8 @@ firebase-debug.log
 *.map
 .git/
 package-lock.json
-/pulumi-gcp-catalyst-backend/catalyst-backend/vendor/
-/scripts/
-/utils/
+pulumi-gcp-catalyst-backend/catalyst-backend/vendor/
+scripts/
+utils/
+backends/
+pulumi-*/

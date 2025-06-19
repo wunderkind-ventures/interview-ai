@@ -1,8 +1,8 @@
 swagger: '2.0'
 info:
   title: InterviewAI Catalyst Backend API
-  description: API for managing user-provided API keys and proxying AI requests for InterviewAI.
-  version: '1.0.0'
+  description: API for managing user-provided API keys, proxying AI requests, and RAG content processing for InterviewAI.
+  version: '2.0.0'
 # The host will be automatically generated when you deploy your API Gateway.
 # Example: catalyst-gateway-xxxxxx-uc.a.run.app
 # You can update this field later after deployment if needed.
@@ -218,3 +218,445 @@ paths:
           description: Internal Server Error (e.g., proxy failure, error in AI flow execution).
         '503':
           description: Service Unavailable (e.g., failed to call the Next.js backend).
+
+  /api/documents/parse-resume:
+    options:
+      summary: Handle CORS preflight requests for Parse Resume
+      operationId: corsParseResume
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for ParseResume URL (9th)
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    post:
+      summary: Parses uploaded resume/document files
+      description: Extracts text content from uploaded DOCX, PDF, or other document formats
+      operationId: parseResume
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for ParseResume URL (10th)
+        disable_auth: true
+      responses:
+        '200':
+          description: Document parsed successfully
+          schema:
+            type: object
+            properties:
+              extractedText:
+                type: string
+              metadata:
+                type: object
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  # ===== RAG ENDPOINTS =====
+  /api/content/scrape:
+    options:
+      summary: Handle CORS preflight requests for Content Scraper
+      operationId: corsContentScrape
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for ContentScraper URL (11th)
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    post:
+      summary: Scrapes content from YouTube videos or blog posts
+      description: Extracts content, generates embeddings, and stores for RAG retrieval
+      operationId: scrapeContent
+      security: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - url
+              - contentType
+            properties:
+              url:
+                type: string
+                description: URL to scrape (YouTube video or blog post)
+              contentType:
+                type: string
+                enum: [youtube, blog]
+                description: Type of content to scrape
+              extractionOptions:
+                type: object
+                properties:
+                  generateEmbeddings:
+                    type: boolean
+                    default: true
+                  extractQuestions:
+                    type: boolean
+                    default: true
+                  extractConcepts:
+                    type: boolean
+                    default: true
+      x-google-backend:
+        address: "%s" # Placeholder for ContentScraper URL (12th)
+        disable_auth: true
+      responses:
+        '200':
+          description: Content scraped successfully
+          schema:
+            $ref: '#/definitions/ScrapedContent'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Scraping failed
+
+  /api/content/search:
+    options:
+      summary: Handle CORS preflight requests for Content Search
+      operationId: corsContentSearch
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for ContentScraper URL (13th)
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    get:
+      summary: Searches scraped content by criteria
+      description: Finds relevant content based on filters
+      operationId: searchContent
+      security: []
+      parameters:
+        - name: company
+          in: query
+          type: string
+          description: Filter by target company
+        - name: interviewType
+          in: query
+          type: string
+          description: Filter by interview type
+        - name: level
+          in: query
+          type: string
+          description: Filter by target level
+        - name: query
+          in: query
+          type: string
+          description: Text search query
+        - name: limit
+          in: query
+          type: integer
+          default: 10
+          description: Maximum number of results
+      x-google-backend:
+        address: "%s" # Placeholder for ContentScraper URL (14th)
+        disable_auth: true
+      responses:
+        '200':
+          description: Search results returned
+          schema:
+            type: object
+            properties:
+              results:
+                type: array
+                items:
+                  $ref: '#/definitions/SearchResult'
+              total:
+                type: integer
+        '401':
+          description: Unauthorized
+
+  /api/vector/search:
+    options:
+      summary: Handle CORS preflight requests for Vector Search
+      operationId: corsVectorSearch
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for VectorSearch URL (15th)
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    post:
+      summary: Performs semantic search using vector similarity
+      description: Advanced semantic search with embeddings
+      operationId: vectorSearch
+      security: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - query
+            properties:
+              query:
+                type: string
+                description: Search query
+              filters:
+                type: object
+                description: Metadata filters
+              limit:
+                type: integer
+                default: 10
+                description: Maximum results
+      x-google-backend:
+        address: "%s" # Placeholder for VectorSearch URL (16th)
+        disable_auth: true
+      responses:
+        '200':
+          description: Search results with relevance scores
+          schema:
+            type: object
+            properties:
+              results:
+                type: array
+                items:
+                  $ref: '#/definitions/SearchResult'
+              total:
+                type: integer
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+  /api/vector/upsert:
+    options:
+      summary: Handle CORS preflight requests for Vector Upsert
+      operationId: corsVectorUpsert
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for VectorSearch URL (17th)
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    post:
+      summary: Upserts document embeddings to the vector index
+      description: Stores or updates embeddings for vector search
+      operationId: upsertVectorEmbeddings
+      security: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - documents
+            properties:
+              documents:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    content:
+                      type: string
+                    embeddings:
+                      type: object
+                    metadata:
+                      type: object
+      x-google-backend:
+        address: "%s" # Placeholder for VectorSearch URL (18th)
+        disable_auth: true
+      responses:
+        '200':
+          description: Embeddings upserted successfully
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              upserted:
+                type: integer
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+  /api/vector/similar:
+    options:
+      summary: Handle CORS preflight requests for Similar Content
+      operationId: corsSimilarContent
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for VectorSearch URL (19th)
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    get:
+      summary: Finds content similar to a given document
+      description: Returns similar content based on vector similarity
+      operationId: findSimilarContent
+      security: []
+      parameters:
+        - name: documentId
+          in: query
+          type: string
+          required: true
+          description: ID of the reference document
+        - name: limit
+          in: query
+          type: integer
+          default: 5
+          description: Maximum number of similar documents
+      x-google-backend:
+        address: "%s" # Placeholder for VectorSearch URL (20th)
+        disable_auth: true
+      responses:
+        '200':
+          description: Similar content found
+          schema:
+            type: object
+            properties:
+              results:
+                type: array
+                items:
+                  $ref: '#/definitions/SearchResult'
+              documentId:
+                type: string
+              total:
+                type: integer
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+definitions:
+  Error:
+    type: object
+    properties:
+      error:
+        type: string
+      code:
+        type: integer
+      details:
+        type: string
+
+  ScrapedContent:
+    type: object
+    properties:
+      source:
+        type: object
+        properties:
+          type:
+            type: string
+          url:
+            type: string
+          title:
+            type: string
+          author:
+            type: string
+          datePublished:
+            type: string
+      contentType:
+        type: string
+      interviewType:
+        type: string
+      targetLevel:
+        type: string
+      targetCompany:
+        type: string
+      content:
+        type: object
+        properties:
+          questions:
+            type: array
+            items:
+              type: object
+          concepts:
+            type: array
+            items:
+              type: object
+          tips:
+            type: array
+            items:
+              type: object
+          fullTranscript:
+            type: string
+      qualityScore:
+        type: number
+      embeddings:
+        type: object
+
+  SearchResult:
+    type: object
+    properties:
+      id:
+        type: string
+      content:
+        type: string
+      source:
+        type: string
+      title:
+        type: string
+      score:
+        type: number
+      contentType:
+        type: string
+      metadata:
+        type: object

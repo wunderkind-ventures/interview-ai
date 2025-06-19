@@ -7,6 +7,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"catalyst-backend/config"
+	"catalyst-backend/functions"
 	"catalyst-backend/functions/component"
 	"catalyst-backend/gateway"
 	"catalyst-backend/iam"
@@ -125,6 +126,24 @@ func main() {
 			return err
 		}
 
+		// Deploy RAG Infrastructure
+		ragInfra, err := functions.DeployRAGInfrastructure(ctx, cfg, sourceBucket, sa)
+		if err != nil {
+			return err
+		}
+
+		// Set up RAG IAM permissions
+		err = functions.SetupRAGIAMPermissions(ctx, cfg, sa, ragInfra)
+		if err != nil {
+			return err
+		}
+
+		// Deploy Vertex AI Vector Search (manual setup required)
+		err = functions.DeployVertexAIVectorSearch(ctx, cfg)
+		if err != nil {
+			return err
+		}
+
 		// Create the API Gateway API
 		api, err := gateway.CreateApi(ctx, "catalyst-backend-api", cfg.GcpProject, cfg.Environment)
 		if err != nil {
@@ -141,7 +160,20 @@ func main() {
 				}
 				return ""
 			}).(pulumi.StringOutput),
-		}, []pulumi.Resource{setFn.Function, removeFn.Function, proxyFn.Function}, cfg.GcpProject)
+			// RAG Function URLs
+			ragInfra.ContentScraperFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput),
+			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput),
+		}, []pulumi.Resource{setFn.Function, removeFn.Function, proxyFn.Function, ragInfra.ContentScraperFunction.Function, ragInfra.VectorSearchFunction.Function}, cfg.GcpProject)
 		if err != nil {
 			return err
 		}
@@ -210,6 +242,30 @@ func main() {
 		utils.ExportURL(ctx, "deploymentBucketName"+nameSuffix, deploymentBucket.Name)
 		utils.ExportURL(ctx, "emailNotificationChannelId"+nameSuffix, notificationChannel.ID().ToStringOutput())
 		utils.ExportURL(ctx, "criticalErrorLogMetricName"+nameSuffix, logMetric.Name)
+
+		// Export RAG Infrastructure URLs and IDs
+		utils.ExportURL(ctx, "contentScraperFunctionUrl"+nameSuffix, ragInfra.ContentScraperFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+			if sc != nil && sc.Uri != nil {
+				return *sc.Uri
+			}
+			return ""
+		}).(pulumi.StringOutput))
+		utils.ExportURL(ctx, "vectorSearchFunctionUrl"+nameSuffix, ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+			if sc != nil && sc.Uri != nil {
+				return *sc.Uri
+			}
+			return ""
+		}).(pulumi.StringOutput))
+		utils.ExportURL(ctx, "contentIndexerFunctionUrl"+nameSuffix, ragInfra.ContentIndexerFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+			if sc != nil && sc.Uri != nil {
+				return *sc.Uri
+			}
+			return ""
+		}).(pulumi.StringOutput))
+		utils.ExportURL(ctx, "indexingTopicName"+nameSuffix, ragInfra.IndexingTopic.Name)
+		utils.ExportURL(ctx, "indexingSubscriptionName"+nameSuffix, ragInfra.IndexingSubscription.Name)
+		utils.ExportURL(ctx, "youtubeAPISecretName"+nameSuffix, ragInfra.YouTubeAPISecret.SecretId)
+		utils.ExportURL(ctx, "embeddingAPISecretName"+nameSuffix, ragInfra.EmbeddingAPISecret.SecretId)
 
 		return nil
 	})

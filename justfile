@@ -88,7 +88,7 @@ generate-ssh-key:
 	@echo "Public key:" && cat ~/.ssh/tunnel_rsa.pub
 
 configure-ssh-key:
-	pulumi config set --path sshKey "$(shell cat ~/.ssh/tunnel_rsa.pub)"
+	pulumi config set --secret --path sshKey "$(shell cat ~/.ssh/tunnel_rsa.pub)"
 
 
 # Default environment if not overridden

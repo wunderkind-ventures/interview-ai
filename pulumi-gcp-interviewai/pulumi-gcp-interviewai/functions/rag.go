@@ -16,13 +16,13 @@ import (
 
 // RAGInfrastructure represents all RAG-related infrastructure
 type RAGInfrastructure struct {
-	ContentScraperFunction    *component.Gen2Function
-	VectorSearchFunction      *component.Gen2Function
-	ContentIndexerFunction    *component.Gen2Function
-	IndexingTopic            *pubsub.Topic
-	IndexingSubscription     *pubsub.Subscription
-	YouTubeAPISecret         *secretmanager.Secret
-	EmbeddingAPISecret       *secretmanager.Secret
+	ContentScraperFunction *component.Gen2Function
+	VectorSearchFunction   *component.Gen2Function
+	ContentIndexerFunction *component.Gen2Function
+	IndexingTopic          *pubsub.Topic
+	IndexingSubscription   *pubsub.Subscription
+	YouTubeAPISecret       *secretmanager.Secret
+	EmbeddingAPISecret     *secretmanager.Secret
 }
 
 // DeployRAGInfrastructure deploys all RAG-related components
@@ -74,7 +74,7 @@ func DeployRAGInfrastructure(ctx *pulumi.Context, cfg *config.CatalystConfig, so
 	contentScraperFn, err := component.NewGen2Function(ctx, "ContentScraper"+nameSuffix, &component.Gen2FunctionArgs{
 		Name:        "ContentScraper" + nameSuffix,
 		EntryPoint:  "ScrapeContentGCF",
-		SourcePath:  "../../backends/catalyst-backend/functions/contentscraper",
+		SourcePath:  "../../backends/catalyst-interviewai/functions/contentscraper",
 		Bucket:      sourceBucket,
 		Region:      cfg.GcpRegion,
 		Project:     cfg.GcpProject,
@@ -93,13 +93,13 @@ func DeployRAGInfrastructure(ctx *pulumi.Context, cfg *config.CatalystConfig, so
 	vectorSearchFn, err := component.NewGen2Function(ctx, "VectorSearch"+nameSuffix, &component.Gen2FunctionArgs{
 		Name:        "VectorSearch" + nameSuffix,
 		EntryPoint:  "VectorSearchGCF",
-		SourcePath:  "../../backends/catalyst-backend/functions/vectorsearch",
+		SourcePath:  "../../backends/catalyst-interviewai/functions/vectorsearch",
 		Bucket:      sourceBucket,
 		Region:      cfg.GcpRegion,
 		Project:     cfg.GcpProject,
 		Description: "Provides semantic search and vector similarity for RAG",
 		EnvVars: pulumi.StringMap{
-			"VERTEX_AI_LOCATION":     pulumi.String(cfg.GcpRegion),
+			"VERTEX_AI_LOCATION":          pulumi.String(cfg.GcpRegion),
 			"VERTEX_AI_INDEX_ENDPOINT_ID": pulumi.String(""), // To be configured later
 		},
 	})
@@ -111,14 +111,14 @@ func DeployRAGInfrastructure(ctx *pulumi.Context, cfg *config.CatalystConfig, so
 	contentIndexerFn, err := component.NewGen2Function(ctx, "ContentIndexer"+nameSuffix, &component.Gen2FunctionArgs{
 		Name:        "ContentIndexer" + nameSuffix,
 		EntryPoint:  "ContentIndexerGCF",
-		SourcePath:  "../../backends/catalyst-backend/functions/contentindexer",
+		SourcePath:  "../../backends/catalyst-interviewai/functions/contentindexer",
 		Bucket:      sourceBucket,
 		Region:      cfg.GcpRegion,
 		Project:     cfg.GcpProject,
 		Description: "Indexes scraped content for vector search, triggered by Pub/Sub",
 		EnvVars: pulumi.StringMap{
 			"INDEXING_TOPIC_NAME": indexingTopic.Name,
-			"VECTOR_SEARCH_URL":   vectorSearchFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+			"VECTOR_SEARCH_URL": vectorSearchFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
 				if sc != nil && sc.Uri != nil {
 					return *sc.Uri
 				}

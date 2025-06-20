@@ -44,7 +44,7 @@ func main() {
 			Name:           "SetAPIKeyGCF" + nameSuffix,
 			EntryPoint:     "SetAPIKeyGCF",
 			BucketName:     deploymentBucket.Name,
-			SourcePath:     "../../backends/catalyst-backend/functions/setapikey",
+			SourcePath:     "../../backends/catalyst-interviewai/functions/setapikey",
 			Region:         cfg.GcpRegion,
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
@@ -61,7 +61,7 @@ func main() {
 			Name:           "RemoveAPIKeyGCF" + nameSuffix,
 			EntryPoint:     "RemoveAPIKeyGCF",
 			BucketName:     deploymentBucket.Name,
-			SourcePath:     "../../backends/catalyst-backend/functions/removeapikey",
+			SourcePath:     "../../backends/catalyst-interviewai/functions/removeapikey",
 			Region:         cfg.GcpRegion,
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
@@ -78,7 +78,7 @@ func main() {
 			Name:           "GetAPIKeyStatusGCF" + nameSuffix,
 			EntryPoint:     "GetAPIKeyStatusGCF",
 			BucketName:     deploymentBucket.Name,
-			SourcePath:     "../../backends/catalyst-backend/functions/getapikeystatus",
+			SourcePath:     "../../backends/catalyst-interviewai/functions/getapikeystatus",
 			Region:         cfg.GcpRegion,
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
@@ -95,7 +95,7 @@ func main() {
 			Name:           "ProxyToGenkitGCF" + nameSuffix,
 			EntryPoint:     "ProxyToGenkitGCF",
 			BucketName:     deploymentBucket.Name,
-			SourcePath:     "../../backends/catalyst-backend/functions/proxytogenkit",
+			SourcePath:     "../../backends/catalyst-interviewai/functions/proxytogenkit",
 			Region:         cfg.GcpRegion,
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
@@ -112,7 +112,7 @@ func main() {
 		parseResumeFn, err := component.NewGen2Function(ctx, "ParseResume"+nameSuffix, &component.Gen2FunctionArgs{
 			Name:        "ParseResume" + nameSuffix,
 			EntryPoint:  "ParseResume",
-			SourcePath:  "../../backends/catalyst-backend/functions/docsupport/parseresume",
+			SourcePath:  "../../backends/catalyst-interviewai/functions/docsupport/parseresume",
 			Bucket:      sourceBucket,
 			Region:      cfg.GcpRegion,
 			Project:     cfg.GcpProject,
@@ -145,7 +145,7 @@ func main() {
 		}
 
 		// Create the API Gateway API
-		api, err := gateway.CreateApi(ctx, "catalyst-backend-api", cfg.GcpProject, cfg.Environment)
+		api, err := gateway.CreateApi(ctx, "catalyst-interviewai-api", cfg.GcpProject, cfg.Environment)
 		if err != nil {
 			return err
 		}

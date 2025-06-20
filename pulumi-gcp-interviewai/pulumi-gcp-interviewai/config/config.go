@@ -28,6 +28,6 @@ func Load(ctx *pulumi.Context) (*CatalystConfig, error) {
 		DefaultGeminiKey: cfg.RequireSecret("defaultGeminiApiKey"),
 		TunnelDomain:     cfg.Require("nextjsBaseUrl"),
 		SshPrivateKey:    cfg.RequireSecret("sshPrivateKey"),
-		OpenapiSpecPath:  "../backends/catalyst-backend/openapi-spec.yaml",
+		OpenapiSpecPath:  "../backends/catalyst-interviewai/openapi-spec.yaml",
 	}, nil
 }

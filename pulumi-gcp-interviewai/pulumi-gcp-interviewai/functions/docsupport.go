@@ -12,7 +12,7 @@ import (
 )
 
 func DeployParseResumeFunction(ctx *pulumi.Context, cfg *config.CatalystConfig, sourceBucket *storage.Bucket) (*cloudfunctionsv2.Function, error) {
-	sourcePath := filepath.Join("..", "backends", "catalyst-backend", "functions", "docsupport", "parseresume")
+	sourcePath := filepath.Join("..", "backends", "catalyst-interviewai", "functions", "docsupport", "parseresume")
 	archive := pulumi.NewFileArchive(sourcePath)
 	objectName := "docsupport-parseresume-source.zip"
 
@@ -69,7 +69,7 @@ func DeployParseResumeFunction(ctx *pulumi.Context, cfg *config.CatalystConfig, 
 // parseResumeFn, err := component.NewGen2Function(ctx, "ParseResume", &component.Gen2FunctionArgs{
 // 	Name:        "ParseResume",
 // 	EntryPoint:  "ParseResume",
-// 	SourcePath:  "../backends/catalyst-backend/functions/docsupport/parseresume",
+// 	SourcePath:  "../backends/catalyst-interviewai/functions/docsupport/parseresume",
 // 	Bucket:      sourceBucket,
 // 	Region:      cfg.GcpRegion,
 // 	Project:     cfg.GcpProject,

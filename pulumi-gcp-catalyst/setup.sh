@@ -61,6 +61,9 @@ echo "🏗️  Initializing Pulumi stacks..."
 
 # Development stack
 echo "Creating development stack..."
+gcloud config configurations create wkv-interviewai-dev
+gcloud config configurations activate wkv-interviewai-dev
+gcloud config set project wkv-interviewai-dev
 pulumi stack init dev --non-interactive 2>/dev/null || echo "Development stack already exists"
 pulumi stack select dev
 pulumi config set gcp:project wkv-interviewai-dev
@@ -70,6 +73,9 @@ echo "✅ Development stack configured"
 
 # Staging stack
 echo "Creating staging stack..."
+gcloud config configurations create wkv-interviewai-stg
+gcloud config configurations activate wkv-interviewai-stg
+gcloud config set project wkv-interviewai-stg
 pulumi stack init staging --non-interactive 2>/dev/null || echo "Staging stack already exists"
 pulumi stack select staging
 pulumi config set gcp:project wkv-interviewai-stg
@@ -79,9 +85,12 @@ echo "✅ Staging stack configured"
 
 # Production stack
 echo "Creating production stack..."
+gcloud config configurations create wkv-interviewai-prod
+gcloud config configurations activate wkv-interviewai-prod
+gcloud config set project wkv-interviewai-prod
 pulumi stack init prod --non-interactive 2>/dev/null || echo "Production stack already exists"
 pulumi stack select prod
-pulumi config set gcp:project interviewai-mzf86
+pulumi config set gcp:project wkv-interviewai-prod
 pulumi config set gcp:region us-central1
 pulumi config set gcp:zone us-central1-a
 echo "✅ Production stack configured"

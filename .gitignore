@@ -58,3 +58,5 @@ firestore-debug.log
 
 # obsidian
 .obsidian/
+/core_apis.txt
+/enable_apis.sh

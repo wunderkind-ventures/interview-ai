@@ -19,7 +19,7 @@ func main() {
 		// Project configurations
 		projectConfigs := []ProjectConfig{
 			{ID: "wkv-interviewai-dev", Name: "InterviewAI Development", Environment: "dev"},
-			{ID: "wkv-interviewai-stg", Name: "InterviewAI Staging", Environment: "staging"},
+			{ID: "wkv-interviewai-stage", Name: "InterviewAI Stage", Environment: "stage"},
 		}
 
 		for _, proj := range projectConfigs {
@@ -42,8 +42,8 @@ func main() {
 				return err
 			}
 
-			// Export service account key for dev/staging environments
-			if proj.Environment == "dev" || proj.Environment == "staging" {
+			// Export service account key for dev/stage environments
+			if proj.Environment == "dev" || proj.Environment == "stage" {
 				ctx.Export(fmt.Sprintf("%s_service_account_key", proj.Environment), key.PrivateKey)
 			}
 

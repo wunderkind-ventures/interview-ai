@@ -73,12 +73,12 @@ echo "✅ Development stack configured"
 
 # Staging stack
 echo "Creating staging stack..."
-gcloud config configurations create wkv-interviewai-stg
-gcloud config configurations activate wkv-interviewai-stg
-gcloud config set project wkv-interviewai-stg
+gcloud config configurations create wkv-interviewai-stage
+gcloud config configurations activate wkv-interviewai-stage
+gcloud config set project wkv-interviewai-stage
 pulumi stack init staging --non-interactive 2>/dev/null || echo "Staging stack already exists"
 pulumi stack select staging
-pulumi config set gcp:project wkv-interviewai-stg
+pulumi config set gcp:project wkv-interviewai-stage
 pulumi config set gcp:region us-central1
 pulumi config set gcp:zone us-central1-a
 echo "✅ Staging stack configured"

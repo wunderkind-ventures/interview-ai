@@ -42,7 +42,7 @@ init-staging:
 	@echo "Initializing staging stack..."
 	pulumi stack init staging --non-interactive || true
 	pulumi stack select staging
-	pulumi config set gcp:project wkv-interviewai-stg
+	pulumi config set gcp:project wkv-interviewai-stage
 	pulumi config set gcp:region us-central1
 	pulumi config set gcp:zone us-central1-a
 	@echo "Staging stack initialized!"
@@ -146,7 +146,7 @@ get-service-account-key-dev:
 
 get-service-account-key-staging:
 	@echo "Retrieving staging service account key..."
-	gcloud secrets versions access latest --secret="staging-service-account-key" --project="wkv-interviewai-stg"
+	gcloud secrets versions access latest --secret="staging-service-account-key" --project="wkv-interviewai-stage"
 
 clean:
 	@echo "Cleaning build artifacts..."

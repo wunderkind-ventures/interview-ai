@@ -1,12 +1,12 @@
 config:
-  gcp:project: wkv-interviewai-stg
+  gcp:project: wkv-interviewai-stage
   gcp:region: us-central1
   catalyst-gcp-infra:environment: stg
-  catalyst-gcp-infra:catalystGcpProject: wkv-interviewai-stg
+  catalyst-gcp-infra:catalystGcpProject: wkv-interviewai-stage
   catalyst-gcp-infra:catalystGcpRegion: us-central1
   catalyst-gcp-infra:defaultGeminiApiKey:
     secure: AAABAFLxpHdMunK7KmTN1p2Qn7u+5JDWSYHMfxqWMz1yHkJ8fyh8hV1OakaaYsXfBOGDQaJ9uRPUJo6taKtr/p/6COxv/aQ=
   catalyst-gcp-infra:nextjsBaseUrl: https://catalyst-stg.wkv.ai
-  catalyst-gcp-infra:gcpProject: wkv-interviewai-stg
+  catalyst-gcp-infra:gcpProject: wkv-interviewai-stage
   catalyst-gcp-infra:gcpRegion: us-central1
   catalyst-gcp-infra:alertEmail: kenneth@wkv.ai

@@ -1,14 +1,9 @@
-name: interviewai-gcp-infrastructure
+name: wkv-catalyst-gcp
 runtime:
   name: go
-  options:
-    generatePackage: false
 description: InterviewAI GCP Multi-Environment Infrastructure
 template:
   config:
-    gcp:project:
-      description: The GCP project to deploy to
     gcp:region:
       description: The GCP region to deploy to
       default: us-central1
-

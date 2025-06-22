@@ -44,7 +44,7 @@ pulumi config set gcp:region us-central1
 
 # Create staging stack
 pulumi stack init staging
-pulumi config set gcp:project wkv-interviewai-stg
+pulumi config set gcp:project wkv-interviewai-stage
 pulumi config set gcp:region us-central1
 
 # Create production stack (for existing project management)
@@ -109,7 +109,7 @@ The program uses these project configurations:
 ```go
 projects := []ProjectConfig{
     {ID: "wkv-interviewai-dev", Name: "InterviewAI Development", Environment: "dev"},
-    {ID: "wkv-interviewai-stg", Name: "InterviewAI Staging", Environment: "staging"},
+    {ID: "wkv-interviewai-stage", Name: "InterviewAI Staging", Environment: "staging"},
 }
 ```
 

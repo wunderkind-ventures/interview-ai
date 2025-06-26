@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 
@@ -17,6 +18,7 @@ type InfrastructureConfig struct {
 	ProjectName      string
 	BillingAccountID string
 	OrganizationID   string
+	CreateProject    bool
 }
 
 func loadConfig(ctx *pulumi.Context) (*InfrastructureConfig, error) {
@@ -27,6 +29,8 @@ func loadConfig(ctx *pulumi.Context) (*InfrastructureConfig, error) {
 	projectID := cfg.Require("projectId")
 	projectName := cfg.Get("projectName")
 	organizationID := cfg.Get("organizationId")
+	billingAccountID := cfg.Get("billingAccountId")
+	createProject := cfg.GetBool("createProject")
 
 	// Set default project name if not provided
 	if projectName == "" {
@@ -34,10 +38,12 @@ func loadConfig(ctx *pulumi.Context) (*InfrastructureConfig, error) {
 	}
 
 	return &InfrastructureConfig{
-		Environment:    environment,
-		ProjectID:      projectID,
-		ProjectName:    projectName,
-		OrganizationID: organizationID,
+		Environment:      environment,
+		ProjectID:        projectID,
+		ProjectName:      projectName,
+		OrganizationID:   organizationID,
+		BillingAccountID: billingAccountID,
+		CreateProject:    createProject,
 	}, nil
 }
 
@@ -49,11 +55,35 @@ func main() {
 			return err
 		}
 
+		// Configure GCP provider with explicit project and quota project
+		_, err = gcp.NewProvider(ctx, "gcp-provider", &gcp.ProviderArgs{
+			Project: pulumi.String(cfg.ProjectID),
+			UserProjectOverride: pulumi.Bool(true),
+		})
+		if err != nil {
+			return err
+		}
+
+		// Manage the project (create or import)
+		gcpProject, err := project.ManageProject(ctx, project.ProjectConfig{
+			ProjectID:        cfg.ProjectID,
+			ProjectName:      cfg.ProjectName,
+			OrganizationID:   cfg.OrganizationID,
+			BillingAccountID: cfg.BillingAccountID,
+			CreateProject:    cfg.CreateProject,
+			Environment:      cfg.Environment,
+		})
+		if err != nil {
+			return err
+		}
+
 		// Enable required APIs
 		err = project.EnableAPIs(ctx, cfg.ProjectID, project.GetCoreAPIs())
 		if err != nil {
 			return err
 		}
+
+		// App Engine removed - Firestore is managed directly in firebase.SetupFirebase
 
 		// _, err = serviceaccount.NewAccount(ctx, "dev-service-account", &serviceaccount.AccountArgs{
 		// 	AccountId:   pulumi.String("dev-infra-service-account"),
@@ -88,7 +118,7 @@ func main() {
 		firebaseOutputs, err := firebase.SetupFirebase(ctx, firebase.FirebaseConfig{
 			ProjectID:   cfg.ProjectID,
 			Environment: cfg.Environment,
-		})
+		}, []pulumi.Resource{gcpProject})
 		if err != nil {
 			return err
 		}

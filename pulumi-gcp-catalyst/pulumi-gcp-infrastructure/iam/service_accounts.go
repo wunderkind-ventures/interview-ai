@@ -52,47 +52,46 @@ func CreateInfrastructureServiceAccount(ctx *pulumi.Context, cfg ServiceAccountC
 		return nil, nil, err
 	}
 
-	_, err = secretmanager.NewSecret(ctx, fmt.Sprintf("%s-service-account-key", cfg.Environment), &secretmanager.SecretArgs{
-		Project: pulumi.String(cfg.ProjectID),
-		Replication: &secretmanager.SecretReplicationArgs{
-			Auto: &secretmanager.SecretReplicationAutoArgs{},
-			// UserManaged: &secretmanager.SecretReplicationUserManagedArgs{
-			// 	Replicas: secretmanager.SecretReplicationUserManagedReplicaArray{
-			// 		&secretmanager.SecretReplicationUserManagedReplicaArgs{
-			// 			CustomerManagedEncryption: &secretmanager.SecretReplicationUserManagedReplicaCustomerManagedEncryptionArgs{
-			// 				KmsKeyName: pulumi.String(fmt.Sprintf("projects/%s/locations/global/keyRings/%s/cryptoKeys/%s", cfg.ProjectID, cfg.Environment, cfg.Environment)),
-			// 			},
-			// 		},
-			// 	},
-			// },
-		},
-		SecretId: pulumi.String(fmt.Sprintf("%s-service-account-key", cfg.Environment)),
-	}, pulumi.Protect(true))
-	if err != nil {
-		return nil, nil, err
-	}
+	// Note: The secret is created in StoreServiceAccountKeyInSecretManager function
+	// to avoid duplicate resource creation
 
 	return sa, key, nil
 }
 
 // StoreServiceAccountKeyInSecretManager stores the service account key in Google Secret Manager
 func StoreServiceAccountKeyInSecretManager(ctx *pulumi.Context, projectID, environment string, key *serviceaccount.Key) error {
-	// Store service account key in Secret Manager
-	_, err := secretmanager.NewSecret(ctx, fmt.Sprintf("%s-service-account-key-secret", environment), &secretmanager.SecretArgs{
+	// Create or import the secret
+	secret, err := secretmanager.NewSecret(ctx, fmt.Sprintf("%s-service-account-key-secret", environment), &secretmanager.SecretArgs{
 		Project:  pulumi.String(projectID),
 		SecretId: pulumi.String(fmt.Sprintf("%s-service-account-key", environment)),
 		Replication: &secretmanager.SecretReplicationArgs{
 			Auto: &secretmanager.SecretReplicationAutoArgs{},
 		},
-	})
+	}, pulumi.Protect(true))
 	if err != nil {
-		return err
+		// If the secret already exists, try to import it
+		ctx.Log.Warn(fmt.Sprintf("Could not create secret %s-service-account-key, it might already exist: %v", environment, err), nil)
+		
+		// Import the existing secret
+		secret, err = secretmanager.NewSecret(ctx, fmt.Sprintf("%s-service-account-key-secret", environment), &secretmanager.SecretArgs{
+			Project:  pulumi.String(projectID),
+			SecretId: pulumi.String(fmt.Sprintf("%s-service-account-key", environment)),
+			Replication: &secretmanager.SecretReplicationArgs{
+				Auto: &secretmanager.SecretReplicationAutoArgs{},
+			},
+		}, pulumi.Import(pulumi.ID(fmt.Sprintf("projects/%s/secrets/%s-service-account-key", projectID, environment))), pulumi.Protect(true))
+		if err != nil {
+			return fmt.Errorf("failed to create or import secret: %w", err)
+		}
 	}
 
+	// Create a new version of the secret
+	// Build the secret path explicitly to avoid project number issues
+	secretPath := pulumi.Sprintf("projects/%s/secrets/%s-service-account-key", projectID, environment)
 	_, err = secretmanager.NewSecretVersion(ctx, fmt.Sprintf("%s-service-account-key-version", environment), &secretmanager.SecretVersionArgs{
-		Secret:     pulumi.Sprintf("projects/%s/secrets/%s-service-account-key", projectID, environment),
+		Secret:     secretPath,
 		SecretData: key.PrivateKey,
-	})
+	}, pulumi.DependsOn([]pulumi.Resource{secret}))
 	return err
 }
 

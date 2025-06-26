@@ -79,6 +79,7 @@ func GetCoreAPIs() []string {
 		"bigqueryreservation.googleapis.com",
 		"bigquerystorage.googleapis.com",
 		"blockchain.googleapis.com",
+		"cloudbilling.googleapis.com",
 		"cloudaicompanion.googleapis.com",
 		"cloudapis.googleapis.com",
 		"cloudasset.googleapis.com",

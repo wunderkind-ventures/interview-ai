@@ -4,6 +4,8 @@ This Pulumi Go program sets up GCP infrastructure for a single InterviewAI envir
 
 ## Features
 
+✅ **Project Management**: Can create new GCP projects or manage existing ones  
+✅ **Billing Integration**: Automatically associates billing accounts with projects  
 ✅ **Project Configuration**: Configures a single GCP project per stack  
 ✅ **API Enablement**: Enables all required APIs for the environment  
 ✅ **Service Accounts**: Creates service accounts with appropriate IAM roles  
@@ -45,6 +47,9 @@ pulumi config set gcp:region us-central1
 pulumi config set environment dev
 pulumi config set projectId wkv-interviewai-dev
 pulumi config set projectName "InterviewAI Development"
+pulumi config set billingAccountId YOUR_BILLING_ACCOUNT_ID  # Optional: for billing association
+pulumi config set organizationId YOUR_ORGANIZATION_ID      # Optional: required if createProject is true
+pulumi config set createProject false                      # Set to true to create new project
 
 # Create staging stack
 pulumi stack init wkv/catalyst-stage
@@ -53,6 +58,9 @@ pulumi config set gcp:region us-central1
 pulumi config set environment stage
 pulumi config set projectId wkv-interviewai-stage
 pulumi config set projectName "InterviewAI Staging"
+pulumi config set billingAccountId YOUR_BILLING_ACCOUNT_ID
+pulumi config set organizationId YOUR_ORGANIZATION_ID
+pulumi config set createProject false
 
 # Create production stack (for existing project management)
 pulumi stack init wkv/catalyst-prod
@@ -61,6 +69,9 @@ pulumi config set gcp:region us-central1
 pulumi config set environment prod
 pulumi config set projectId interviewai-mzf86
 pulumi config set projectName "InterviewAI Production"
+pulumi config set billingAccountId YOUR_BILLING_ACCOUNT_ID
+pulumi config set organizationId YOUR_ORGANIZATION_ID
+pulumi config set createProject false
 ```
 
 ### 4. Deploy Infrastructure
@@ -112,24 +123,34 @@ pulumi up
 
 ## Configuration
 
-### Environment Variables
+### Required Configuration Values
 
-The program uses these project configurations:
+Each stack requires these configuration values:
 
-```go
-projects := []ProjectConfig{
-    {ID: "wkv-interviewai-dev", Name: "InterviewAI Development", Environment: "dev"},
-    {ID: "wkv-interviewai-stage", Name: "InterviewAI Staging", Environment: "staging"},
-}
-```
+- `environment`: The environment name (dev, stage, prod)
+- `projectId`: The GCP project ID
+- `projectName`: Human-readable project name (optional, defaults to "InterviewAI {environment}")
 
-### Billing Account
+### Optional Configuration Values
 
-Update the billing account ID in `main.go`:
+- `billingAccountId`: The billing account ID to associate with the project
+- `organizationId`: The organization ID (required if `createProject` is true)
+- `createProject`: Whether to create a new project or use an existing one (default: false)
 
-```go
-billingAccount := "01F9C0-CF9DFB-DB01DF" // Your billing account ID
-```
+### Project Creation vs Import
+
+The infrastructure stack can work in two modes:
+
+1. **Import Existing Project** (default): 
+   - Set `createProject: false`
+   - The stack will reference an existing GCP project
+   - Useful for pre-existing projects or when you don't have org-level permissions
+
+2. **Create New Project**:
+   - Set `createProject: true`
+   - Requires `organizationId` to be set
+   - Will create a new GCP project under your organization
+   - Automatically associates billing if `billingAccountId` is provided
 
 ## Usage Examples
 

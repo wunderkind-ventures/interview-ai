@@ -1,0 +1,7 @@
+config:
+  gcp:project: wkv-interviewai-dev
+  gcp:billingAccountId:
+    secure: AAABAAzqrQb3NAKSo3tfjoPLXgGVakfWEvHoeWY2I14qcjvuZsWP35nrqdy8LHbL2b8FsQ==
+  wkv-catalyst-gcp:environment: dev
+  wkv-catalyst-gcp:projectId: wkv-interviewai-dev
+  wkv-catalyst-gcp:projectName: InterviewAI Development

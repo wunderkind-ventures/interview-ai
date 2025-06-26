@@ -55,11 +55,11 @@ func NewCloudRunService(ctx *pulumi.Context, name string, args *CloudRunServiceA
 	// For this simplified version, we expect a pre-built container image
 	// The image should be built and pushed via CI/CD pipeline
 	imageURL := pulumi.Sprintf("gcr.io/%s/%s:latest", args.Project, args.Name)
-	
+
 	service, err := cloudrun.NewService(ctx, args.Name, &cloudrun.ServiceArgs{
 		Project:  pulumi.String(args.Project),
 		Location: pulumi.String(args.Region),
-		
+
 		Template: &cloudrun.ServiceTemplateArgs{
 			Spec: &cloudrun.ServiceTemplateSpecArgs{
 				ServiceAccountName: args.ServiceAccount,
@@ -84,26 +84,25 @@ func NewCloudRunService(ctx *pulumi.Context, name string, args *CloudRunServiceA
 			},
 			Metadata: &cloudrun.ServiceTemplateMetadataArgs{
 				Annotations: pulumi.StringMap{
-					"autoscaling.knative.dev/minScale": pulumi.Sprintf("%d", args.MinInstances),
-					"autoscaling.knative.dev/maxScale": pulumi.Sprintf("%d", args.MaxInstances),
+					"autoscaling.knative.dev/minScale":         pulumi.Sprintf("%d", args.MinInstances),
+					"autoscaling.knative.dev/maxScale":         pulumi.Sprintf("%d", args.MaxInstances),
 					"run.googleapis.com/execution-environment": pulumi.String("gen2"),
 				},
 			},
 		},
-		
+
 		Traffics: cloudrun.ServiceTrafficArray{
 			&cloudrun.ServiceTrafficArgs{
 				Percent:        pulumi.Int(100),
 				LatestRevision: pulumi.Bool(true),
 			},
 		},
-		
+
 		AutogenerateRevisionName: pulumi.Bool(true),
 	}, pulumi.Parent(component))
 	if err != nil {
 		return nil, err
 	}
-
 
 	// Make service publicly accessible (for development)
 	_, err = cloudrun.NewIamMember(ctx, fmt.Sprintf("%s-invoker", args.Name), &cloudrun.IamMemberArgs{
@@ -119,25 +118,9 @@ func NewCloudRunService(ctx *pulumi.Context, name string, args *CloudRunServiceA
 
 	component.Service = service
 	// Extract URL from Cloud Run service statuses array
-	component.URL = service.Statuses.Index(pulumi.Int(0)).Url().ToStringOutput()
-	
-	return component, nil
-}
+	component.URL = service.Statuses.Index(pulumi.Int(0)).Url().Elem()
 
-// convertEnvVars converts pulumi.StringMap to Cloud Run environment variable format
-func convertEnvVars(envVars pulumi.StringMap) cloudrun.ServiceTemplateSpecContainerEnvArray {
-	if envVars == nil || len(envVars) == 0 {
-		return cloudrun.ServiceTemplateSpecContainerEnvArray{}
-	}
-	
-	var envs cloudrun.ServiceTemplateSpecContainerEnvArray
-	for key, value := range envVars {
-		envs = append(envs, &cloudrun.ServiceTemplateSpecContainerEnvArgs{
-			Name:  pulumi.String(key),
-			Value: value,
-		})
-	}
-	return envs
+	return component, nil
 }
 
 // Helper function to create Python ADK Agent service
@@ -156,6 +139,6 @@ func NewPythonADKAgentService(ctx *pulumi.Context, name string, project, region 
 		MinInstances:   0,
 		MaxInstances:   10,
 	}
-	
+
 	return NewCloudRunService(ctx, name, args, opts...)
 }

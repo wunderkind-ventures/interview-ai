@@ -6,7 +6,7 @@ config:
   catalyst-gcp-infra:catalystGcpRegion: us-central1
   catalyst-gcp-infra:defaultGeminiApiKey:
     secure: AAABAKUgzn5H+kuaE7lTLOP8wL40hf6mwAdK6Tmm3l0nOT/e/QZougpJ8wGaSLyzvebRVjvSl8hAFNRDhQK/9JIxGWs+1Uo=
-  catalyst-gcp-infra:nextjsBaseUrl: https://dev-tunnel.wkv.ai
+  catalyst-gcp-infra:nextjsBaseUrl: https://settled-merry-jaguar.ngrok-free.app
   catalyst-gcp-infra:gcpProject: wkv-interviewai-dev
   catalyst-gcp-infra:gcpRegion: us-central1
   catalyst-gcp-infra:alertEmail: kenneth@wkv.ai

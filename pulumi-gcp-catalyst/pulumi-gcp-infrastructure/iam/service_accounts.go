@@ -52,6 +52,26 @@ func CreateInfrastructureServiceAccount(ctx *pulumi.Context, cfg ServiceAccountC
 		return nil, nil, err
 	}
 
+	_, err = secretmanager.NewSecret(ctx, fmt.Sprintf("%s-service-account-key", cfg.Environment), &secretmanager.SecretArgs{
+		Project: pulumi.String(cfg.ProjectID),
+		Replication: &secretmanager.SecretReplicationArgs{
+			Auto: &secretmanager.SecretReplicationAutoArgs{},
+			// UserManaged: &secretmanager.SecretReplicationUserManagedArgs{
+			// 	Replicas: secretmanager.SecretReplicationUserManagedReplicaArray{
+			// 		&secretmanager.SecretReplicationUserManagedReplicaArgs{
+			// 			CustomerManagedEncryption: &secretmanager.SecretReplicationUserManagedReplicaCustomerManagedEncryptionArgs{
+			// 				KmsKeyName: pulumi.String(fmt.Sprintf("projects/%s/locations/global/keyRings/%s/cryptoKeys/%s", cfg.ProjectID, cfg.Environment, cfg.Environment)),
+			// 			},
+			// 		},
+			// 	},
+			// },
+		},
+		SecretId: pulumi.String(fmt.Sprintf("%s-service-account-key", cfg.Environment)),
+	}, pulumi.Protect(true))
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return sa, key, nil
 }
 

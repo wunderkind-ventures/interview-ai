@@ -154,30 +154,30 @@ func main() {
 			Region:         cfg.GcpRegion,
 			ServiceAccount: sa.Email,
 			EnvVars: pulumi.StringMap{
-				"ENVIRONMENT":           pulumi.String(cfg.Environment),
-				"GCP_PROJECT_ID":        pulumi.String(cfg.GcpProject),
-				"ENABLE_TELEMETRY":      pulumi.String("true"),
-				"LOG_LEVEL":             pulumi.String("info"),
-				"NEXTJS_BASE_URL":       pulumi.String(cfg.NextjsBaseUrl),
+				"ENVIRONMENT":            pulumi.String(cfg.Environment),
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
+				"ENABLE_TELEMETRY":       pulumi.String("true"),
+				"LOG_LEVEL":              pulumi.String("info"),
+				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
 			},
 			Description: "Python ADK Agent Service for Interview AI",
-			
+
 			// Function-specific configuration
-			SourcePath:     "../../backends/catalyst-py",
-			EntryPoint:     "start_server",
-			Runtime:        "python311",
-			Bucket:         sourceBucket,
-			FunctionMemory: "1024MiB",
+			SourcePath:      "../../backends/catalyst-py",
+			EntryPoint:      "start_server",
+			Runtime:         "python311",
+			Bucket:          sourceBucket,
+			FunctionMemory:  "1024MiB",
 			FunctionTimeout: 540, // 9 minutes
-			
+
 			// Cloud Run configuration (for future use)
-			ContainerImage: pulumi.Sprintf("gcr.io/%s/python-adk-agents:latest", cfg.GcpProject),
-			Port:          8080,
-			Memory:        "1Gi",
-			CPU:           "1",
-			MinInstances:  0,
-			MaxInstances:  10,
+			ContainerImage: fmt.Sprintf("gcr.io/%s/python-adk-agents:latest", cfg.GcpProject),
+			Port:           8080,
+			Memory:         "1Gi",
+			CPU:            "1",
+			MinInstances:   0,
+			MaxInstances:   10,
 		})
 		if err != nil {
 			return err
@@ -193,10 +193,10 @@ func main() {
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
 			EnvVars: pulumi.StringMap{
-				"NEXTJS_BASE_URL":           pulumi.String(cfg.NextjsBaseUrl),
-				"DEFAULT_GEMINI_API_KEY":    cfg.DefaultGeminiKey,
-				"PYTHON_AGENT_BASE_URL":     pythonAgentService.GetURL(),
-				"GCP_PROJECT_ID":            pulumi.String(cfg.GcpProject),
+				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
+				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"PYTHON_AGENT_BASE_URL":  pythonAgentService.GetURL(),
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -212,10 +212,10 @@ func main() {
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
 			EnvVars: pulumi.StringMap{
-				"NEXTJS_BASE_URL":           pulumi.String(cfg.NextjsBaseUrl),
-				"DEFAULT_GEMINI_API_KEY":    cfg.DefaultGeminiKey,
-				"PYTHON_AGENT_BASE_URL":     pythonAgentService.GetURL(),
-				"GCP_PROJECT_ID":            pulumi.String(cfg.GcpProject),
+				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
+				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"PYTHON_AGENT_BASE_URL":  pythonAgentService.GetURL(),
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -231,10 +231,10 @@ func main() {
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
 			EnvVars: pulumi.StringMap{
-				"NEXTJS_BASE_URL":           pulumi.String(cfg.NextjsBaseUrl),
-				"DEFAULT_GEMINI_API_KEY":    cfg.DefaultGeminiKey,
-				"PYTHON_AGENT_BASE_URL":     pythonAgentService.GetURL(),
-				"GCP_PROJECT_ID":            pulumi.String(cfg.GcpProject),
+				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
+				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"PYTHON_AGENT_BASE_URL":  pythonAgentService.GetURL(),
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -250,10 +250,10 @@ func main() {
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
 			EnvVars: pulumi.StringMap{
-				"NEXTJS_BASE_URL":           pulumi.String(cfg.NextjsBaseUrl),
-				"DEFAULT_GEMINI_API_KEY":    cfg.DefaultGeminiKey,
-				"PYTHON_AGENT_BASE_URL":     pythonAgentService.GetURL(),
-				"GCP_PROJECT_ID":            pulumi.String(cfg.GcpProject),
+				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
+				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"PYTHON_AGENT_BASE_URL":  pythonAgentService.GetURL(),
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -269,10 +269,10 @@ func main() {
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
 			EnvVars: pulumi.StringMap{
-				"NEXTJS_BASE_URL":           pulumi.String(cfg.NextjsBaseUrl),
-				"DEFAULT_GEMINI_API_KEY":    cfg.DefaultGeminiKey,
-				"PYTHON_AGENT_BASE_URL":     pythonAgentService.GetURL(),
-				"GCP_PROJECT_ID":            pulumi.String(cfg.GcpProject),
+				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
+				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"PYTHON_AGENT_BASE_URL":  pythonAgentService.GetURL(),
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -288,10 +288,10 @@ func main() {
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
 			EnvVars: pulumi.StringMap{
-				"NEXTJS_BASE_URL":           pulumi.String(cfg.NextjsBaseUrl),
-				"DEFAULT_GEMINI_API_KEY":    cfg.DefaultGeminiKey,
-				"PYTHON_AGENT_BASE_URL":     pythonAgentService.GetURL(),
-				"GCP_PROJECT_ID":            pulumi.String(cfg.GcpProject),
+				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
+				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"PYTHON_AGENT_BASE_URL":  pythonAgentService.GetURL(),
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -333,12 +333,12 @@ func main() {
 			pulumi.String(""), pulumi.String(""), pulumi.String(""), pulumi.String(""), pulumi.String(""),
 			pulumi.String(""), pulumi.String(""), pulumi.String(""), pulumi.String(""),
 			// Python Agent Gateway Function URLs (indexes 21-26)
-			startInterviewFn.Function.HttpsTriggerUrl,      // 21st - Start Interview
-			responseInterviewFn.Function.HttpsTriggerUrl,   // 22nd - Interview Response  
-			statusInterviewFn.Function.HttpsTriggerUrl,     // 23rd - Interview Status
-			endInterviewFn.Function.HttpsTriggerUrl,        // 24th - End Interview
-			getReportFn.Function.HttpsTriggerUrl,           // 25th - Get Report
-			agentHealthFn.Function.HttpsTriggerUrl,         // 26th - Agent Health
+			startInterviewFn.Function.HttpsTriggerUrl,    // 21st - Start Interview
+			responseInterviewFn.Function.HttpsTriggerUrl, // 22nd - Interview Response
+			statusInterviewFn.Function.HttpsTriggerUrl,   // 23rd - Interview Status
+			endInterviewFn.Function.HttpsTriggerUrl,      // 24th - End Interview
+			getReportFn.Function.HttpsTriggerUrl,         // 25th - Get Report
+			agentHealthFn.Function.HttpsTriggerUrl,       // 26th - Agent Health
 		}, []pulumi.Resource{
 			setFn.Function, removeFn.Function, proxyFn.Function, ragInfra.ContentScraperFunction.Function, ragInfra.VectorSearchFunction.Function,
 			startInterviewFn.Function, responseInterviewFn.Function, statusInterviewFn.Function, endInterviewFn.Function, getReportFn.Function, agentHealthFn.Function,
@@ -389,8 +389,8 @@ func main() {
 
 		// Export useful URLs
 		utils.ExportURL(ctx, "apigatewayHostname"+nameSuffix, gatewayInstance.DefaultHostname)
-		utils.ExportURL(ctx, "apiConfigId"+nameSuffix, apiConfig.ID().ToStringOutput())
-		utils.ExportURL(ctx, "apiGatewayId"+nameSuffix, api.ApiId.ToStringOutput())
+		utils.ExportURL(ctx, "apiConfigId"+nameSuffix, apiConfig.ID().ApplyT(func(id pulumi.ID) string { return string(id) }).(pulumi.StringOutput))
+		utils.ExportURL(ctx, "apiGatewayId"+nameSuffix, api.ApiId)
 
 		utils.ExportURL(ctx, "catalystFunctionsServiceAccountEmail"+nameSuffix, sa.Email)
 
@@ -406,7 +406,7 @@ func main() {
 			return ""
 		}).(pulumi.StringOutput))
 		utils.ExportURL(ctx, "pythonADKAgentServiceUrl"+nameSuffix, pythonAgentService.GetURL())
-		
+
 		// Export Python Agent Gateway Function URLs
 		utils.ExportURL(ctx, "startInterviewFunctionUrl"+nameSuffix, startInterviewFn.Function.HttpsTriggerUrl)
 		utils.ExportURL(ctx, "responseInterviewFunctionUrl"+nameSuffix, responseInterviewFn.Function.HttpsTriggerUrl)
@@ -414,12 +414,12 @@ func main() {
 		utils.ExportURL(ctx, "endInterviewFunctionUrl"+nameSuffix, endInterviewFn.Function.HttpsTriggerUrl)
 		utils.ExportURL(ctx, "getReportFunctionUrl"+nameSuffix, getReportFn.Function.HttpsTriggerUrl)
 		utils.ExportURL(ctx, "agentHealthFunctionUrl"+nameSuffix, agentHealthFn.Function.HttpsTriggerUrl)
-		
+
 		utils.ExportURL(ctx, "gatewayHostname"+nameSuffix, gatewayInstance.DefaultHostname)
 		utils.ExportURL(ctx, "functionSourceBucketName"+nameSuffix, sourceBucket.Name)
 		utils.ExportURL(ctx, "gatewayId"+nameSuffix, gatewayInstance.GatewayId)
 		utils.ExportURL(ctx, "deploymentBucketName"+nameSuffix, deploymentBucket.Name)
-		utils.ExportURL(ctx, "emailNotificationChannelId"+nameSuffix, notificationChannel.ID().ToStringOutput())
+		utils.ExportURL(ctx, "emailNotificationChannelId"+nameSuffix, notificationChannel.ID().ApplyT(func(id pulumi.ID) string { return string(id) }).(pulumi.StringOutput))
 		utils.ExportURL(ctx, "criticalErrorLogMetricName"+nameSuffix, logMetric.Name)
 
 		// Export RAG Infrastructure URLs and IDs

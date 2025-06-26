@@ -1,14 +1,15 @@
-# InterviewAI GCP Infrastructure
+# InterviewAI GCP Infrastructure - Single Environment Setup
 
-This Pulumi Go program replicates your GCP project configurations across multiple environments (dev, staging, production).
+This Pulumi Go program sets up GCP infrastructure for a single InterviewAI environment at a time.
 
 ## Features
 
-✅ **Project Management**: Creates and configures GCP projects  
-✅ **API Enablement**: Enables all APIs from your production setup  
+✅ **Project Configuration**: Configures a single GCP project per stack  
+✅ **API Enablement**: Enables all required APIs for the environment  
 ✅ **Service Accounts**: Creates service accounts with appropriate IAM roles  
 ✅ **Secret Management**: Stores service account keys in Secret Manager  
-✅ **Multi-Environment**: Supports dev, staging, and production environments  
+✅ **Firebase Setup**: Configures Firebase, Firestore, and Authentication  
+✅ **Single Environment Focus**: Each stack manages one environment  
 ✅ **Resource Protection**: Prevents accidental deletion of critical resources  
 
 ## Prerequisites
@@ -38,34 +39,43 @@ pulumi login
 
 ```bash
 # Create development stack
-pulumi stack init dev
+pulumi stack init wkv/catalyst-dev
 pulumi config set gcp:project wkv-interviewai-dev
 pulumi config set gcp:region us-central1
+pulumi config set environment dev
+pulumi config set projectId wkv-interviewai-dev
+pulumi config set projectName "InterviewAI Development"
 
 # Create staging stack
-pulumi stack init staging
+pulumi stack init wkv/catalyst-stage
 pulumi config set gcp:project wkv-interviewai-stage
 pulumi config set gcp:region us-central1
+pulumi config set environment stage
+pulumi config set projectId wkv-interviewai-stage
+pulumi config set projectName "InterviewAI Staging"
 
 # Create production stack (for existing project management)
-pulumi stack init prod
+pulumi stack init wkv/catalyst-prod
 pulumi config set gcp:project interviewai-mzf86
 pulumi config set gcp:region us-central1
+pulumi config set environment prod
+pulumi config set projectId interviewai-mzf86
+pulumi config set projectName "InterviewAI Production"
 ```
 
 ### 4. Deploy Infrastructure
 
 ```bash
 # Deploy to development
-pulumi stack select dev
+pulumi stack select wkv/catalyst-dev
 pulumi up
 
 # Deploy to staging
-pulumi stack select staging
+pulumi stack select wkv/catalyst-stage
 pulumi up
 
 # Deploy to production (if managing existing project)
-pulumi stack select prod
+pulumi stack select wkv/catalyst-prod
 pulumi up
 ```
 

@@ -7,3 +7,8 @@ template:
     gcp:region:
       description: The GCP region to deploy to
       default: us-central1
+    billingAccountId:
+      default: 
+    organizationID:
+      default:
+

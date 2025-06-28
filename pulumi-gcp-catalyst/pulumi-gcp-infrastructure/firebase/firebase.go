@@ -5,6 +5,7 @@ import (
 
 	firebase "github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/firebase"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/firestore"
+	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/iap"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/identityplatform"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -17,15 +18,15 @@ type FirebaseConfig struct {
 
 // FirebaseOutputs contains the Firebase configuration values to export
 type FirebaseOutputs struct {
-	APIKey               pulumi.StringOutput
-	AuthDomain           pulumi.StringOutput
-	ProjectID            pulumi.StringOutput
-	StorageBucket        pulumi.StringOutput
-	MessagingSenderID    pulumi.StringOutput
-	AppID                pulumi.StringOutput
-	MeasurementID        pulumi.StringOutput
-	WebClientID          pulumi.StringOutput
-	WebClientSecret      pulumi.StringOutput
+	APIKey            pulumi.StringOutput
+	AuthDomain        pulumi.StringOutput
+	ProjectID         pulumi.StringOutput
+	StorageBucket     pulumi.StringOutput
+	MessagingSenderID pulumi.StringOutput
+	AppID             pulumi.StringOutput
+	MeasurementID     pulumi.StringOutput
+	WebClientID       pulumi.StringOutput
+	WebClientSecret   pulumi.StringOutput
 }
 
 // SetupFirebase initializes Firebase for a project
@@ -40,13 +41,32 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 
 	// Wait for Firebase project to be fully initialized
 	ctx.Export("firebase-project-init", firebaseProject.Project)
-	
+
 	// Create a Firebase Web App
 	webApp, err := firebase.NewWebApp(ctx, fmt.Sprintf("%s-firebase-webapp", cfg.Environment), &firebase.WebAppArgs{
-		Project:     firebaseProject.Project,
-		DisplayName: pulumi.String(fmt.Sprintf("InterviewAI %s Web App", cfg.Environment)),
+		Project:        firebaseProject.Project,
+		DisplayName:    pulumi.String(fmt.Sprintf("InterviewAI %s Web App", cfg.Environment)),
 		DeletionPolicy: pulumi.String("DELETE"),
 	}, pulumi.DependsOn([]pulumi.Resource{firebaseProject}))
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the OAuth Consent Screen (Brand)
+	brand, err := iap.NewBrand(ctx, fmt.Sprintf("%s-oauth-brand", cfg.Environment), &iap.BrandArgs{
+		SupportEmail:    pulumi.String("interview@wkv.ai"),
+		ApplicationTitle: pulumi.String(fmt.Sprintf("InterviewAI %s", cfg.Environment)),
+		Project:         pulumi.String(cfg.ProjectID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the OAuth Client ID
+	client, err := iap.NewClient(ctx, fmt.Sprintf("%s-oauth-client", cfg.Environment), &iap.ClientArgs{
+		DisplayName: pulumi.String(fmt.Sprintf("InterviewAI Web Client %s", cfg.Environment)),
+		Brand:       brand.Name,
+	}, pulumi.DependsOn([]pulumi.Resource{brand}))
 	if err != nil {
 		return nil, err
 	}
@@ -62,15 +82,6 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 			Anonymous: &identityplatform.ConfigSignInAnonymousArgs{
 				Enabled: pulumi.Bool(false),
 			},
-			Google: &identityplatform.ConfigSignInGoogleArgs{
-				Enabled: pulumi.Bool(true),
-				AllowedClientIds: pulumi.StringArray{
-					// Replace with your actual OAuth client IDs
-					pulumi.String("YOUR-WEB-CLIENT-ID.apps.googleusercontent.com"),
-					pulumi.String("YOUR-IOS-CLIENT-ID.apps.googleusercontent.com"),
-					pulumi.String("YOUR-ANDROID-CLIENT-ID.apps.googleusercontent.com"),
-				},
-			},
 		},
 		AuthorizedDomains: pulumi.StringArray{
 			pulumi.String("localhost"),
@@ -78,6 +89,8 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 			pulumi.String(fmt.Sprintf("%s.web.app", cfg.ProjectID)),
 			pulumi.String("interview-ai.ngrok.app"),
 			pulumi.String("settled-merry-jaguar.ngrok-free.app"),
+			// Add your additional domains here
+			pulumi.String("your-new-domain.com"),
 		},
 	}, pulumi.Import(pulumi.ID(fmt.Sprintf("projects/%s/config", cfg.ProjectID))), pulumi.DependsOn([]pulumi.Resource{firebaseProject}))
 	if err != nil {
@@ -100,6 +113,8 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 				pulumi.String(fmt.Sprintf("%s.web.app", cfg.ProjectID)),
 				pulumi.String("interview-ai.ngrok.app"),
 				pulumi.String("settled-merry-jaguar.ngrok-free.app"),
+				// Add your additional domains here
+				pulumi.String("your-new-domain.com"),
 			},
 		}, pulumi.DependsOn([]pulumi.Resource{firebaseProject}))
 		if err != nil {
@@ -107,21 +122,20 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 		}
 	}
 
+	// Enable Google Sign-In provider
+	_, err = identityplatform.NewDefaultSupportedIdpConfig(ctx, fmt.Sprintf("%s-google-provider", cfg.Environment), &identityplatform.DefaultSupportedIdpConfigArgs{
+		Project:      pulumi.String(cfg.ProjectID),
+		IdpId:        pulumi.String("google.com"),
+		Enabled:      pulumi.Bool(true),
+		ClientId:     client.ClientId,
+		ClientSecret: client.Secret,
+	}, pulumi.DependsOn([]pulumi.Resource{authConfig}))
+	if err != nil {
+		return nil, err
+	}
+
 	// Export auth config status
 	ctx.Export("auth-config-ready", authConfig.ID())
-
-	// Enable Google Sign-In provider
-	// Note: Client secret must be configured manually in Firebase Console
-	// googleProvider, err := identityplatform.NewDefaultSupportedIdpConfig(ctx, fmt.Sprintf("%s-google-provider", cfg.Environment), &identityplatform.DefaultSupportedIdpConfigArgs{
-	// 	Project:   pulumi.String(cfg.ProjectID),
-	// 	IdpId:     pulumi.String("google.com"),
-	// 	Enabled:   pulumi.Bool(true),
-	// 	ClientId:  webApp.AppId,
-	// 	ClientSecret: pulumi.String(""), // Will be filled manually or via secret
-	// }, pulumi.DependsOn([]pulumi.Resource{authConfig}))
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	// Create or import Firestore database
 	// Try to import existing database first
@@ -148,7 +162,7 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 	// Create Storage bucket with Firestore dependency
 	storageDeps := []pulumi.Resource{firebaseProject, webApp, firestoreDB}
 	storageDeps = append(storageDeps, dependencies...)
-	
+
 	// Skip storage bucket creation for now - needs to be done manually in Firebase Console
 	ctx.Log.Info("Firebase Storage bucket creation skipped - please create manually in Firebase Console", nil)
 	storageBucketName := pulumi.Sprintf("%s.appspot.com", cfg.ProjectID)
@@ -164,7 +178,7 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 		MessagingSenderID: pulumi.String("").ToStringOutput(), // This needs to be set from Firebase console
 		AppID:             webApp.AppId,
 		MeasurementID:     pulumi.String("").ToStringOutput(), // This needs to be set from Firebase console
-		WebClientID:       webApp.AppId, // Using App ID as placeholder
-		WebClientSecret:   pulumi.String("").ToStringOutput(), // Will be configured manually
+		WebClientID:       client.ClientId,
+		WebClientSecret:   client.Secret,
 	}, nil
 }

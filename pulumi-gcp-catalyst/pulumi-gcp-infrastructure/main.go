@@ -48,8 +48,9 @@ func main() {
 
 		// Configure GCP provider with explicit project and quota project
 		_, err = gcp.NewProvider(ctx, "gcp-provider", &gcp.ProviderArgs{
-			Project: pulumi.String(cfg.ProjectID),
+			Project:             pulumi.String(cfg.ProjectID),
 			UserProjectOverride: pulumi.Bool(true),
+			BillingProject:      pulumi.String("01F9C0-CF9DFB-DB01DF"),
 		})
 		if err != nil {
 			return err

@@ -9,14 +9,15 @@ import (
 )
 
 type Gen2FunctionArgs struct {
-	Name        string
-	EntryPoint  string
-	SourcePath  string
-	Bucket      *storage.Bucket
-	Region      string
-	Project     string
-	Description string
-	EnvVars     pulumi.StringMap
+	Name           string
+	EntryPoint     string
+	SourcePath     string
+	Bucket         *storage.Bucket
+	Region         string
+	Project        string
+	Description    string
+	EnvVars        pulumi.StringMap
+	ServiceAccount pulumi.StringOutput
 }
 
 type Gen2Function struct {
@@ -57,11 +58,14 @@ func NewGen2Function(ctx *pulumi.Context, name string, args *Gen2FunctionArgs, o
 			EnvironmentVariables: args.EnvVars,
 		},
 		ServiceConfig: &cloudfunctionsv2.FunctionServiceConfigArgs{
-			MaxInstanceCount: pulumi.Int(2),
-			MinInstanceCount: pulumi.Int(0),
-			AvailableMemory:  pulumi.String("256MiB"),
-			TimeoutSeconds:   pulumi.Int(60),
-			IngressSettings:  pulumi.String("ALLOW_ALL"),
+			MaxInstanceCount:           pulumi.Int(100),
+			MinInstanceCount:           pulumi.Int(0),
+			AvailableMemory:            pulumi.String("256Mi"),
+			TimeoutSeconds:             pulumi.Int(60),
+			IngressSettings:            pulumi.String("ALLOW_ALL"),
+			AllTrafficOnLatestRevision: pulumi.Bool(true),
+			EnvironmentVariables:       args.EnvVars,
+			ServiceAccountEmail:        args.ServiceAccount,
 		},
 		Description: pulumi.String(args.Description),
 	}, pulumi.Parent(component))

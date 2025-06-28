@@ -13,12 +13,9 @@ import (
 )
 
 type InfrastructureConfig struct {
-	Environment      string
-	ProjectID        string
-	ProjectName      string
-	BillingAccountID string
-	OrganizationID   string
-	CreateProject    bool
+	Environment string
+	ProjectID   string
+	ProjectName string
 }
 
 func loadConfig(ctx *pulumi.Context) (*InfrastructureConfig, error) {
@@ -28,9 +25,6 @@ func loadConfig(ctx *pulumi.Context) (*InfrastructureConfig, error) {
 	environment := cfg.Require("environment")
 	projectID := cfg.Require("projectId")
 	projectName := cfg.Get("projectName")
-	organizationID := cfg.Get("organizationId")
-	billingAccountID := cfg.Get("billingAccountId")
-	createProject := cfg.GetBool("createProject")
 
 	// Set default project name if not provided
 	if projectName == "" {
@@ -38,12 +32,9 @@ func loadConfig(ctx *pulumi.Context) (*InfrastructureConfig, error) {
 	}
 
 	return &InfrastructureConfig{
-		Environment:      environment,
-		ProjectID:        projectID,
-		ProjectName:      projectName,
-		OrganizationID:   organizationID,
-		BillingAccountID: billingAccountID,
-		CreateProject:    createProject,
+		Environment: environment,
+		ProjectID:   projectID,
+		ProjectName: projectName,
 	}, nil
 }
 
@@ -64,18 +55,9 @@ func main() {
 			return err
 		}
 
-		// Manage the project (create or import)
-		gcpProject, err := project.ManageProject(ctx, project.ProjectConfig{
-			ProjectID:        cfg.ProjectID,
-			ProjectName:      cfg.ProjectName,
-			OrganizationID:   cfg.OrganizationID,
-			BillingAccountID: cfg.BillingAccountID,
-			CreateProject:    cfg.CreateProject,
-			Environment:      cfg.Environment,
-		})
-		if err != nil {
-			return err
-		}
+		// Skip project management for existing projects to avoid billing conflicts
+		ctx.Log.Info(fmt.Sprintf("Using existing project: %s", cfg.ProjectID), nil)
+		// Note: Billing should be managed directly in GCP Console or via Firebase to avoid conflicts
 
 		// Enable required APIs
 		err = project.EnableAPIs(ctx, cfg.ProjectID, project.GetCoreAPIs())
@@ -118,7 +100,7 @@ func main() {
 		firebaseOutputs, err := firebase.SetupFirebase(ctx, firebase.FirebaseConfig{
 			ProjectID:   cfg.ProjectID,
 			Environment: cfg.Environment,
-		}, []pulumi.Resource{gcpProject})
+		}, []pulumi.Resource{})
 		if err != nil {
 			return err
 		}

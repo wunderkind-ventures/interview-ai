@@ -1,0 +1,448 @@
+Previewing update (wkv/interviewai-dev)
+
+View Live: https://app.pulumi.com/wkv/catalyst-gcp-infra/interviewai-dev/previews/2874d94a-43f2-476f-8800-213fb176632f
+
+
+@ Previewing update....
+ ~  catalyst:function:Gen1Function ProxyToGenkitGCF-dev refreshing 
+ ~  pulumi:pulumi:Stack catalyst-gcp-infra-interviewai-dev refreshing 
+ ~  catalyst:function:Gen1Function SetAPIKeyGCF-dev refreshing 
+ ~  catalyst:function:Gen1Function GetAPIKeyStatusGCF-dev refreshing 
+ ~  catalyst:function:Gen1Function InterviewStatusGCF-dev refreshing 
+ ~  gcp:storage:BucketObject RemoveAPIKeyGCF-dev-source.zip refreshing 
+ ~  catalyst:function:Gen1Function RemoveAPIKeyGCF-dev refreshing 
+ ~  catalyst:function:Gen1Function RemoveAPIKeyGCF-dev refresh 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.admin refreshing 
+ ~  catalyst:function:Gen2Function VectorSearch-dev refreshing 
+ ~  gcp:storage:BucketObject EndInterviewGCF-dev-source.zip refreshing 
+ ~  catalyst:function:Gen2Function ParseResume-dev refreshing 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretAccessor refreshing 
+ ~  gcp:storage:BucketObject SetAPIKeyGCF-dev-source.zip refreshing 
+ ~  catalyst:function:Gen2Function VectorSearch-dev refresh 
+ ~  catalyst:function:Gen1Function StartInterviewGCF-dev refreshing 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretVersionManager refreshing 
+ ~  catalyst:function:Gen1Function StartInterviewGCF-dev refresh 
+ ~  catalyst:function:Gen2Function ParseResume-dev refresh 
+ ~  catalyst:function:Gen2Function ContentIndexer-dev refreshing 
+ ~  gcp:compute:Instance tunnel-us-central1-a-server refreshing 
+ ~  catalyst:function:Gen2Function ContentIndexer-dev refresh 
+ ~  catalyst:function:Gen1Function GetReportGCF-dev refreshing 
+ ~  catalyst:function:Gen1Function GetReportGCF-dev refresh 
+ ~  catalyst:function:Gen1Function InterviewResponseGCF-dev refreshing 
+ ~  catalyst:function:Gen1Function InterviewResponseGCF-dev refresh 
+ ~  catalyst:function:Gen1Function AgentHealthGCF-dev refreshing 
+ ~  catalyst:function:Gen1Function AgentHealthGCF-dev refresh 
+ ~  gcp:serviceaccount:Account catalyst-functions-sa-dev refreshing 
+ ~  gcp:storage:BucketObject AgentHealthGCF-dev-source.zip refreshing 
+ ~  gcp:storage:BucketObject GetAPIKeyStatusGCF-dev-source.zip refreshing 
+ ~  gcp:storage:BucketObject InterviewResponseGCF-dev-source.zip refreshing 
+ ~  gcp:storage:BucketObject StartInterviewGCF-dev-source.zip refreshing 
+ ~  gcp:storage:BucketObject InterviewStatusGCF-dev-source.zip refreshing 
+ ~  gcp:storage:BucketObject GetReportGCF-dev-source.zip refreshing 
+ ~  gcp:storage:Bucket functions-deployment-bucket-dev refreshing 
+ ~  gcp:pubsub:TopicIAMBinding indexing-topic-publisher-dev refreshing 
+ ~  gcp:secretmanager:Secret youtube-api-key-dev refreshing 
+ ~  gcp:secretmanager:Secret embedding-api-key-dev refreshing 
+ ~  gcp:pubsub:Topic content-indexing-topic-dev refreshing 
+ ~  gcp:apigateway:Api catalyst-interviewai-api-dev refreshing 
+ ~  gcp:storage:Bucket function-source-bucket refreshing 
+ ~  catalyst:function:Gen2Function ContentScraper-dev refreshing 
+ ~  catalyst:function:Gen2Function ContentScraper-dev refresh 
+ ~  gcp:logging:Metric cloud-function-critical-errors-dev refreshing 
+ ~  catalyst:hybrid:Service PythonADKAgents-dev refreshing 
+ ~  catalyst:hybrid:Service PythonADKAgents-dev refresh 
+ ~  catalyst:function:Gen1Function EndInterviewGCF-dev refreshing 
+ ~  gcp:monitoring:NotificationChannel emailNotificationChannel-dev refreshing 
+ ~  catalyst:function:Gen1Function EndInterviewGCF-dev refresh 
+ ~  gcp:secretmanager:SecretIamMember youtube-secret-access-dev refreshing 
+ ~  catalyst:function:Gen1Function ProxyToGenkitGCF-dev refresh 
+ ~  gcp:secretmanager:SecretIamMember embedding-secret-access-dev refreshing 
+ ~  pulumi:pulumi:Stack catalyst-gcp-infra-interviewai-dev refreshing 
+ ~  catalyst:function:Gen1Function GetAPIKeyStatusGCF-dev refresh 
+ ~  gcp:storage:BucketObject ProxyToGenkitGCF-dev-source.zip refreshing 
+ ~  catalyst:function:Gen1Function SetAPIKeyGCF-dev refresh 
+ ~  catalyst:function:Gen1Function InterviewStatusGCF-dev refresh 
+ ~  gcp:compute:Firewall tunnel-us-central1-a-firewall refreshing 
+ ~  gcp:storage:BucketObject VectorSearch-dev-source.zip refreshing 
+ ~  gcp:storage:BucketObject ContentIndexer-dev-source.zip refreshing 
+ ~  gcp:storage:BucketObject ParseResume-dev-source.zip refreshing 
+ ~  gcp:storage:BucketObject ContentScraper-dev-source.zip refreshing 
+ ~  gcp:monitoring:AlertPolicy criticalErrorAlertPolicy-dev refreshing 
+ ~  gcp:storage:Bucket function-source-bucket refresh 
+ ~  gcp:storage:BucketObject PythonADKAgents-dev-source.zip refreshing 
+ ~  gcp:storage:BucketObject ParseResume-dev-source.zip refresh 
+ ~  gcp:cloudfunctions:Function SetAPIKeyGCF-dev refreshing 
+ ~  gcp:storage:BucketObject ContentScraper-dev-source.zip refresh 
+ ~  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev refreshing 
+ ~  gcp:storage:BucketObject VectorSearch-dev-source.zip refresh 
+ ~  gcp:storage:BucketObject ContentIndexer-dev-source.zip refresh 
+ ~  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev refreshing 
+ ~  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev refreshing 
+ ~  gcp:pubsub:Topic content-indexing-topic-dev refresh 
+ ~  gcp:storage:BucketObject RemoveAPIKeyGCF-dev-source.zip refresh 
+ ~  gcp:storage:Bucket functions-deployment-bucket-dev refresh 
+ ~  gcp:storage:BucketObject InterviewResponseGCF-dev-source.zip refresh 
+ ~  gcp:storage:BucketObject EndInterviewGCF-dev-source.zip refresh 
+ ~  gcp:storage:BucketObject GetReportGCF-dev-source.zip refresh 
+ ~  gcp:storage:BucketObject InterviewStatusGCF-dev-source.zip refresh 
+ ~  gcp:serviceaccount:Account catalyst-functions-sa-dev refresh 
+ ~  gcp:storage:BucketObject ProxyToGenkitGCF-dev-source.zip refresh 
+ ~  gcp:storage:BucketObject AgentHealthGCF-dev-source.zip refresh 
+ ~  gcp:storage:BucketObject SetAPIKeyGCF-dev-source.zip refresh 
+ ~  gcp:storage:BucketObject GetAPIKeyStatusGCF-dev-source.zip refresh 
+ ~  gcp:logging:Metric cloud-function-critical-errors-dev refresh 
+ ~  gcp:secretmanager:Secret embedding-api-key-dev refresh 
+ ~  gcp:secretmanager:Secret youtube-api-key-dev refresh 
+@ Previewing update....
+ ~  gcp:pubsub:TopicIAMBinding indexing-topic-publisher-dev refresh 
+ ~  gcp:secretmanager:SecretIamMember embedding-secret-access-dev refresh 
+ ~  gcp:storage:BucketObject PythonADKAgents-dev-source.zip refresh 
+ ~  gcp:secretmanager:SecretIamMember youtube-secret-access-dev refresh 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.admin refresh 
+ ~  gcp:apigateway:Api catalyst-interviewai-api-dev refresh 
+ ~  gcp:monitoring:NotificationChannel emailNotificationChannel-dev refresh 
+ ~  gcp:storage:BucketObject StartInterviewGCF-dev-source.zip refresh 
+ ~  gcp:compute:Firewall tunnel-us-central1-a-firewall refresh 
+ ~  gcp:monitoring:AlertPolicy criticalErrorAlertPolicy-dev refresh 
+ ~  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev refresh 
+ ~  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev refresh 
+ ~  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev refresh 
+ ~  gcp:cloudfunctions:Function SetAPIKeyGCF-dev refresh 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretVersionManager refresh 
+ ~  gcp:compute:Instance tunnel-us-central1-a-server refresh 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretAccessor refresh 
+@ Previewing update............
+    pulumi:pulumi:Stack catalyst-gcp-infra-interviewai-dev running 
+    catalyst:function:Gen1Function AgentHealthGCF-dev  
+    catalyst:function:Gen1Function RemoveAPIKeyGCF-dev  
+    catalyst:function:Gen2Function ContentScraper-dev  
+    catalyst:function:Gen1Function GetReportGCF-dev  
+    catalyst:function:Gen1Function StartInterviewGCF-dev  
+    catalyst:hybrid:Service PythonADKAgents-dev  
+    catalyst:function:Gen1Function InterviewResponseGCF-dev  
+    catalyst:function:Gen2Function VectorSearch-dev  
+    catalyst:function:Gen2Function ContentIndexer-dev  
+    catalyst:function:Gen1Function InterviewStatusGCF-dev  
+    catalyst:function:Gen1Function EndInterviewGCF-dev  
+    catalyst:function:Gen1Function ProxyToGenkitGCF-dev  
+    catalyst:function:Gen1Function SetAPIKeyGCF-dev  
+@ Previewing update....
+    catalyst:function:Gen2Function ParseResume-dev  
+    catalyst:function:Gen1Function GetAPIKeyStatusGCF-dev  
+    gcp:apigateway:Api catalyst-interviewai-api-dev  
+    gcp:logging:Metric cloud-function-critical-errors-dev  
+    gcp:storage:Bucket functions-deployment-bucket-dev  
+    gcp:pubsub:Topic content-indexing-topic-dev  
+    gcp:storage:Bucket function-source-bucket  
+    gcp:secretmanager:Secret youtube-api-key-dev  
+    gcp:compute:Instance tunnel-us-central1-a-server  
+    gcp:secretmanager:Secret embedding-api-key-dev  
+    gcp:monitoring:NotificationChannel emailNotificationChannel-dev  
+    gcp:compute:Firewall tunnel-us-central1-a-firewall  
+    gcp:serviceaccount:Account catalyst-functions-sa-dev  
+    gcp:storage:BucketObject ProxyToGenkitGCF-dev-source.zip  
+    gcp:storage:BucketObject GetAPIKeyStatusGCF-dev-source.zip  
+    gcp:storage:BucketObject SetAPIKeyGCF-dev-source.zip  
+    gcp:storage:BucketObject RemoveAPIKeyGCF-dev-source.zip  
+    gcp:storage:BucketObject InterviewResponseGCF-dev-source.zip  
+    gcp:storage:BucketObject AgentHealthGCF-dev-source.zip  
+    gcp:storage:BucketObject GetReportGCF-dev-source.zip  
+    gcp:storage:BucketObject InterviewStatusGCF-dev-source.zip  
+    gcp:storage:BucketObject EndInterviewGCF-dev-source.zip  
+    gcp:storage:BucketObject StartInterviewGCF-dev-source.zip  
+    gcp:storage:BucketObject ParseResume-dev-source.zip  
+    gcp:storage:BucketObject ContentIndexer-dev-source.zip  
+    gcp:storage:BucketObject VectorSearch-dev-source.zip  
+    gcp:storage:BucketObject ContentScraper-dev-source.zip  
+ +  command:remote:Command configure-nginx-tunnel create 
+    gcp:monitoring:AlertPolicy criticalErrorAlertPolicy-dev  
+    gcp:pubsub:TopicIAMBinding indexing-topic-publisher-dev  
+    gcp:secretmanager:SecretIamMember youtube-secret-access-dev  
+    gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretAccessor  
+    gcp:secretmanager:SecretIamMember embedding-secret-access-dev  
+    gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretVersionManager  
+    gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.admin  
+ +  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev create 
+ +  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev create 
+ +  gcp:cloudfunctions:Function SetAPIKeyGCF-dev create 
+ +  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev create 
+ +  gcp:cloudfunctionsv2:Function ParseResume-dev create 
+ +  gcp:cloudfunctionsv2:Function VectorSearch-dev create 
+ +  gcp:cloudfunctionsv2:Function ContentScraper-dev create 
+ +  command:remote:Command configure-certbot-ssl create 
+ +  gcp:cloudfunctions:FunctionIamMember ProxyToGenkitGCF-dev-invoker create 
+ +  gcp:cloudfunctions:FunctionIamMember GetAPIKeyStatusGCF-dev-invoker create 
+ +  gcp:cloudfunctions:FunctionIamMember SetAPIKeyGCF-dev-invoker create 
+ +  gcp:cloudfunctions:FunctionIamMember RemoveAPIKeyGCF-dev-invoker create 
+ +  gcp:cloudfunctionsv2:FunctionIamMember ParseResume-dev-invoker create 
+ +  gcp:cloudfunctionsv2:FunctionIamMember VectorSearch-dev-invoker create 
+ +  gcp:cloudfunctionsv2:Function ContentIndexer-dev create 
+ +  gcp:cloudfunctionsv2:FunctionIamMember ContentScraper-dev-invoker create 
+ +  gcp:cloudfunctionsv2:FunctionIamMember ContentIndexer-dev-invoker create 
+ +  gcp:pubsub:Subscription content-indexing-subscription-dev create 
+@ Previewing update......
+    gcp:storage:BucketObject PythonADKAgents-dev-source.zip  
+ +  gcp:cloudfunctionsv2:Function PythonADKAgents-dev create 
+ +  gcp:cloudfunctionsv2:FunctionIamMember PythonADKAgents-dev-invoker create 
+ +  gcp:cloudfunctions:Function AgentHealthGCF-dev create 
+ +  gcp:cloudfunctions:Function StartInterviewGCF-dev create 
+ +  gcp:cloudfunctions:Function InterviewResponseGCF-dev create 
+ +  gcp:cloudfunctions:Function InterviewStatusGCF-dev create 
+ +  gcp:cloudfunctions:Function EndInterviewGCF-dev create 
+ +  gcp:cloudfunctions:Function GetReportGCF-dev create 
+ +  gcp:cloudfunctions:FunctionIamMember AgentHealthGCF-dev-invoker create 
+ +  gcp:cloudfunctions:FunctionIamMember StartInterviewGCF-dev-invoker create 
+ +  gcp:cloudfunctions:FunctionIamMember InterviewResponseGCF-dev-invoker create 
+ +  gcp:cloudfunctions:FunctionIamMember InterviewStatusGCF-dev-invoker create 
+ +  gcp:cloudfunctions:FunctionIamMember EndInterviewGCF-dev-invoker create 
+ +  gcp:cloudfunctions:FunctionIamMember GetReportGCF-dev-invoker create 
+ +  gcp:apigateway:ApiConfig catalyst-api-config-dev create 
+ +  gcp:apigateway:Gateway catalyst-gateway-dev create 
+ -  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev delete 
+ -  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev delete 
+ -  gcp:cloudfunctions:Function SetAPIKeyGCF-dev delete 
+ -  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev delete 
+    pulumi:pulumi:Stack catalyst-gcp-infra-interviewai-dev  
+Outputs:
+  + agentHealthFunctionUrl-dev              : [unknown]
+  + apiConfigId-dev                         : [unknown]
+  + apiGatewayId-dev                        : "catalyst-interviewai-api-dev"
+  + apigatewayHostname-dev                  : [unknown]
+  + catalystFunctionsServiceAccountEmail-dev: "catalyst-functions-sa-dev@wkv-interviewai-dev.iam.gserviceaccount.com"
+  + contentIndexerFunctionUrl-dev           : [unknown]
+  + contentScraperFunctionUrl-dev           : [unknown]
+  + criticalErrorLogMetricName-dev          : "cloud-function-critical-errors-dev"
+  + deploymentBucketName-dev                : "functions-deployment-bucket-dev"
+  + emailNotificationChannelId-dev          : "projects/wkv-interviewai-dev/notificationChannels/14175092664383164901"
+  + embeddingAPISecretName-dev              : "embedding-api-key-dev"
+  + endInterviewFunctionUrl-dev             : [unknown]
+  + functionSourceBucketName-dev            : "catalyst-gcp-infra-function-sources"
+  + gatewayHostname-dev                     : [unknown]
+  + gatewayId-dev                           : "catalyst-gateway-dev"
+  + getApiKeyStatusFunctionUrl-dev          : [unknown]
+  + getReportFunctionUrl-dev                : [unknown]
+  + indexingSubscriptionName-dev            : "content-indexing-subscription-dev"
+  + indexingTopicName-dev                   : "content-indexing-dev"
+  + parseResumeFunctionUrl-dev              : [unknown]
+  + proxyToGenkitFunctionUrl-dev            : [unknown]
+  + pythonADKAgentServiceUrl-dev            : [unknown]
+  + removeApiKeyFunctionUrl-dev             : [unknown]
+  + responseInterviewFunctionUrl-dev        : [unknown]
+  + setApiKeyFunctionUrl-dev                : [unknown]
+  + startInterviewFunctionUrl-dev           : [unknown]
+  + statusInterviewFunctionUrl-dev          : [unknown]
+  + tunnelUrl                               : "https://settled-merry-jaguar.ngrok-free.app"
+  + tunnelVpsIp                             : "35.226.108.215"
+  + vectorSearchFunctionUrl-dev             : [unknown]
+  + vertexAISetupInstructions               : (yaml) {
+      + 1. Create a Vector Search Index                         : "gcloud ai indexes create \\ --display-name=\"interview-content-index-dev\" \\ --description=\"Vector index for interview content RAG\" \\ --metadata-schema-uri=\"gs://vertex-ai-restricted/metadata/indexed_content_schema.json\" \\ --region=us-central1"
+      + 2. Create an Index Endpoint                             : "gcloud ai index-endpoints create \\ --display-name=\"interview-content-endpoint-dev\" \\ --description=\"Endpoint for interview content vector search\" \\ --region=us-central1"
+      + 3. Deploy the index to the endpoint                     : "gcloud ai index-endpoints deploy-index INDEX_ENDPOINT_ID \\ --deployed-index-id=\"interview-content-deployed\" \\ --display-name=\"Interview Content Index\" \\ --index=INDEX_ID \\ --region=us-central1"
+      + 4. Update the VectorSearch function environment variable: "VERTEX_AI_INDEX_ENDPOINT_ID=<your-endpoint-id>"
+      + To complete the Vertex AI Vector Search setup           : <null>
+    }
+
+  + youtubeAPISecretName-dev                : "youtube-api-key-dev"
+
+Resources:
+    + 35 to create
+    - 4 to delete
+    39 changes. 49 unchanged
+
+Updating (wkv/interviewai-dev)
+
+View Live: https://app.pulumi.com/wkv/catalyst-gcp-infra/interviewai-dev/updates/20
+
+
+ ~  catalyst:function:Gen1Function RemoveAPIKeyGCF-dev refreshing (0s) 
+ ~  pulumi:pulumi:Stack catalyst-gcp-infra-interviewai-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function RemoveAPIKeyGCF-dev refresh (0.00s) 
+ ~  catalyst:function:Gen1Function SetAPIKeyGCF-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function SetAPIKeyGCF-dev refresh (0.00s) 
+ ~  pulumi:pulumi:Stack catalyst-gcp-infra-interviewai-dev refreshing (0s) 
+ ~  catalyst:function:Gen2Function ParseResume-dev refreshing (0s) 
+ ~  catalyst:function:Gen2Function ParseResume-dev refresh (0.00s) 
+ ~  catalyst:function:Gen1Function GetAPIKeyStatusGCF-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function GetAPIKeyStatusGCF-dev refresh (0.00s) 
+ ~  catalyst:function:Gen1Function EndInterviewGCF-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function StartInterviewGCF-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function EndInterviewGCF-dev refresh (0.00s) 
+ ~  catalyst:function:Gen2Function ContentIndexer-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function InterviewStatusGCF-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function ProxyToGenkitGCF-dev refreshing (0s) 
+ ~  catalyst:function:Gen2Function ContentIndexer-dev refresh (0.00s) 
+ ~  catalyst:function:Gen2Function VectorSearch-dev refreshing (0s) 
+ ~  catalyst:function:Gen2Function VectorSearch-dev refresh (0.00s) 
+ ~  gcp:pubsub:Topic content-indexing-topic-dev refreshing (0s) 
+ ~  catalyst:function:Gen2Function ContentScraper-dev refreshing (0s) 
+ ~  catalyst:hybrid:Service PythonADKAgents-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function StartInterviewGCF-dev refresh (0.00s) 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.admin refreshing (0s) 
+ ~  gcp:secretmanager:Secret youtube-api-key-dev refreshing (0s) 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretVersionManager refreshing (0s) 
+ ~  gcp:storage:Bucket functions-deployment-bucket-dev refreshing (0s) 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretAccessor refreshing (0s) 
+ ~  gcp:storage:BucketObject StartInterviewGCF-dev-source.zip refreshing (0s) 
+ ~  gcp:secretmanager:Secret embedding-api-key-dev refreshing (0s) 
+ ~  gcp:serviceaccount:Account catalyst-functions-sa-dev refreshing (0s) 
+ ~  gcp:compute:Instance tunnel-us-central1-a-server refreshing (0s) 
+ ~  catalyst:hybrid:Service PythonADKAgents-dev refresh (0.00s) 
+ ~  gcp:apigateway:Api catalyst-interviewai-api-dev refreshing (0s) 
+ ~  gcp:pubsub:TopicIAMBinding indexing-topic-publisher-dev refreshing (0s) 
+ ~  gcp:storage:BucketObject InterviewStatusGCF-dev-source.zip refreshing (0s) 
+ ~  catalyst:function:Gen2Function ContentScraper-dev refresh (0.00s) 
+ ~  catalyst:function:Gen1Function GetReportGCF-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function AgentHealthGCF-dev refreshing (0s) 
+ ~  catalyst:function:Gen1Function InterviewStatusGCF-dev refresh (0.00s) 
+ ~  catalyst:function:Gen1Function InterviewResponseGCF-dev refreshing (0s) 
+ ~  gcp:compute:Firewall tunnel-us-central1-a-firewall refreshing (0s) 
+ ~  catalyst:function:Gen1Function ProxyToGenkitGCF-dev refresh (0.00s) 
+ ~  gcp:storage:BucketObject EndInterviewGCF-dev-source.zip refreshing (0s) 
+ ~  gcp:storage:BucketObject RemoveAPIKeyGCF-dev-source.zip refreshing (0s) 
+ ~  gcp:storage:BucketObject SetAPIKeyGCF-dev-source.zip refreshing (0s) 
+ ~  gcp:monitoring:NotificationChannel emailNotificationChannel-dev refreshing (0s) 
+ ~  gcp:storage:BucketObject GetReportGCF-dev-source.zip refreshing (0s) 
+ ~  gcp:storage:Bucket function-source-bucket refreshing (0s) 
+ ~  catalyst:function:Gen1Function InterviewResponseGCF-dev refresh (0.00s) 
+ ~  gcp:storage:BucketObject InterviewResponseGCF-dev-source.zip refreshing (0s) 
+ ~  gcp:logging:Metric cloud-function-critical-errors-dev refreshing (0s) 
+ ~  gcp:storage:BucketObject GetAPIKeyStatusGCF-dev-source.zip refreshing (0s) 
+ ~  catalyst:function:Gen1Function GetReportGCF-dev refresh (0.00s) 
+ ~  catalyst:function:Gen1Function AgentHealthGCF-dev refresh (0.00s) 
+ ~  gcp:secretmanager:SecretIamMember embedding-secret-access-dev refreshing (0s) 
+ ~  gcp:storage:BucketObject AgentHealthGCF-dev-source.zip refreshing (0s) 
+ ~  gcp:secretmanager:SecretIamMember youtube-secret-access-dev refreshing (0s) 
+ ~  gcp:storage:BucketObject ParseResume-dev-source.zip refreshing (0s) 
+ ~  gcp:storage:BucketObject ProxyToGenkitGCF-dev-source.zip refreshing (0s) 
+ ~  gcp:storage:BucketObject ContentScraper-dev-source.zip refreshing (0s) 
+ ~  gcp:storage:BucketObject VectorSearch-dev-source.zip refreshing (0s) 
+ ~  gcp:monitoring:AlertPolicy criticalErrorAlertPolicy-dev refreshing (0s) 
+ ~  gcp:storage:BucketObject ContentIndexer-dev-source.zip refreshing (0s) 
+@ Updating....
+ ~  gcp:storage:BucketObject ContentScraper-dev-source.zip refresh (0.39s) 
+ ~  gcp:storage:BucketObject ContentIndexer-dev-source.zip refresh (0.39s) 
+ ~  gcp:storage:BucketObject PythonADKAgents-dev-source.zip refreshing (0s) 
+ ~  gcp:cloudfunctions:Function SetAPIKeyGCF-dev refreshing (0s) 
+ ~  gcp:storage:Bucket function-source-bucket refresh (0.39s) 
+ ~  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev refreshing (0s) 
+ ~  gcp:storage:BucketObject VectorSearch-dev-source.zip refresh (0.39s) 
+ ~  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev refreshing (0s) 
+ ~  gcp:pubsub:Topic content-indexing-topic-dev refresh (0.41s) 
+ ~  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev refreshing (0s) 
+ ~  gcp:secretmanager:Secret youtube-api-key-dev refresh (0.41s) 
+ ~  gcp:logging:Metric cloud-function-critical-errors-dev refresh (0.42s) 
+ ~  gcp:secretmanager:Secret embedding-api-key-dev refresh (0.42s) 
+ ~  gcp:storage:BucketObject SetAPIKeyGCF-dev-source.zip refresh (0.42s) 
+ ~  gcp:storage:BucketObject InterviewStatusGCF-dev-source.zip refresh (0.43s) 
+ ~  gcp:storage:BucketObject GetReportGCF-dev-source.zip refresh (0.43s) 
+ ~  gcp:storage:BucketObject EndInterviewGCF-dev-source.zip refresh (0.43s) 
+ ~  gcp:storage:BucketObject GetAPIKeyStatusGCF-dev-source.zip refresh (0.43s) 
+ ~  gcp:storage:BucketObject RemoveAPIKeyGCF-dev-source.zip refresh (0.43s) 
+ ~  gcp:storage:BucketObject ProxyToGenkitGCF-dev-source.zip refresh (0.43s) 
+ ~  gcp:storage:BucketObject AgentHealthGCF-dev-source.zip refresh (0.43s) 
+ ~  gcp:storage:BucketObject StartInterviewGCF-dev-source.zip refresh (0.43s) 
+ ~  gcp:storage:BucketObject InterviewResponseGCF-dev-source.zip refresh (0.43s) 
+ ~  gcp:storage:Bucket functions-deployment-bucket-dev refresh (0.43s) 
+ ~  gcp:serviceaccount:Account catalyst-functions-sa-dev refresh (0.43s) 
+ ~  gcp:storage:BucketObject ParseResume-dev-source.zip refresh (0.45s) 
+ ~  gcp:secretmanager:SecretIamMember embedding-secret-access-dev refresh (0.66s) 
+ ~  gcp:storage:BucketObject PythonADKAgents-dev-source.zip refresh (0.28s) 
+ ~  gcp:secretmanager:SecretIamMember youtube-secret-access-dev refresh (0.67s) 
+ ~  gcp:pubsub:TopicIAMBinding indexing-topic-publisher-dev refresh (0.67s) 
+ ~  gcp:monitoring:NotificationChannel emailNotificationChannel-dev refresh (0.67s) 
+ ~  gcp:apigateway:Api catalyst-interviewai-api-dev refresh (0.67s) 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.admin refresh (0.67s) 
+ ~  gcp:compute:Firewall tunnel-us-central1-a-firewall refresh (0.67s) 
+ ~  gcp:monitoring:AlertPolicy criticalErrorAlertPolicy-dev refresh (0.67s) 
+ ~  gcp:cloudfunctions:Function SetAPIKeyGCF-dev refresh (0.28s) 
+ ~  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev refresh (0.34s) 
+ ~  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev refresh (0.32s) 
+ ~  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev refresh (0.37s) 
+ ~  gcp:compute:Instance tunnel-us-central1-a-server refresh (0.87s) 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretVersionManager refresh (0.89s) 
+ ~  gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretAccessor refresh (1s) 
+@ Updating........
+    pulumi:pulumi:Stack catalyst-gcp-infra-interviewai-dev running 
+    catalyst:function:Gen1Function SetAPIKeyGCF-dev  
+    catalyst:function:Gen1Function ProxyToGenkitGCF-dev  
+    catalyst:function:Gen2Function ParseResume-dev  
+    catalyst:function:Gen1Function GetAPIKeyStatusGCF-dev  
+    catalyst:function:Gen2Function VectorSearch-dev  
+    catalyst:function:Gen1Function RemoveAPIKeyGCF-dev  
+    catalyst:hybrid:Service PythonADKAgents-dev  
+    catalyst:function:Gen1Function InterviewResponseGCF-dev  
+    catalyst:function:Gen2Function ContentScraper-dev  
+    catalyst:function:Gen1Function StartInterviewGCF-dev  
+    catalyst:function:Gen1Function EndInterviewGCF-dev  
+    catalyst:function:Gen1Function AgentHealthGCF-dev  
+    catalyst:function:Gen1Function InterviewStatusGCF-dev  
+    catalyst:function:Gen2Function ContentIndexer-dev  
+    catalyst:function:Gen1Function GetReportGCF-dev  
+    gcp:serviceaccount:Account catalyst-functions-sa-dev  
+@ Updating....
+    gcp:storage:Bucket function-source-bucket  
+    gcp:storage:Bucket functions-deployment-bucket-dev  
+    gcp:pubsub:Topic content-indexing-topic-dev  
+    gcp:apigateway:Api catalyst-interviewai-api-dev  
+    gcp:secretmanager:Secret youtube-api-key-dev  
+    gcp:secretmanager:Secret embedding-api-key-dev  
+    gcp:monitoring:NotificationChannel emailNotificationChannel-dev  
+    gcp:logging:Metric cloud-function-critical-errors-dev  
+    gcp:compute:Firewall tunnel-us-central1-a-firewall  
+    gcp:compute:Instance tunnel-us-central1-a-server  
+    gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretAccessor  
+    gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.admin  
+    gcp:projects:IAMMember catalyst-functions-sa-dev-roles/secretmanager.secretVersionManager  
+    gcp:storage:BucketObject ParseResume-dev-source.zip  
+    gcp:storage:BucketObject ContentIndexer-dev-source.zip  
+    gcp:storage:BucketObject VectorSearch-dev-source.zip  
+    gcp:storage:BucketObject ContentScraper-dev-source.zip  
+    gcp:storage:BucketObject RemoveAPIKeyGCF-dev-source.zip  
+    gcp:storage:BucketObject ProxyToGenkitGCF-dev-source.zip  
+    gcp:storage:BucketObject StartInterviewGCF-dev-source.zip  
+    gcp:storage:BucketObject GetReportGCF-dev-source.zip  
+    gcp:storage:BucketObject InterviewResponseGCF-dev-source.zip  
+    gcp:pubsub:TopicIAMBinding indexing-topic-publisher-dev  
+    gcp:storage:BucketObject AgentHealthGCF-dev-source.zip  
+    gcp:storage:BucketObject EndInterviewGCF-dev-source.zip  
+    gcp:storage:BucketObject GetAPIKeyStatusGCF-dev-source.zip  
+    gcp:storage:BucketObject InterviewStatusGCF-dev-source.zip  
+    gcp:storage:BucketObject SetAPIKeyGCF-dev-source.zip  
+    gcp:secretmanager:SecretIamMember youtube-secret-access-dev  
+    gcp:secretmanager:SecretIamMember embedding-secret-access-dev  
+    gcp:monitoring:AlertPolicy criticalErrorAlertPolicy-dev  
+@ Updating....
+ +  command:remote:Command configure-nginx-tunnel creating (0s) 
+ +  gcp:cloudfunctionsv2:Function ParseResume-dev creating (0s) 
+ +  gcp:cloudfunctionsv2:Function VectorSearch-dev creating (0s) 
+ +  gcp:cloudfunctionsv2:Function ContentScraper-dev creating (0s) 
+ +  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev creating (0s) 
+ +  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev creating (0s) 
+ +  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev creating (0s) 
+ +  gcp:cloudfunctions:Function SetAPIKeyGCF-dev creating (0s) 
+ +  command:remote:Command configure-nginx-tunnel creating (0s) error: ssh: no key found
+ +  command:remote:Command configure-nginx-tunnel **creating failed** error: ssh: no key found
+@ Updating....
+    gcp:storage:BucketObject PythonADKAgents-dev-source.zip  
+ +  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev creating (1s) error:   sdk-v2/provider2.go:385: sdk.helper_schema: googleapi: Error 409: Failed to create 1st Gen function projects/wkv-interviewai-dev/locations/us-central1/functions/ProxyToGenkitGCF-dev: Function ProxyToGenkitGCF-dev in region us-central1 in project wkv-interviewai-dev already exists, alreadyExists: provider=google-beta@7.38.0
+ +  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev creating (1s) error: 1 error occurred:
+ +  gcp:cloudfunctions:Function ProxyToGenkitGCF-dev **creating failed** error: 1 error occurred:
+ +  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev creating (1s) error:   sdk-v2/provider2.go:385: sdk.helper_schema: googleapi: Error 409: Failed to create 1st Gen function projects/wkv-interviewai-dev/locations/us-central1/functions/RemoveAPIKeyGCF-dev: Function RemoveAPIKeyGCF-dev in region us-central1 in project wkv-interviewai-dev already exists, alreadyExists: provider=google-beta@7.38.0
+ +  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev creating (1s) error: 1 error occurred:
+ +  gcp:cloudfunctions:Function RemoveAPIKeyGCF-dev **creating failed** error: 1 error occurred:
+ +  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev creating (1s) error:   sdk-v2/provider2.go:385: sdk.helper_schema: googleapi: Error 409: Failed to create 1st Gen function projects/wkv-interviewai-dev/locations/us-central1/functions/GetAPIKeyStatusGCF-dev: Function GetAPIKeyStatusGCF-dev in region us-central1 in project wkv-interviewai-dev already exists, alreadyExists: provider=google-beta@7.38.0
+ +  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev creating (1s) error: 1 error occurred:
+ +  gcp:cloudfunctions:Function GetAPIKeyStatusGCF-dev **creating failed** error: 1 error occurred:
+@ Updating....
+ +  gcp:cloudfunctions:Function SetAPIKeyGCF-dev creating (1s) error:   sdk-v2/provider2.go:385: sdk.helper_schema: googleapi: Error 409: Failed to create 1st Gen function projects/wkv-interviewai-dev/locations/us-central1/functions/SetAPIKeyGCF-dev: Function SetAPIKeyGCF-dev in region us-central1 in project wkv-interviewai-dev already exists, alreadyExists: provider=google-beta@7.38.0
+ +  gcp:cloudfunctions:Function SetAPIKeyGCF-dev creating (1s) error: 1 error occurred:
+ +  gcp:cloudfunctions:Function SetAPIKeyGCF-dev **creating failed** error: 1 error occurred:
+@ Updating...........................................................................
+ +  gcp:cloudfunctionsv2:Function ContentScraper-dev creating (73s) error:   sdk-v2/provider2.go:385: sdk.helper_schema: Error waiting to create function: Error waiting for Creating function: Error code 3, message: Build failed with status: FAILURE and message: functions.local/app/main.go:18:2: import "interviewai.wkv.local/contentscraper" is a program, not an importable package. For more details see the logs at https://console.cloud.google.com/cloud-build/builds;region=us-central1/e4f72113-0a8c-4e32-8687-907c7e48318e?project=833907523825.: provider=google-beta@7.38.0
+ +  gcp:cloudfunctionsv2:Function ContentScraper-dev creating (73s) error: 1 error occurred:
+ +  gcp:cloudfunctionsv2:Function ContentScraper-dev **creating failed** error: 1 error occurred:
+@ Updating.............
+ +  gcp:cloudfunctionsv2:Function VectorSearch-dev creating (83s) error:   sdk-v2/provider2.go:385: sdk.helper_schema: Error waiting to create function: Error waiting for Creating function: Error code 3, message: Build failed with status: FAILURE and message: functions.local/app/main.go:18:2: import "interviewai.wkv.local/vectorsearch" is a program, not an importable package. For more details see the logs at https://console.cloud.google.com/cloud-build/builds;region=us-central1/25d4d9dd-bbd6-47cc-816a-a4169b86ff4f?project=833907523825.: provider=google-beta@7.38.0
+ +  gcp:cloudfunctionsv2:Function VectorSearch-dev creating (83s) error: 1 error occurred:
+ +  gcp:cloudfunctionsv2:Function VectorSearch-dev **creating failed** error: 1 error occurred:
+@ Updating..............

@@ -62,6 +62,15 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 			Anonymous: &identityplatform.ConfigSignInAnonymousArgs{
 				Enabled: pulumi.Bool(false),
 			},
+			Google: &identityplatform.ConfigSignInGoogleArgs{
+				Enabled: pulumi.Bool(true),
+				AllowedClientIds: pulumi.StringArray{
+					// Replace with your actual OAuth client IDs
+					pulumi.String("YOUR-WEB-CLIENT-ID.apps.googleusercontent.com"),
+					pulumi.String("YOUR-IOS-CLIENT-ID.apps.googleusercontent.com"),
+					pulumi.String("YOUR-ANDROID-CLIENT-ID.apps.googleusercontent.com"),
+				},
+			},
 		},
 		AuthorizedDomains: pulumi.StringArray{
 			pulumi.String("localhost"),

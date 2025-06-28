@@ -2,25 +2,56 @@
 
 This Pulumi Go program sets up GCP infrastructure for a single InterviewAI environment at a time.
 
+## ⚠️ Important: Current State
+
+As of the latest update, this infrastructure stack:
+- **DOES NOT** manage GCP projects (to avoid billing conflicts)
+- **DOES NOT** manage billing associations (to prevent automatic downgrades)
+- **ONLY** manages resources within existing projects
+- **REQUIRES** manual project and billing setup
+
 ## Features
 
-✅ **Project Management**: Can create new GCP projects or manage existing ones  
-✅ **Billing Integration**: Automatically associates billing accounts with projects  
-✅ **Project Configuration**: Configures a single GCP project per stack  
 ✅ **API Enablement**: Enables all required APIs for the environment  
 ✅ **Service Accounts**: Creates service accounts with appropriate IAM roles  
 ✅ **Secret Management**: Stores service account keys in Secret Manager  
 ✅ **Firebase Setup**: Configures Firebase, Firestore, and Authentication  
 ✅ **Single Environment Focus**: Each stack manages one environment  
 ✅ **Resource Protection**: Prevents accidental deletion of critical resources  
+❌ **Project Management**: Removed to avoid conflicts  
+❌ **Billing Management**: Removed to prevent automatic downgrades  
 
 ## Prerequisites
 
 - [Pulumi CLI](https://www.pulumi.com/docs/get-started/install/) installed
 - [Go](https://golang.org/doc/install) 1.21+ installed
 - [gcloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated
-- GCP projects created (if not using project creation feature)
-- Billing account linked to projects
+- **GCP projects must be created manually**
+- **Billing must be enabled manually through GCP Console or Firebase Console**
+
+## Manual Setup Required for New Projects
+
+Before running this infrastructure stack, you must:
+
+### 1. Create the GCP Project
+```bash
+gcloud projects create PROJECT_ID --name="PROJECT_NAME" --organization=ORGANIZATION_ID
+```
+
+### 2. Enable Billing
+- Go to [GCP Console](https://console.cloud.google.com/billing)
+- Link your billing account to the project
+- **OR** use Firebase Console to upgrade to Blaze plan
+
+### 3. Enable Firebase
+- Go to [Firebase Console](https://console.firebase.google.com)
+- Add your project to Firebase
+- Initialize Firebase Storage manually (if needed)
+
+### 4. Set Default App Engine Region (Optional)
+```bash
+gcloud app create --project=PROJECT_ID --region=us-central
+```
 
 ## Quick Start
 
@@ -47,9 +78,6 @@ pulumi config set gcp:region us-central1
 pulumi config set environment dev
 pulumi config set projectId wkv-interviewai-dev
 pulumi config set projectName "InterviewAI Development"
-pulumi config set billingAccountId YOUR_BILLING_ACCOUNT_ID  # Optional: for billing association
-pulumi config set organizationId YOUR_ORGANIZATION_ID      # Optional: required if createProject is true
-pulumi config set createProject false                      # Set to true to create new project
 
 # Create staging stack
 pulumi stack init wkv/catalyst-stage
@@ -58,9 +86,6 @@ pulumi config set gcp:region us-central1
 pulumi config set environment stage
 pulumi config set projectId wkv-interviewai-stage
 pulumi config set projectName "InterviewAI Staging"
-pulumi config set billingAccountId YOUR_BILLING_ACCOUNT_ID
-pulumi config set organizationId YOUR_ORGANIZATION_ID
-pulumi config set createProject false
 
 # Create production stack (for existing project management)
 pulumi stack init wkv/catalyst-prod
@@ -69,9 +94,6 @@ pulumi config set gcp:region us-central1
 pulumi config set environment prod
 pulumi config set projectId interviewai-mzf86
 pulumi config set projectName "InterviewAI Production"
-pulumi config set billingAccountId YOUR_BILLING_ACCOUNT_ID
-pulumi config set organizationId YOUR_ORGANIZATION_ID
-pulumi config set createProject false
 ```
 
 ### 4. Deploy Infrastructure
@@ -94,11 +116,7 @@ pulumi up
 
 ### For Each Environment:
 
-1. **GCP Project** (if it doesn't exist)
-   - Proper naming and billing account linkage
-   - Protection against accidental deletion
-
-2. **Enabled APIs** (40+ APIs matching production):
+1. **Enabled APIs** (40+ APIs matching production)
    - AI Platform, Generative Language API
    - Cloud Functions, Cloud Run, Cloud Build
    - Firebase services (Auth, Firestore, Hosting, etc.)
@@ -110,14 +128,14 @@ pulumi up
    - Comprehensive IAM roles
    - JSON key generation
 
-4. **IAM Roles Assigned**:
+3. **IAM Roles Assigned**:
    - `roles/cloudfunctions.admin`
    - `roles/firebase.admin`
    - `roles/resourcemanager.projectIamAdmin`
    - `roles/secretmanager.admin`
    - `roles/aiplatform.user`
 
-5. **Secret Manager**:
+4. **Secret Manager**:
    - Service account keys stored securely
    - Environment-specific secret naming
 
@@ -128,29 +146,8 @@ pulumi up
 Each stack requires these configuration values:
 
 - `environment`: The environment name (dev, stage, prod)
-- `projectId`: The GCP project ID
+- `projectId`: The GCP project ID (must exist)
 - `projectName`: Human-readable project name (optional, defaults to "InterviewAI {environment}")
-
-### Optional Configuration Values
-
-- `billingAccountId`: The billing account ID to associate with the project
-- `organizationId`: The organization ID (required if `createProject` is true)
-- `createProject`: Whether to create a new project or use an existing one (default: false)
-
-### Project Creation vs Import
-
-The infrastructure stack can work in two modes:
-
-1. **Import Existing Project** (default): 
-   - Set `createProject: false`
-   - The stack will reference an existing GCP project
-   - Useful for pre-existing projects or when you don't have org-level permissions
-
-2. **Create New Project**:
-   - Set `createProject: true`
-   - Requires `organizationId` to be set
-   - Will create a new GCP project under your organization
-   - Automatically associates billing if `billingAccountId` is provided
 
 ## Usage Examples
 
@@ -187,9 +184,14 @@ pulumi destroy
 
 Each stack exports these values:
 
-- `{env}_project_id`: The GCP project ID
-- `{env}_service_account_email`: Service account email address
-- `{env}_service_account_name`: Full service account resource name
+- `project_id`: The GCP project ID
+- `environment`: The environment name
+- `service_account_email`: Service account email address
+- `service_account_name`: Full service account resource name
+- `service_account_key`: Service account JSON key (only for dev/stage)
+- `firebase_*`: Various Firebase configuration values
+- `auth-config-ready`: Identity Platform configuration status
+- `firebase-project-init`: Firebase project initialization status
 
 ## Security Considerations
 
@@ -224,23 +226,30 @@ serviceAccountRoles := []string{
 
 ### Adding Environments
 
-Add to the `projects` slice:
-
-```go
-projects := []ProjectConfig{
-    // existing projects...
-    {ID: "your-project-id", Name: "Your Project Name", Environment: "your-env"},
-}
-```
+1. Create the GCP project manually (see Manual Setup section)
+2. Create a new Pulumi stack:
+   ```bash
+   pulumi stack init wkv/catalyst-YOUR_ENV
+   pulumi config set gcp:project YOUR-PROJECT-ID
+   pulumi config set gcp:region YOUR-REGION
+   pulumi config set environment YOUR_ENV
+   pulumi config set projectId YOUR-PROJECT-ID
+   pulumi config set projectName "Your Project Name"
+   ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Billing Account Error**: Ensure billing is enabled for target projects
-2. **API Quota**: Some APIs may have quota limits during bulk enablement
-3. **Permissions**: Ensure your gcloud account has Project Creator and Billing roles
-4. **Existing Resources**: The program handles existing projects gracefully
+1. **Billing Disabled Error**: 
+   - Manually enable billing in GCP Console
+   - Do NOT use Pulumi to manage billing (causes conflicts)
+2. **Firebase Storage 404 Error**: 
+   - Initialize Firebase Storage manually in Firebase Console
+   - Click "Get Started" on Storage page
+3. **API Quota**: Some APIs may have quota limits during bulk enablement
+4. **Permissions**: Ensure your gcloud account has necessary roles
+5. **Duplicate Resources**: Run `pulumi refresh` if state gets out of sync
 
 ### Debug Commands
 
@@ -262,6 +271,24 @@ pulumi up --logtostderr -v=3
 ✅ **Review changes** with `pulumi preview` before deploying  
 ✅ **Backup state** regularly (Pulumi handles this automatically with cloud backends)  
 ✅ **Monitor costs** across all environments  
+✅ **Manage billing manually** to avoid automatic downgrades  
+✅ **Create projects manually** before running infrastructure  
+✅ **Initialize Firebase features** through Firebase Console when needed
+
+## Known Issues and Limitations
+
+1. **Firebase Storage**: Must be initialized manually in Firebase Console
+2. **Billing Management**: Removed from Pulumi to prevent conflicts with Firebase
+3. **Project Management**: Removed to avoid state conflicts
+4. **App Engine**: Not created (conflicts with existing Firestore)
+
+## Migration Notes
+
+If upgrading from a previous version that managed projects/billing:
+1. Ensure billing is enabled manually
+2. Remove project resources from state: `pulumi state delete <project-resource-urn> --force`
+3. Remove billing resources from state
+4. Update your Pulumi configuration files to remove billing/org settings  
 
 ## Support
 

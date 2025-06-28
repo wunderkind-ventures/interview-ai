@@ -7,13 +7,14 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"catalyst-backend/config"
+	"catalyst-backend/envconfig"
 	"catalyst-backend/functions"
 	"catalyst-backend/functions/component"
 	"catalyst-backend/gateway"
 	"catalyst-backend/iam"
 	"catalyst-backend/monitoring"
 	"catalyst-backend/storage"
-	tunnel "catalyst-backend/tunnel"
+	// tunnel "catalyst-backend/tunnel" // Uncomment when re-enabling tunnel deployment
 	"catalyst-backend/utils"
 )
 
@@ -51,6 +52,7 @@ func main() {
 			EnvVars: pulumi.StringMap{
 				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -68,6 +70,7 @@ func main() {
 			EnvVars: pulumi.StringMap{
 				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -85,6 +88,7 @@ func main() {
 			EnvVars: pulumi.StringMap{
 				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -102,6 +106,7 @@ func main() {
 			EnvVars: pulumi.StringMap{
 				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -110,16 +115,18 @@ func main() {
 
 		// Deploy ParseResume Gen2 Function via ComponentResource
 		parseResumeFn, err := component.NewGen2Function(ctx, "ParseResume"+nameSuffix, &component.Gen2FunctionArgs{
-			Name:        "ParseResume" + nameSuffix,
-			EntryPoint:  "ParseResume",
-			SourcePath:  "../../backends/catalyst-interviewai/functions/docsupport/parseresume",
-			Bucket:      sourceBucket,
-			Region:      cfg.GcpRegion,
-			Project:     cfg.GcpProject,
-			Description: "Parses uploaded resume/document files (docx, md) and returns text.",
+			Name:           "ParseResume" + nameSuffix,
+			EntryPoint:     "ParseResume",
+			SourcePath:     "../../backends/catalyst-interviewai/functions/docsupport/parseresume",
+			Bucket:         sourceBucket,
+			Region:         cfg.GcpRegion,
+			Project:        cfg.GcpProject,
+			Description:    "Parses uploaded resume/document files (docx, md) and returns text.",
+			ServiceAccount: sa.Email,
 			EnvVars: pulumi.StringMap{
 				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
+				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 			},
 		})
 		if err != nil {
@@ -145,16 +152,16 @@ func main() {
 		}
 
 		// Deploy Python ADK Agent Service using Hybrid Component
-		// For now, deploy as a Cloud Function for cost optimization
-		// Can switch to Cloud Run by changing DeploymentType to component.DeploymentTypeCloudRun
+		// Using Cloud Run as FastAPI apps work better as containerized services
+		// Cloud Functions Gen2 expects functions-framework compatible apps
 		pythonAgentService, err := component.NewHybridService(ctx, "PythonADKAgents"+nameSuffix, &component.HybridServiceArgs{
-			Name:           "PythonADKAgents" + nameSuffix,
-			DeploymentType: component.DeploymentTypeFunction, // Use Function for cost savings
+			Name:           "python-adk-agents" + nameSuffix,
+			DeploymentType: component.DeploymentTypeCloudRun, // Use Cloud Run for FastAPI compatibility
 			Project:        cfg.GcpProject,
 			Region:         cfg.GcpRegion,
 			ServiceAccount: sa.Email,
 			EnvVars: pulumi.StringMap{
-				"ENVIRONMENT":            pulumi.String(cfg.Environment),
+				"ENVIRONMENT":            pulumi.String("development"),
 				"GCP_PROJECT_ID":         pulumi.String(cfg.GcpProject),
 				"ENABLE_TELEMETRY":       pulumi.String("true"),
 				"LOG_LEVEL":              pulumi.String("info"),
@@ -165,10 +172,10 @@ func main() {
 
 			// Function-specific configuration
 			SourcePath:      "../../backends/catalyst-py",
-			EntryPoint:      "start_server",
+			EntryPoint:      "function_main.start_server",
 			Runtime:         "python311",
 			Bucket:          sourceBucket,
-			FunctionMemory:  "1024MiB",
+			FunctionMemory:  "1024Mi",
 			FunctionTimeout: 540, // 9 minutes
 
 			// Cloud Run configuration (for future use)
@@ -305,42 +312,93 @@ func main() {
 		}
 
 		apiConfig, err := gateway.CreateApiConfig(ctx, "catalyst-api-config"+nameSuffix, api.ApiId, cfg.OpenapiSpecPath, []pulumi.StringInput{
-			setFn.Function.HttpsTriggerUrl,
-			removeFn.Function.HttpsTriggerUrl,
-			proxyFn.Function.HttpsTriggerUrl,
+			setFn.Function.HttpsTriggerUrl,                      // 1st - SetAPIKeyGCF OPTIONS
+			setFn.Function.HttpsTriggerUrl,                      // 2nd - SetAPIKeyGCF POST
+			removeFn.Function.HttpsTriggerUrl,                   // 3rd - RemoveAPIKeyGCF OPTIONS
+			removeFn.Function.HttpsTriggerUrl,                   // 4th - RemoveAPIKeyGCF POST
+			getApiKeyStatusFn.Function.HttpsTriggerUrl,          // 5th - GetAPIKeyStatusGCF GET
+			getApiKeyStatusFn.Function.HttpsTriggerUrl,          // 6th - GetAPIKeyStatusGCF OPTIONS
+			proxyFn.Function.HttpsTriggerUrl,                    // 7th - ProxyToGenkitGCF POST
+			proxyFn.Function.HttpsTriggerUrl,                    // 8th - ProxyToGenkitGCF OPTIONS
 			parseResumeFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
 				if sc != nil && sc.Uri != nil {
 					return *sc.Uri
 				}
 				return ""
-			}).(pulumi.StringOutput),
-			// RAG Function URLs
+			}).(pulumi.StringOutput), // 9th - ParseResume POST
+			parseResumeFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput), // 10th - ParseResume OPTIONS
+			// ContentScraper URLs (11-14)
 			ragInfra.ContentScraperFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
 				if sc != nil && sc.Uri != nil {
 					return *sc.Uri
 				}
 				return ""
-			}).(pulumi.StringOutput),
+			}).(pulumi.StringOutput), // 11th
+			ragInfra.ContentScraperFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput), // 12th
+			ragInfra.ContentIndexerFunction.URL, // 13th - ContentIndexer POST
+			ragInfra.ContentIndexerFunction.URL, // 14th - ContentIndexer OPTIONS
+			// VectorSearch URLs (15-20)
 			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
 				if sc != nil && sc.Uri != nil {
 					return *sc.Uri
 				}
 				return ""
-			}).(pulumi.StringOutput),
-			// Additional RAG and support functions would go here...
-			// Placeholder for additional function URLs (indexes 7-20)
-			pulumi.String(""), pulumi.String(""), pulumi.String(""), pulumi.String(""), pulumi.String(""),
-			pulumi.String(""), pulumi.String(""), pulumi.String(""), pulumi.String(""), pulumi.String(""),
-			pulumi.String(""), pulumi.String(""), pulumi.String(""), pulumi.String(""),
-			// Python Agent Gateway Function URLs (indexes 21-26)
-			startInterviewFn.Function.HttpsTriggerUrl,    // 21st - Start Interview
-			responseInterviewFn.Function.HttpsTriggerUrl, // 22nd - Interview Response
-			statusInterviewFn.Function.HttpsTriggerUrl,   // 23rd - Interview Status
-			endInterviewFn.Function.HttpsTriggerUrl,      // 24th - End Interview
-			getReportFn.Function.HttpsTriggerUrl,         // 25th - Get Report
-			agentHealthFn.Function.HttpsTriggerUrl,       // 26th - Agent Health
+			}).(pulumi.StringOutput), // 15th
+			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput), // 16th
+			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput), // 17th
+			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput), // 18th
+			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput), // 19th
+			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+				if sc != nil && sc.Uri != nil {
+					return *sc.Uri
+				}
+				return ""
+			}).(pulumi.StringOutput), // 20th
+			// Python Agent Gateway Function URLs (21-32)
+			startInterviewFn.Function.HttpsTriggerUrl,    // 21st - Start Interview POST
+			startInterviewFn.Function.HttpsTriggerUrl,    // 22nd - Start Interview OPTIONS
+			responseInterviewFn.Function.HttpsTriggerUrl, // 23rd - Interview Response POST
+			responseInterviewFn.Function.HttpsTriggerUrl, // 24th - Interview Response OPTIONS
+			statusInterviewFn.Function.HttpsTriggerUrl,   // 25th - Interview Status GET
+			statusInterviewFn.Function.HttpsTriggerUrl,   // 26th - Interview Status OPTIONS
+			endInterviewFn.Function.HttpsTriggerUrl,      // 27th - End Interview POST
+			endInterviewFn.Function.HttpsTriggerUrl,      // 28th - End Interview OPTIONS
+			getReportFn.Function.HttpsTriggerUrl,         // 29th - Get Report GET
+			getReportFn.Function.HttpsTriggerUrl,         // 30th - Get Report OPTIONS
+			agentHealthFn.Function.HttpsTriggerUrl,       // 31st - Agent Health GET
+			agentHealthFn.Function.HttpsTriggerUrl,       // 32nd - Agent Health OPTIONS
 		}, []pulumi.Resource{
-			setFn.Function, removeFn.Function, proxyFn.Function, ragInfra.ContentScraperFunction.Function, ragInfra.VectorSearchFunction.Function,
+			setFn.Function, removeFn.Function, getApiKeyStatusFn.Function, proxyFn.Function, ragInfra.ContentScraperFunction.Function, ragInfra.VectorSearchFunction.Function,
 			startInterviewFn.Function, responseInterviewFn.Function, statusInterviewFn.Function, endInterviewFn.Function, getReportFn.Function, agentHealthFn.Function,
 		}, cfg.GcpProject)
 		if err != nil {
@@ -366,85 +424,116 @@ func main() {
 			return err
 		}
 
+		// TUNNEL DEPLOYMENT DISABLED: SSH key configuration needs to be fixed
+		// The current configuration has a public SSH key instead of a private key
+		// To re-enable:
+		// 1. Set a valid SSH private key using: pulumi config set --secret catalyst-gcp-infra:sshPrivateKey "-----BEGIN RSA PRIVATE KEY-----..."
+		// 2. Uncomment the code below
+		/*
 		if cfg.Environment == "dev" {
 			tunnelDomain := cfg.TunnelDomain
 			sshPrivateKey := cfg.SshPrivateKey
 
-			ip, url, err := tunnel.DeployTunnelStack(ctx, tunnel.TunnelConfig{
-				Zone:      "us-central1-a",
-				Username:  "tunneladmin",
-				SSHKey:    sshPrivateKey,
-				Machine:   "e2-micro",
-				Image:     "ubuntu-os-cloud/ubuntu-2204-lts",
-				PortRange: "9000-9100",
-				Domain:    tunnelDomain,
-			})
-			if err != nil {
-				return err
-			}
+			// Only deploy tunnel if SSH key is provided
+			if sshPrivateKey != nil {
+				ip, url, err := tunnel.DeployTunnelStack(ctx, tunnel.TunnelConfig{
+					Zone:      "us-central1-a",
+					Username:  "tunneladmin",
+					SSHKey:    sshPrivateKey,
+					Machine:   "e2-micro",
+					Image:     "ubuntu-os-cloud/ubuntu-2204-lts",
+					PortRange: "9000-9100",
+					Domain:    tunnelDomain,
+				})
+				if err != nil {
+					return err
+				}
 
-			ctx.Export("tunnelVpsIp", ip)
-			ctx.Export("tunnelUrl", url)
+				ctx.Export("tunnelVpsIp", ip)
+				ctx.Export("tunnelUrl", url)
+			}
 		}
+		*/
 
 		// Export useful URLs
-		utils.ExportURL(ctx, "apigatewayHostname"+nameSuffix, gatewayInstance.DefaultHostname)
-		utils.ExportURL(ctx, "apiConfigId"+nameSuffix, apiConfig.ID().ApplyT(func(id pulumi.ID) string { return string(id) }).(pulumi.StringOutput))
-		utils.ExportURL(ctx, "apiGatewayId"+nameSuffix, api.ApiId)
+		utils.ExportURL(ctx, "apigatewayHostname", gatewayInstance.DefaultHostname)
+		utils.ExportURL(ctx, "apiConfigId", apiConfig.ID().ApplyT(func(id pulumi.ID) string { return string(id) }).(pulumi.StringOutput))
+		utils.ExportURL(ctx, "apiGatewayId", api.ApiId)
 
-		utils.ExportURL(ctx, "catalystFunctionsServiceAccountEmail"+nameSuffix, sa.Email)
+		utils.ExportURL(ctx, "catalystFunctionsServiceAccountEmail", sa.Email)
 
-		utils.ExportURL(ctx, "setApiKeyFunctionUrl"+nameSuffix, setFn.Function.HttpsTriggerUrl)
-		utils.ExportURL(ctx, "removeApiKeyFunctionUrl"+nameSuffix, removeFn.Function.HttpsTriggerUrl)
-		utils.ExportURL(ctx, "getApiKeyStatusFunctionUrl"+nameSuffix, getApiKeyStatusFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "setApiKeyFunctionUrl", setFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "removeApiKeyFunctionUrl", removeFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "getApiKeyStatusFunctionUrl", getApiKeyStatusFn.Function.HttpsTriggerUrl)
 
-		utils.ExportURL(ctx, "proxyToGenkitFunctionUrl"+nameSuffix, proxyFn.Function.HttpsTriggerUrl)
-		utils.ExportURL(ctx, "parseResumeFunctionUrl"+nameSuffix, parseResumeFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+		utils.ExportURL(ctx, "proxyToGenkitFunctionUrl", proxyFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "parseResumeFunctionUrl", parseResumeFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
 			if sc != nil && sc.Uri != nil {
 				return *sc.Uri
 			}
 			return ""
 		}).(pulumi.StringOutput))
-		utils.ExportURL(ctx, "pythonADKAgentServiceUrl"+nameSuffix, pythonAgentService.GetURL())
+		utils.ExportURL(ctx, "pythonADKAgentServiceUrl", pythonAgentService.GetURL())
 
 		// Export Python Agent Gateway Function URLs
-		utils.ExportURL(ctx, "startInterviewFunctionUrl"+nameSuffix, startInterviewFn.Function.HttpsTriggerUrl)
-		utils.ExportURL(ctx, "responseInterviewFunctionUrl"+nameSuffix, responseInterviewFn.Function.HttpsTriggerUrl)
-		utils.ExportURL(ctx, "statusInterviewFunctionUrl"+nameSuffix, statusInterviewFn.Function.HttpsTriggerUrl)
-		utils.ExportURL(ctx, "endInterviewFunctionUrl"+nameSuffix, endInterviewFn.Function.HttpsTriggerUrl)
-		utils.ExportURL(ctx, "getReportFunctionUrl"+nameSuffix, getReportFn.Function.HttpsTriggerUrl)
-		utils.ExportURL(ctx, "agentHealthFunctionUrl"+nameSuffix, agentHealthFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "startInterviewFunctionUrl", startInterviewFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "responseInterviewFunctionUrl", responseInterviewFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "statusInterviewFunctionUrl", statusInterviewFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "endInterviewFunctionUrl", endInterviewFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "getReportFunctionUrl", getReportFn.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "agentHealthFunctionUrl", agentHealthFn.Function.HttpsTriggerUrl)
 
-		utils.ExportURL(ctx, "gatewayHostname"+nameSuffix, gatewayInstance.DefaultHostname)
-		utils.ExportURL(ctx, "functionSourceBucketName"+nameSuffix, sourceBucket.Name)
-		utils.ExportURL(ctx, "gatewayId"+nameSuffix, gatewayInstance.GatewayId)
-		utils.ExportURL(ctx, "deploymentBucketName"+nameSuffix, deploymentBucket.Name)
-		utils.ExportURL(ctx, "emailNotificationChannelId"+nameSuffix, notificationChannel.ID().ApplyT(func(id pulumi.ID) string { return string(id) }).(pulumi.StringOutput))
-		utils.ExportURL(ctx, "criticalErrorLogMetricName"+nameSuffix, logMetric.Name)
+		utils.ExportURL(ctx, "gatewayHostname", gatewayInstance.DefaultHostname)
+		utils.ExportURL(ctx, "functionSourceBucketName", sourceBucket.Name)
+		utils.ExportURL(ctx, "gatewayId", gatewayInstance.GatewayId)
+		utils.ExportURL(ctx, "deploymentBucketName", deploymentBucket.Name)
+		utils.ExportURL(ctx, "emailNotificationChannelId", notificationChannel.ID().ApplyT(func(id pulumi.ID) string { return string(id) }).(pulumi.StringOutput))
+		utils.ExportURL(ctx, "criticalErrorLogMetricName", logMetric.Name)
 
 		// Export RAG Infrastructure URLs and IDs
-		utils.ExportURL(ctx, "contentScraperFunctionUrl"+nameSuffix, ragInfra.ContentScraperFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+		utils.ExportURL(ctx, "contentScraperFunctionUrl", ragInfra.ContentScraperFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
 			if sc != nil && sc.Uri != nil {
 				return *sc.Uri
 			}
 			return ""
 		}).(pulumi.StringOutput))
-		utils.ExportURL(ctx, "vectorSearchFunctionUrl"+nameSuffix, ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
+		utils.ExportURL(ctx, "vectorSearchFunctionUrl", ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
 			if sc != nil && sc.Uri != nil {
 				return *sc.Uri
 			}
 			return ""
 		}).(pulumi.StringOutput))
-		utils.ExportURL(ctx, "contentIndexerFunctionUrl"+nameSuffix, ragInfra.ContentIndexerFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-			if sc != nil && sc.Uri != nil {
-				return *sc.Uri
-			}
-			return ""
-		}).(pulumi.StringOutput))
-		utils.ExportURL(ctx, "indexingTopicName"+nameSuffix, ragInfra.IndexingTopic.Name)
-		utils.ExportURL(ctx, "indexingSubscriptionName"+nameSuffix, ragInfra.IndexingSubscription.Name)
-		utils.ExportURL(ctx, "youtubeAPISecretName"+nameSuffix, ragInfra.YouTubeAPISecret.SecretId)
-		utils.ExportURL(ctx, "embeddingAPISecretName"+nameSuffix, ragInfra.EmbeddingAPISecret.SecretId)
+		utils.ExportURL(ctx, "contentIndexerFunctionUrl", ragInfra.ContentIndexerFunction.URL)
+		utils.ExportURL(ctx, "indexingTopicName", ragInfra.IndexingTopic.Name)
+		utils.ExportURL(ctx, "indexingSubscriptionName", ragInfra.IndexingSubscription.Name)
+		utils.ExportURL(ctx, "youtubeAPISecretName", ragInfra.YouTubeAPISecret.SecretId)
+		utils.ExportURL(ctx, "embeddingAPISecretName", ragInfra.EmbeddingAPISecret.SecretId)
+
+		// Import Firebase configuration from infrastructure stack
+		firebaseConfig, err := envconfig.ImportFirebaseConfig(ctx)
+		if err != nil {
+			return err
+		}
+
+		// Generate environment file content
+		envFileContent := envconfig.GenerateEnvFile(envconfig.EnvConfig{
+			Environment:      cfg.Environment,
+			BackendURL:       gatewayInstance.DefaultHostname,
+			Firebase:         *firebaseConfig,
+			DefaultGeminiKey: cfg.DefaultGeminiKey,
+			YouTubeAPIKey:    ragInfra.YouTubeAPISecret.SecretId, // This should be the actual key value
+		})
+
+		// Export the environment file content
+		ctx.Export("envFileContent", envFileContent)
+
+		// Also export individual Firebase config values for convenience
+		ctx.Export("firebaseApiKey", firebaseConfig.APIKey)
+		ctx.Export("firebaseAuthDomain", firebaseConfig.AuthDomain)
+		ctx.Export("firebaseProjectId", firebaseConfig.ProjectID)
+		ctx.Export("firebaseStorageBucket", firebaseConfig.StorageBucket)
+		ctx.Export("firebaseMessagingSenderId", firebaseConfig.MessagingSenderID)
+		ctx.Export("firebaseAppId", firebaseConfig.AppID)
 
 		return nil
 	})

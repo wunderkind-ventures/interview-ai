@@ -44,7 +44,7 @@ type HybridServiceArgs struct {
 	MaxInstances   int    // Default: 100
 
 	// Function configuration
-	FunctionMemory  string // e.g., "256MiB"
+	FunctionMemory  string // e.g., "256Mi"
 	FunctionTimeout int    // seconds, default: 60
 }
 
@@ -99,7 +99,7 @@ func deployAsFunction(ctx *pulumi.Context, component *HybridService, name string
 
 	// Set defaults
 	if args.FunctionMemory == "" {
-		args.FunctionMemory = "256MiB"
+		args.FunctionMemory = "256Mi"
 	}
 	if args.FunctionTimeout == 0 {
 		args.FunctionTimeout = 60
@@ -192,7 +192,7 @@ func deployAsCloudRun(ctx *pulumi.Context, component *HybridService, name string
 
 	// Create Cloud Run service
 	service, err := cloudrun.NewService(ctx, name, &cloudrun.ServiceArgs{
-		Name:     pulumi.String(name),
+		Name:     pulumi.String(args.Name),
 		Project:  pulumi.String(args.Project),
 		Location: pulumi.String(args.Region),
 

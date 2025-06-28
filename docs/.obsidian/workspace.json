@@ -20,8 +20,23 @@
               "icon": "lucide-file",
               "title": "key_features"
             }
+          },
+          {
+            "id": "a71f8b653bdf74d0",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Untitled.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Untitled"
+            }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -168,19 +183,43 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "c384b9c5e087c04d",
+  "active": "a71f8b653bdf74d0",
   "lastOpenFiles": [
-    "prompt-engineering/P5-1.md",
-    "prompt-engineering/P5-3.md",
-    "prompt-engineering/P5-2.md",
-    "prompt-engineering/P5.md",
-    "prompt-engineering/P4.md",
-    "prompt-engineering/P3.md",
-    "prompt-engineering/P2.md",
-    "prompt-engineering/P1.md",
-    "prompt-engineering",
-    "v09-launch-features.md",
-    "research/Obsidian-1.8.10.dmg",
-    "research/Unconfirmed 362889.crdownload"
+    "research/# PM Interview Prep - no videos.md",
+    "Pulumi.catalyst-dev.yaml",
+    "Pulumi.catalyst-prod.yaml",
+    "Pulumi.catalyst-stage.yaml",
+    "deployment/ENVIRONMENT_SETUP.md",
+    "development/byot-prototype/byot.md",
+    "development/byot-prototype/BYOT_TECHNICAL_ADDENDUM.md",
+    "development/byot-prototype/BYOT_NEXT_STEPS_ROADMAP.md",
+    "development/byot-prototype/BYOT_BACKEND_DESIGN_DOCUMENT.md",
+    "development/byot-prototype",
+    "development/untitled folder",
+    "development/agentic-evolution/archive_repository_detail.md",
+    "development/agentic-evolution/technical_design_dgm_po.md",
+    "development/agentic-evolution/mutation_engine_detail.md",
+    "development/agentic-evolution/evaluator_engine_detail.md",
+    "development/agentic-evolution/dspy_framework_detail.md",
+    "development/agentic-evolution/diagnostic_self_improve.md",
+    "development/agentic-evolution/dgm_prompt_opt_prd.md",
+    "development/agentic-evolution/agents_codex_dgm_po.txt",
+    "development/agentic-evolution",
+    "development/Agentic Evolution/technical_design_dgm_po.md",
+    "development/Agentic Evolution/mutation_engine_detail.md",
+    "development/Agentic Evolution/evaluator_engine_detail.md",
+    "development/Agentic Evolution/dspy_framework_detail.md",
+    "development/Agentic Evolution/diagnostic_self_improve.md",
+    "development/Agentic Evolution/dgm_prompt_opt_prd.md",
+    "development/Agentic Evolution/archive_repository_detail.md",
+    "development/Agentic Evolution/agents_codex_dgm_po.txt",
+    "development/notes.md",
+    "development/Agentic Evolution/notes.md",
+    "development/prompt-engineering/Phase 5/Phase 5.3.1 - Manual Test Execution Log.md",
+    "development/prompt-engineering/Phase 5/Phase 5.3 Red Teaming Scaffolding.md",
+    "development/prompt-engineering/Phase 5/Phase 5.2.2 Golden Set Development Plan.md",
+    "development/prompt-engineering/Phase 5/Phase 5.2 Testing & Evaluation Framework.md",
+    "development/prompt-engineering/Phase 5",
+    "development/prompt-engineering"
   ]
 }

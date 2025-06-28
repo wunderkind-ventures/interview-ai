@@ -1,4 +1,4 @@
-module resume-parser-cf
+module interviewai.wkv.local/parseresume
 
 go 1.24.0
 

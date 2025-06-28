@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"github.com/writeas/go-strip-markdown"
 	"github.com/nguyenthenguyen/docx"
@@ -78,9 +79,23 @@ func ParseResume(w http.ResponseWriter, r *http.Request) {
 
 	switch strings.ToLower(fileType) {
 	case "docx":
-		docReader, err := docx.ReadDocxFromBytes(fileBytes)
+		// Write bytes to a temporary file since the library doesn't support reading from bytes
+		tmpFile, err := ioutil.TempFile("", "resume-*.docx")
 		if err != nil {
-			extractionErr = fmt.Errorf("error initializing docx reader from bytes: %w", err)
+			extractionErr = fmt.Errorf("error creating temp file: %w", err)
+			break
+		}
+		defer tmpFile.Close()
+		defer os.Remove(tmpFile.Name()) // Clean up temp file
+		
+		if _, err := tmpFile.Write(fileBytes); err != nil {
+			extractionErr = fmt.Errorf("error writing to temp file: %w", err)
+			break
+		}
+		
+		docReader, err := docx.ReadDocxFile(tmpFile.Name())
+		if err != nil {
+			extractionErr = fmt.Errorf("error reading docx file: %w", err)
 			break
 		}
 		extractedText = docReader.Editable().GetContent()

@@ -150,7 +150,7 @@ export const ragEnhancedQuestionGeneration = defineFlow(
 
 #### Option A: Vertex AI Vector Search Integration
 ```go
-// backends/catalyst-backend/functions/vectorsearch/main.go
+// backends/catalyst-interviewai/functions/vectorsearch/main.go
 package vectorsearch
 
 import (

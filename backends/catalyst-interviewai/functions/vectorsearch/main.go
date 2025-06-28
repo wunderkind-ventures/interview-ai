@@ -1,4 +1,4 @@
-package vectorsearch
+package main
 
 import (
 	"context"
@@ -244,7 +244,8 @@ func performSemanticSearch(ctx context.Context, req SearchRequest, userID string
 	// In production, you'd use Vertex AI Vector Search or Pinecone
 
 	// Step 1: Query Firestore for documents matching metadata filters
-	query := firestoreClient.Collection("scraped_content")
+	collection := firestoreClient.Collection("scraped_content")
+	query := collection.Query
 
 	// Apply filters
 	if req.Filters != nil {
@@ -330,25 +331,25 @@ func upsertEmbeddings(ctx context.Context, documents []models.IndexedDocument, u
 	// For now, we'll store in Firestore with the embeddings
 
 	batch := firestoreClient.Batch()
-	
+
 	for _, doc := range documents {
 		// Create document reference
 		docRef := firestoreClient.Collection("indexed_content").NewDoc()
-		
+
 		// Prepare document data
 		docData := map[string]interface{}{
-			"id":             doc.ID,
-			"content":        doc.Content,
-			"embeddings":     doc.Embeddings,
-			"metadata":       doc.Metadata,
-			"userId":         userID,
-			"indexedAt":      time.Now().Unix(),
-			"qualityScore":   doc.QualityScore,
+			"id":           doc.ID,
+			"content":      doc.Content,
+			"embeddings":   doc.Embeddings,
+			"metadata":     doc.Metadata,
+			"userId":       userID,
+			"indexedAt":    time.Now().Unix(),
+			"qualityScore": doc.QualityScore,
 		}
-		
+
 		batch.Set(docRef, docData)
 	}
-	
+
 	// Commit batch
 	_, err := batch.Commit(ctx)
 	if err != nil {
@@ -413,7 +414,7 @@ func findSimilarDocuments(ctx context.Context, documentID string, limit int, use
 func generateQueryEmbedding(ctx context.Context, query string) ([]float64, error) {
 	// In production, use the same embedding service as content scraping
 	// For now, return a placeholder
-	
+
 	// TODO: Integrate with actual embedding generation
 	// This should use the same embedding model as used in content processing
 	return make([]float64, 768), nil // Placeholder embedding
@@ -456,10 +457,10 @@ func calculateDocumentSimilarity(queryEmbedding []float64, content *models.Scrap
 func calculateTextSimilarity(content *models.ScrapedContent) float64 {
 	// Simple text-based similarity as fallback
 	// In production, you'd use more sophisticated text similarity
-	
+
 	// Give higher scores to interview-specific content
 	score := content.QualityScore
-	
+
 	// Boost based on content type
 	switch content.ContentType {
 	case "interview_experience":
@@ -469,7 +470,7 @@ func calculateTextSimilarity(content *models.ScrapedContent) float64 {
 	case "tutorial":
 		score += 0.1
 	}
-	
+
 	return score
 }
 

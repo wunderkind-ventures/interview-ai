@@ -1,0 +1,109 @@
+# AGENTS.md
+
+This document outlines agent roles, responsibilities, and interactions for supporting Codex (AI development agent) in the development of the Darwin-Gödel-inspired Prompt Optimization (DGM-PO) system.
+
+---
+
+## 🧑‍💻 Agent: Prompt Generation Agent
+- **Purpose:** Generate and mutate task-specific prompts.
+- **Inputs:**
+  - Meta-prompts
+  - Prompt templates
+- **Outputs:**
+  - Mutated and diversified prompts
+- **Tasks:**
+  - Generate initial prompts using provided templates.
+  - Apply linguistic and structural mutations to prompts.
+
+---
+
+## 📊 Agent: Evaluation Agent
+- **Purpose:** Evaluate generated prompts against defined rubrics.
+- **Inputs:**
+  - Mutated prompts
+  - Rubrics
+  - Task-specific responses (LLM-generated or human-provided)
+- **Outputs:**
+  - Prompt performance scores
+  - Evaluation logs
+- **Tasks:**
+  - Score responses using rubric-aligned metrics.
+  - Log detailed evaluation data.
+
+---
+
+## 🔍 Agent: Diagnostic Analysis Agent
+- **Purpose:** Analyze evaluation logs and identify opportunities for improvement.
+- **Inputs:**
+  - Evaluation logs
+  - Performance metrics
+- **Outputs:**
+  - Analysis reports identifying prompt effectiveness
+  - Recommendations for self-improvement
+- **Tasks:**
+  - Perform meta-analysis using LLM diagnostic tools.
+  - Generate actionable improvement recommendations.
+
+---
+
+## 🛠️ Agent: Self-Modification Agent
+- **Purpose:** Implement recommendations to optimize prompt strategies.
+- **Inputs:**
+  - Diagnostic recommendations
+  - Existing prompt strategies
+- **Outputs:**
+  - Modified prompt templates and meta-prompts
+- **Tasks:**
+  - Parse diagnostic outputs and validate recommendations.
+  - Automatically update prompt strategies based on recommendations.
+
+---
+
+## ⚙️ Agent: DsPy Integration Agent
+- **Purpose:** Structure and optimize prompt pipelines using the DsPy framework.
+- **Inputs:**
+  - Prompt templates
+  - DsPy signatures and modules
+- **Outputs:**
+  - Structured DsPy prompt pipelines
+  - Optimized configurations and few-shot examples
+- **Tasks:**
+  - Define DsPy modules, signatures, and configurations.
+  - Automate optimization of DsPy pipelines.
+
+---
+
+## 📚 Agent: Archive Management Agent
+- **Purpose:** Manage prompt optimization strategies archive.
+- **Inputs:**
+  - Prompt optimization strategies
+  - Performance data
+- **Outputs:**
+  - Organized and versioned archive records
+- **Tasks:**
+  - Store, retrieve, and version control optimization strategies.
+  - Facilitate exploration of diverse evolutionary paths.
+
+---
+
+## 🚦 Interaction Protocol
+
+- **Prompt Generation Agent** → generates and mutates prompts → **Evaluation Agent**.
+- **Evaluation Agent** → evaluates prompts and logs performance → **Diagnostic Analysis Agent**.
+- **Diagnostic Analysis Agent** → produces analysis and recommendations → **Self-Modification Agent**.
+- **Self-Modification Agent** → applies modifications and updates prompts → **DsPy Integration Agent**.
+- **DsPy Integration Agent** → structures and optimizes pipelines → **Archive Management Agent**.
+- **Archive Management Agent** → maintains and manages archives → loop back to **Prompt Generation Agent**.
+
+---
+
+## 📝 Development Guidelines for Codex
+
+- Clearly log and document each agent's outputs and transformations.
+- Ensure robust error handling across agent interactions.
+- Prioritize interpretability and clear documentation for every generated component.
+- Perform routine validations and consistency checks to ensure accurate integration across agents.
+
+---
+
+This AGENTS.md document provides clear guidance on each component's role, facilitating efficient and structured development by Codex.

@@ -586,6 +586,475 @@ paths:
         '401':
           description: Unauthorized
 
+  # ===== PYTHON AGENT ENDPOINTS =====
+  /api/agents/interview/start:
+    options:
+      summary: Handle CORS preflight requests for Start Interview
+      operationId: corsStartInterview
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (21st)
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    post:
+      summary: Starts a new interview session with Python ADK agents
+      description: Initializes the orchestrator and agent ecosystem for an interview
+      operationId: startInterview
+      security: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - interviewType
+              - faangLevel
+            properties:
+              interviewType:
+                type: string
+                enum: [behavioral, technical, system-design, leadership]
+                description: Type of interview to conduct
+              faangLevel:
+                type: string
+                enum: [L3, L4, L5, L6, L7]
+                description: Target level for the interview
+              resume:
+                type: object
+                description: Parsed resume data
+              jobDescription:
+                type: string
+                description: Target job description
+              targetCompany:
+                type: string
+                description: Target company name
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (22nd)
+        disable_auth: true
+      responses:
+        '200':
+          description: Interview session started successfully
+          schema:
+            type: object
+            properties:
+              sessionId:
+                type: string
+                description: Unique session identifier
+              state:
+                type: string
+                description: Current interview state
+              complexity:
+                type: string
+                description: Assessed complexity level
+              initialQuestion:
+                type: string
+                description: First interview question
+              timestamp:
+                type: string
+                format: date-time
+        '400':
+          description: Bad request - invalid parameters
+        '401':
+          description: Unauthorized
+        '500':
+          description: Failed to start interview session
+
+  /api/agents/interview/{sessionId}/respond:
+    options:
+      summary: Handle CORS preflight requests for Interview Response
+      operationId: corsInterviewResponse
+      security: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (23rd)
+        path_translation: APPEND_PATH_TO_ADDRESS
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    post:
+      summary: Submits a user response to the interview agents
+      description: Processes user input through the agent ecosystem
+      operationId: submitInterviewResponse
+      security: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+          description: Interview session ID
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - response
+            properties:
+              response:
+                type: string
+                description: User's interview response
+              responseTime:
+                type: number
+                description: Time taken to respond in seconds
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (24th)
+        path_translation: APPEND_PATH_TO_ADDRESS
+        disable_auth: true
+      responses:
+        '200':
+          description: Response processed successfully
+          schema:
+            type: object
+            properties:
+              nextQuestion:
+                type: string
+                description: Next interview question
+              feedback:
+                type: object
+                description: Real-time feedback
+              state:
+                type: string
+                description: Current interview state
+              interventions:
+                type: array
+                items:
+                  type: object
+                description: Any intervention messages
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Session not found
+        '500':
+          description: Processing failed
+
+  /api/agents/interview/{sessionId}/status:
+    options:
+      summary: Handle CORS preflight requests for Interview Status
+      operationId: corsInterviewStatus
+      security: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (25th)
+        path_translation: APPEND_PATH_TO_ADDRESS
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    get:
+      summary: Gets current status of an interview session
+      description: Returns current state, scores, and session metadata
+      operationId: getInterviewStatus
+      security: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+          description: Interview session ID
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (26th)
+        path_translation: APPEND_PATH_TO_ADDRESS
+        disable_auth: true
+      responses:
+        '200':
+          description: Session status retrieved
+          schema:
+            type: object
+            properties:
+              sessionId:
+                type: string
+              currentState:
+                type: string
+              complexity:
+                type: string
+              durationSeconds:
+                type: number
+              stateTransitions:
+                type: integer
+              interventions:
+                type: integer
+              scores:
+                type: object
+              lastActivity:
+                type: string
+                format: date-time
+        '401':
+          description: Unauthorized
+        '404':
+          description: Session not found
+
+  /api/agents/interview/{sessionId}/end:
+    options:
+      summary: Handle CORS preflight requests for End Interview
+      operationId: corsEndInterview
+      security: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (27th)
+        path_translation: APPEND_PATH_TO_ADDRESS
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    post:
+      summary: Ends an interview session and generates final report
+      description: Terminates the session and triggers report generation
+      operationId: endInterview
+      security: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+          description: Interview session ID
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (28th)
+        path_translation: APPEND_PATH_TO_ADDRESS
+        disable_auth: true
+      responses:
+        '200':
+          description: Interview ended successfully
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              sessionSummary:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                  totalDuration:
+                    type: number
+                  finalScores:
+                    type: object
+                  interventionsCount:
+                    type: integer
+                  stateTransitionsCount:
+                    type: integer
+                  complexity:
+                    type: string
+                  reasoningStrategy:
+                    type: string
+              message:
+                type: string
+        '401':
+          description: Unauthorized
+        '404':
+          description: Session not found
+        '500':
+          description: Failed to end session
+
+  /api/agents/report/{sessionId}:
+    options:
+      summary: Handle CORS preflight requests for Interview Report
+      operationId: corsInterviewReport
+      security: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (29th)
+        path_translation: APPEND_PATH_TO_ADDRESS
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    get:
+      summary: Retrieves the final interview report
+      description: Gets comprehensive analysis and recommendations
+      operationId: getInterviewReport
+      security: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+          description: Interview session ID
+        - name: format
+          in: query
+          type: string
+          enum: [json, pdf, markdown]
+          default: json
+          description: Report format
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (30th)
+        path_translation: APPEND_PATH_TO_ADDRESS
+        disable_auth: true
+      responses:
+        '200':
+          description: Report retrieved successfully
+          schema:
+            type: object
+            properties:
+              reportId:
+                type: string
+              sessionId:
+                type: string
+              generatedAt:
+                type: string
+                format: date-time
+              format:
+                type: string
+              content:
+                type: object
+                properties:
+                  executiveSummary:
+                    type: string
+                  detailedPerformance:
+                    type: object
+                  strengths:
+                    type: array
+                    items:
+                      type: string
+                  areasForImprovement:
+                    type: array
+                    items:
+                      type: string
+                  recommendations:
+                    type: array
+                    items:
+                      type: string
+                  transcript:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: Unauthorized
+        '404':
+          description: Report not found
+        '500':
+          description: Report generation failed
+
+  /api/agents/health:
+    options:
+      summary: Handle CORS preflight requests for Agent Health
+      operationId: corsAgentHealth
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (31st)
+        disable_auth: true
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Credentials:
+              type: string
+    get:
+      summary: Health check for Python agent infrastructure
+      description: Returns status of all agents and infrastructure components
+      operationId: getAgentHealth
+      security: []
+      x-google-backend:
+        address: "%s" # Placeholder for Python Agent Gateway URL (32nd)
+        disable_auth: true
+      responses:
+        '200':
+          description: Health status retrieved
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [healthy, degraded, down]
+              agents:
+                type: object
+                properties:
+                  orchestrator:
+                    $ref: '#/definitions/AgentStatus'
+                  context:
+                    $ref: '#/definitions/AgentStatus'
+                  interviewer:
+                    $ref: '#/definitions/AgentStatus'
+                  evaluator:
+                    $ref: '#/definitions/AgentStatus'
+                  synthesis:
+                    $ref: '#/definitions/AgentStatus'
+              infrastructure:
+                type: object
+                properties:
+                  circuitBreakers:
+                    type: object
+                  telemetry:
+                    type: boolean
+                  database:
+                    type: string
+              timestamp:
+                type: string
+                format: date-time
+        '503':
+          description: Service unavailable
+
 definitions:
   Error:
     type: object
@@ -660,3 +1129,34 @@ definitions:
         type: string
       metadata:
         type: object
+
+  AgentStatus:
+    type: object
+    properties:
+      name:
+        type: string
+      status:
+        type: string
+        enum: [active, inactive, error, initializing]
+      lastActivity:
+        type: string
+        format: date-time
+      uptimeSeconds:
+        type: number
+      messageQueueSize:
+        type: integer
+      circuitBreakerHealth:
+        type: object
+        properties:
+          healthy:
+            type: array
+            items:
+              type: string
+          degraded:
+            type: array
+            items:
+              type: string
+          failed:
+            type: array
+            items:
+              type: string

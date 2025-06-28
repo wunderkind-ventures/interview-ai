@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/firestore v1.13.0
 	cloud.google.com/go/secretmanager v1.11.2
 	firebase.google.com/go/v4 v4.13.0
+	github.com/GoogleCloudPlatform/functions-framework-go v1.8.1
 	github.com/PuerkitoBio/goquery v1.8.1
 	google.golang.org/api v0.149.0
 	google.golang.org/grpc v1.59.0

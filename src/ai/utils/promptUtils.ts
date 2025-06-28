@@ -4,7 +4,7 @@ import * as Handlebars from 'handlebars';
 
 // Resolve paths relative to the project root
 const projectRoot = process.cwd();
-const promptsDir = _path.join(projectRoot, 'backends/catalyst-interviewai/prompts');
+const promptsDir = _path.join(projectRoot, 'backends/prompts');
 
 /**
  * Loads a raw prompt template from a .prompt file.

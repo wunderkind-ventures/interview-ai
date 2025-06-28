@@ -1,4 +1,4 @@
-package contentindexer
+package main
 
 import (
 	"bytes"
@@ -234,7 +234,7 @@ func indexAllUnprocessedContent(ctx context.Context, limit int) (int, error) {
 	// Query for documents that have embeddings but aren't indexed
 	query := firestoreClient.Collection("scraped_content").
 		Where("embeddings", "!=", nil).
-		OrderBy("embeddings").
+		OrderBy("embeddings", firestore.Asc).
 		OrderBy("createdAt", firestore.Asc).
 		Limit(limit)
 

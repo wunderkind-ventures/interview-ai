@@ -1,4 +1,4 @@
-package contentscraper
+package main
 
 import (
 	"context"
@@ -71,9 +71,9 @@ func init() {
 
 // ScrapeRequest defines the expected request body for scraping content.
 type ScrapeRequest struct {
-	URL                string                `json:"url"`
-	ContentType        string                `json:"contentType"` // "youtube" or "blog"
-	ExtractionOptions  ExtractionOptions     `json:"extractionOptions,omitempty"`
+	URL               string            `json:"url"`
+	ContentType       string            `json:"contentType"` // "youtube" or "blog"
+	ExtractionOptions ExtractionOptions `json:"extractionOptions,omitempty"`
 }
 
 type ExtractionOptions struct {
@@ -145,7 +145,7 @@ func handleScrapeContent(w http.ResponseWriter, r *http.Request) {
 
 	// Scrape content based on type
 	var scrapedContent *models.ScrapedContent
-	
+
 	switch req.ContentType {
 	case "youtube":
 		scrapedContent, err = handleYouTubeScraping(req.URL, authedUser.UID)
@@ -155,7 +155,7 @@ func handleScrapeContent(w http.ResponseWriter, r *http.Request) {
 		httputils.ErrorJSON(w, "Unsupported content type", http.StatusBadRequest)
 		return
 	}
-	
+
 	if err != nil {
 		log.Printf("Scraping failed for %s: %v", req.URL, err)
 		httputils.ErrorJSON(w, fmt.Sprintf("Failed to scrape content: %v", err), http.StatusInternalServerError)
@@ -236,35 +236,35 @@ func handleSearchContent(w http.ResponseWriter, r *http.Request) {
 // handleYouTubeScraping scrapes content from a YouTube video
 func handleYouTubeScraping(videoURL, userID string) (*models.ScrapedContent, error) {
 	ctx := context.Background()
-	
+
 	// Get YouTube API key from Secret Manager
 	apiKey, err := getYouTubeAPIKey(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get YouTube API key: %w", err)
 	}
-	
+
 	// Create YouTube scraper
 	youtubeScraper, err := scrapers.NewYouTubeScraper(apiKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create YouTube scraper: %w", err)
 	}
-	
+
 	// Scrape video content
 	scrapedContent, err := youtubeScraper.ScrapeVideo(videoURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scrape YouTube video: %w", err)
 	}
-	
+
 	// Set user ID and timestamp
 	scrapedContent.UserID = userID
 	scrapedContent.CreatedAt = fmt.Sprintf("%d", time.Now().Unix())
-	
+
 	// Generate embeddings if requested
 	// Note: In production, you might want to make this async for performance
 	embeddingAPIKey, err := getEmbeddingAPIKey(ctx, userID)
 	if err == nil && embeddingAPIKey != "" {
 		embeddingService := processors.NewEmbeddingService(embeddingAPIKey, "google") // or "openai"
-		
+
 		if err := embeddingService.GenerateContentEmbeddings(scrapedContent); err != nil {
 			log.Printf("Warning: Failed to generate embeddings: %v", err)
 			// Don't fail the entire request if embedding generation fails
@@ -273,10 +273,10 @@ func handleYouTubeScraping(videoURL, userID string) (*models.ScrapedContent, err
 			log.Printf("Successfully generated embeddings for content from %s", videoURL)
 		}
 	}
-	
+
 	// Calculate quality score
 	scrapedContent.QualityScore = calculateContentQuality(scrapedContent)
-	
+
 	return scrapedContent, nil
 }
 
@@ -284,23 +284,23 @@ func handleYouTubeScraping(videoURL, userID string) (*models.ScrapedContent, err
 func handleBlogScraping(articleURL, userID string) (*models.ScrapedContent, error) {
 	// Create blog scraper
 	blogScraper := scrapers.NewBlogScraper()
-	
+
 	// Scrape article content
 	scrapedContent, err := blogScraper.ScrapeArticle(articleURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scrape blog article: %w", err)
 	}
-	
+
 	// Set user ID and timestamp
 	scrapedContent.UserID = userID
 	scrapedContent.CreatedAt = fmt.Sprintf("%d", time.Now().Unix())
-	
+
 	// Generate embeddings if requested
 	ctx := context.Background()
 	embeddingAPIKey, err := getEmbeddingAPIKey(ctx, userID)
 	if err == nil && embeddingAPIKey != "" {
 		embeddingService := processors.NewEmbeddingService(embeddingAPIKey, "google")
-		
+
 		if err := embeddingService.GenerateContentEmbeddings(scrapedContent); err != nil {
 			log.Printf("Warning: Failed to generate embeddings: %v", err)
 		} else {
@@ -308,10 +308,10 @@ func handleBlogScraping(articleURL, userID string) (*models.ScrapedContent, erro
 			log.Printf("Successfully generated embeddings for content from %s", articleURL)
 		}
 	}
-	
+
 	// Calculate quality score
 	scrapedContent.QualityScore = calculateContentQuality(scrapedContent)
-	
+
 	return scrapedContent, nil
 }
 
@@ -322,33 +322,33 @@ func getYouTubeAPIKey(ctx context.Context, userID string) (string, error) {
 	if err == nil && userAPIKey != "" {
 		return userAPIKey, nil
 	}
-	
+
 	// Fallback to system YouTube API key
 	systemAPIKey := os.Getenv("YOUTUBE_API_KEY")
 	if systemAPIKey != "" {
 		return systemAPIKey, nil
 	}
-	
+
 	// Try to get system API key from Secret Manager
 	systemAPIKey, err = getSystemSecret(ctx, "youtube-api-key")
 	if err != nil {
 		return "", fmt.Errorf("no YouTube API key available")
 	}
-	
+
 	return systemAPIKey, nil
 }
 
 // getSystemSecret retrieves a system-wide secret from Secret Manager
 func getSystemSecret(ctx context.Context, secretName string) (string, error) {
 	secretVersionName := fmt.Sprintf("projects/%s/secrets/%s/versions/latest", gcpProjectIDEnv, secretName)
-	
+
 	result, err := secretClientSingleton.AccessSecretVersion(ctx, &secretmanagerpb.AccessSecretVersionRequest{
 		Name: secretVersionName,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to access secret %s: %w", secretName, err)
 	}
-	
+
 	return string(result.Payload.Data), nil
 }
 
@@ -359,32 +359,32 @@ func getEmbeddingAPIKey(ctx context.Context, userID string) (string, error) {
 	if err == nil && userAPIKey != "" {
 		return userAPIKey, nil
 	}
-	
+
 	// Try environment variable for embedding API key
 	embeddingAPIKey := os.Getenv("EMBEDDING_API_KEY")
 	if embeddingAPIKey != "" {
 		return embeddingAPIKey, nil
 	}
-	
+
 	// Try system embedding API key from Secret Manager
 	embeddingAPIKey, err = getSystemSecret(ctx, "embedding-api-key")
 	if err != nil {
 		// Fall back to the same API key used for AI generation
 		return getSystemSecret(ctx, "gemini-api-key")
 	}
-	
+
 	return embeddingAPIKey, nil
 }
 
 // calculateContentQuality calculates a quality score for the scraped content
 func calculateContentQuality(content *models.ScrapedContent) float64 {
 	score := 0.0
-	
+
 	// Base score for having content
 	if content.Content.FullTranscript != "" {
 		score += 0.3
 	}
-	
+
 	// Bonus for structured data
 	if len(content.Content.Questions) > 0 {
 		score += 0.2
@@ -395,7 +395,7 @@ func calculateContentQuality(content *models.ScrapedContent) float64 {
 	if len(content.Content.Tips) > 0 {
 		score += 0.1
 	}
-	
+
 	// Quality indicators
 	if content.Source.Type == "youtube" {
 		// For YouTube videos
@@ -405,14 +405,14 @@ func calculateContentQuality(content *models.ScrapedContent) float64 {
 		if content.Source.ViewCount > 100000 {
 			score += 0.1
 		}
-		
+
 		// Duration bonus (longer videos often have more content)
 		if content.Source.Duration != "" {
 			// Simple heuristic: videos between 10-60 minutes tend to be good
 			score += 0.05
 		}
 	}
-	
+
 	// Content length bonus
 	if len(content.Content.FullTranscript) > 1000 {
 		score += 0.1
@@ -420,7 +420,7 @@ func calculateContentQuality(content *models.ScrapedContent) float64 {
 	if len(content.Content.FullTranscript) > 5000 {
 		score += 0.1
 	}
-	
+
 	// Interview relevance (based on content classification)
 	switch content.InterviewType {
 	case "technical_system_design", "behavioral", "coding":
@@ -430,21 +430,21 @@ func calculateContentQuality(content *models.ScrapedContent) float64 {
 	default:
 		score += 0.05
 	}
-	
+
 	// Company-specific content gets bonus
 	if content.TargetCompany != "" {
 		score += 0.1
 	}
-	
+
 	// Level-specific content gets bonus
 	if content.TargetLevel != "" {
 		score += 0.1
 	}
-	
+
 	// Normalize to 0-1 range
 	if score > 1.0 {
 		score = 1.0
 	}
-	
+
 	return score
 }

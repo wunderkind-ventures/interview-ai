@@ -49,6 +49,7 @@ func EnableAPIs(ctx *pulumi.Context, projectID string, apis []string) error {
 			"apigateway.googleapis.com",
 			"iap.googleapis.com",
 			"identitytoolkit.googleapis.com",
+			"generativelanguage.googleapis.com",
 		}
 
 		for _, failed := range failedAPIs {

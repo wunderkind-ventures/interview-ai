@@ -50,7 +50,7 @@ func main() {
 		_, err = gcp.NewProvider(ctx, "gcp-provider", &gcp.ProviderArgs{
 			Project:             pulumi.String(cfg.ProjectID),
 			UserProjectOverride: pulumi.Bool(true),
-			BillingProject:      pulumi.String("01F9C0-CF9DFB-DB01DF"),
+			BillingProject:      pulumi.String(cfg.ProjectID),
 		})
 		if err != nil {
 			return err

@@ -1,0 +1,26 @@
+just dev:
+	uv run dev
+
+just test:
+	uv run pytest
+
+just extract_audio:
+  ffmpeg -i input.mp4 -q:a 0 -map a audio.mp3
+
+just transcribe_audio:
+  whisper audio.mp3 --language ja --model base --output_format srt
+
+just translate_text:
+  argos-translate-cli --from-lang ja --to-lang en audio.srt translated.srt
+
+just translate_audio:
+  whisper audio.mp3 --language ja --model base --task translate --output_format srt
+
+just embed_subtitles:
+  ffmpeg -i input.mp4 -vf subtitles=translated.srt output_subtitled.mp4
+
+just lint:
+	uv run codespell
+	uv run ruff check . --diff
+	uv run ruff format . --check --diff
+	uv run mypy .

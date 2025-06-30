@@ -1,0 +1,119 @@
+# Google Cloud Function deployment configuration for Python ADK agents
+# This configuration deploys the agents as a single Cloud Function with FastAPI
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: adk-agents-config
+data:
+  environment: "production"
+  gcp_project_id: "wkv-interviewai-prod"
+  gcp_region: "us-central1"
+  vertex_ai_location: "us-central1"
+  default_model: "gemini-1.5-pro"
+  embedding_model: "text-embedding-004"
+  enable_telemetry: "true"
+  enable_circuit_breaker: "true"
+  enable_adaptive_reasoning: "true"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adk-agents
+  labels:
+    app: adk-agents
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: adk-agents
+  template:
+    metadata:
+      labels:
+        app: adk-agents
+    spec:
+      containers:
+      - name: adk-agents
+        image: gcr.io/wkv-interviewai-prod/adk-agents:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: adk-agents-config
+              key: environment
+        - name: GCP_PROJECT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: adk-agents-config
+              key: gcp_project_id
+        - name: GCP_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: adk-agents-config
+              key: gcp_region
+        - name: VERTEX_AI_LOCATION
+          valueFrom:
+            configMapKeyRef:
+              name: adk-agents-config
+              key: vertex_ai_location
+        - name: DEFAULT_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: adk-agents-config
+              key: default_model
+        - name: EMBEDDING_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: adk-agents-config
+              key: embedding_model
+        - name: ENABLE_TELEMETRY
+          valueFrom:
+            configMapKeyRef:
+              name: adk-agents-config
+              key: enable_telemetry
+        - name: ENABLE_CIRCUIT_BREAKER
+          valueFrom:
+            configMapKeyRef:
+              name: adk-agents-config
+              key: enable_circuit_breaker
+        - name: ENABLE_ADAPTIVE_REASONING
+          valueFrom:
+            configMapKeyRef:
+              name: adk-agents-config
+              key: enable_adaptive_reasoning
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adk-agents-service
+spec:
+  selector:
+    app: adk-agents
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: LoadBalancer

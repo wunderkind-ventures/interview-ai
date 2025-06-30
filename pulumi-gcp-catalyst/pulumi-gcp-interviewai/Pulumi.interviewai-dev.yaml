@@ -5,11 +5,12 @@ config:
   catalyst-gcp-infra:catalystGcpProject: wkv-interviewai-dev
   catalyst-gcp-infra:catalystGcpRegion: us-central1
   catalyst-gcp-infra:defaultGeminiApiKey:
-    secure: AAABAKUgzn5H+kuaE7lTLOP8wL40hf6mwAdK6Tmm3l0nOT/e/QZougpJ8wGaSLyzvebRVjvSl8hAFNRDhQK/9JIxGWs+1Uo=
+    secure: AAABANEWlJ3y/RnCwPXR2DxFAN6wp6xe/2LzhqWiBC6AcFK7Lmns/O3axuB+/cJRkqGIsQaKtkVrmFsODTOHqFebD6Db1cE=
   catalyst-gcp-infra:nextjsBaseUrl: https://settled-merry-jaguar.ngrok-free.app
   catalyst-gcp-infra:gcpProject: wkv-interviewai-dev
+  catalyst-gcp-infra:Project: wkv-interviewai-dev
   catalyst-gcp-infra:gcpRegion: us-central1
-  catalyst-gcp-infra:alertEmail: kenneth@wkv.ai
+  catalyst-gcp-infra:alertEmail: ken@wkv.ai
   catalyst-gcp-infra:sshPrivateKey:
     secure: AAABALTLBCRlIdk1KG+Slqe4+OO2z9XRYNoi5UwTf+ATaK/Z8pfvihBrh0+O8Qy3d5FzyMloDkijaLpQaDvKvUJ2LfF+mWfc0SQZPjJJ5B1juR9HWPfJqgN9fDdgeBP8RdfmpuU4UgPDRwNdj+liGxqAlQplJh9p72Ds1ssMQjVMQkZHIO/phpTvwy/dM7kA+GNR/j5SGg3fdqN1ka2wwSzI76PEGcGYBlXbYxxlacpD5ak9HlYpBCa0rFxijrv31XRJuK54RPhqt8n0Ixjx1cWQM+RibWmQBVrf9Eh2KHOkOzmMr1dLo0yJi+ioJn+ACWIyYJmtgBAW7R3CjU8ZdCJblVVRytDqFxQ/ESKVZjrXxThkCoTca/4UcKrw/s0g9inodLixb1tuBewIV1LxKJX2/OUt/amHNByPIiDyEdu992+NXIoUrus5R9wlW+kaWwEZdq4MtqUj5wcAqBsg8Lyyreu5wAsgwVajFh4aON8Psi25XrNExxtUWqCiKt7Xh1yhZvpgBuPWMG4v20oEYeOeeB0ftLIE+roVkEqMCRP0O4LEaT5OUkebS34rSHisD0GSnbrQ0kqoy9BC90PdUTu/A1RCVSPi9rwFz2HASzHUpkva2IPyqGivjxJv7+Cbhf03q0+Y+Z8FHwWDkK/su1R9OvDzc3QLUsVIsO8v9Wqb6OBnECq/kJ8/dK3L1TSaV1ErMNRvmaI1jplQgLhKZHpuj7zFzmybfLo2v6y/qdkXZTuL/TH4+l6lcWXwZZ02mHp90SDKi0YTp2gAAxFBTI371x40ALzePDZV6u4UW7s0nd20vYTI7NWt0TW3x3t4pUuqWocC3p2m/rZI1sXhDHvJG6G8IG0PUrcAhT2+Za1IqZAhv7mMZjBr26VzNjcGIKJ/zwSmIOJUDpXVhaBav5e1Mc1gGJrRgC6VMMjMkbKozsRNmq6/n4xRWfKK6jafLuFrY6EoKOdlwg8MuCEIxEm2WckuGrpP/sXsACJVplYpDR5u9L1xRgPeedaTYtIUNaFpZVcJy5Czywd6/otGpEEp4bewIkqvRQV0g5yP
   catalyst-gcp-infra:sshKey:

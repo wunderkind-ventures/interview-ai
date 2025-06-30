@@ -55,7 +55,7 @@ func GenerateEnvFile(cfg EnvConfig) pulumi.StringOutput {
 		geminiKey := args[9].(string)
 		youtubeKey := args[10].(string)
 
-		return fmt.Sprintf(`NEXT_PUBLIC_GO_BACKEND_URL=%s
+		return fmt.Sprintf(`NEXT_PUBLIC_GO_BACKEND_URL=https://%s
 NEXT_PUBLIC_FIREBASE_API_KEY=%s
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=%s
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=%s

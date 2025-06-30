@@ -5,7 +5,6 @@ import (
 
 	firebase "github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/firebase"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/firestore"
-	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/iap"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/identityplatform"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -52,25 +51,6 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 		return nil, err
 	}
 
-	// Create the OAuth Consent Screen (Brand)
-	brand, err := iap.NewBrand(ctx, fmt.Sprintf("%s-oauth-brand", cfg.Environment), &iap.BrandArgs{
-		SupportEmail:    pulumi.String("interview@wkv.ai"),
-		ApplicationTitle: pulumi.String(fmt.Sprintf("InterviewAI %s", cfg.Environment)),
-		Project:         pulumi.String(cfg.ProjectID),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Create the OAuth Client ID
-	client, err := iap.NewClient(ctx, fmt.Sprintf("%s-oauth-client", cfg.Environment), &iap.ClientArgs{
-		DisplayName: pulumi.String(fmt.Sprintf("InterviewAI Web Client %s", cfg.Environment)),
-		Brand:       brand.Name,
-	}, pulumi.DependsOn([]pulumi.Resource{brand}))
-	if err != nil {
-		return nil, err
-	}
-
 	// Configure Authentication - try to import existing config first
 	authConfig, err := identityplatform.NewConfig(ctx, fmt.Sprintf("%s-auth-config", cfg.Environment), &identityplatform.ConfigArgs{
 		Project: pulumi.String(cfg.ProjectID),
@@ -89,8 +69,6 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 			pulumi.String(fmt.Sprintf("%s.web.app", cfg.ProjectID)),
 			pulumi.String("interview-ai.ngrok.app"),
 			pulumi.String("settled-merry-jaguar.ngrok-free.app"),
-			// Add your additional domains here
-			pulumi.String("your-new-domain.com"),
 		},
 	}, pulumi.Import(pulumi.ID(fmt.Sprintf("projects/%s/config", cfg.ProjectID))), pulumi.DependsOn([]pulumi.Resource{firebaseProject}))
 	if err != nil {
@@ -113,8 +91,6 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 				pulumi.String(fmt.Sprintf("%s.web.app", cfg.ProjectID)),
 				pulumi.String("interview-ai.ngrok.app"),
 				pulumi.String("settled-merry-jaguar.ngrok-free.app"),
-				// Add your additional domains here
-				pulumi.String("your-new-domain.com"),
 			},
 		}, pulumi.DependsOn([]pulumi.Resource{firebaseProject}))
 		if err != nil {
@@ -122,17 +98,15 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 		}
 	}
 
-	// Enable Google Sign-In provider
-	_, err = identityplatform.NewDefaultSupportedIdpConfig(ctx, fmt.Sprintf("%s-google-provider", cfg.Environment), &identityplatform.DefaultSupportedIdpConfigArgs{
-		Project:      pulumi.String(cfg.ProjectID),
-		IdpId:        pulumi.String("google.com"),
-		Enabled:      pulumi.Bool(true),
-		ClientId:     client.ClientId,
-		ClientSecret: client.Secret,
-	}, pulumi.DependsOn([]pulumi.Resource{authConfig}))
-	if err != nil {
-		return nil, err
-	}
+	// Google Sign-In provider configuration
+	// NOTE: Due to quota project issues with Identity Platform API when using local ADC,
+	// Google Sign-In must be configured manually in the Firebase Console.
+	// See docs/deployment/google-auth-setup.md for manual configuration steps.
+	ctx.Log.Info("Google Sign-In provider configuration skipped - please configure manually in Firebase Console", nil)
+	
+	// Placeholder values for OAuth client that should be configured manually
+	googleClientId := pulumi.String("833907523825-3r6g476lc9m4bhu9mq363jimf8ouopht.apps.googleusercontent.com").ToStringOutput()
+	googleClientSecret := pulumi.String("").ToStringOutput() // Secret stored in Secret Manager as google-oauth-client-secret-dev
 
 	// Export auth config status
 	ctx.Export("auth-config-ready", authConfig.ID())
@@ -178,7 +152,7 @@ func SetupFirebase(ctx *pulumi.Context, cfg FirebaseConfig, dependencies []pulum
 		MessagingSenderID: pulumi.String("").ToStringOutput(), // This needs to be set from Firebase console
 		AppID:             webApp.AppId,
 		MeasurementID:     pulumi.String("").ToStringOutput(), // This needs to be set from Firebase console
-		WebClientID:       client.ClientId,
-		WebClientSecret:   client.Secret,
+		WebClientID:       googleClientId,
+		WebClientSecret:   googleClientSecret,
 	}, nil
 }

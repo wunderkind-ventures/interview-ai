@@ -6,6 +6,7 @@ import (
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/cloudfunctionsv2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"catalyst-backend/apis"
 	"catalyst-backend/config"
 	"catalyst-backend/envconfig"
 	"catalyst-backend/functions"
@@ -14,6 +15,7 @@ import (
 	"catalyst-backend/iam"
 	"catalyst-backend/monitoring"
 	"catalyst-backend/storage"
+
 	// tunnel "catalyst-backend/tunnel" // Uncomment when re-enabling tunnel deployment
 	"catalyst-backend/utils"
 )
@@ -26,6 +28,11 @@ func main() {
 		}
 
 		nameSuffix := fmt.Sprintf("-%s", cfg.Environment)
+
+		// Enable required APIs
+		if err := apis.EnableRequiredAPIs(ctx, cfg.GcpProject, cfg.Environment); err != nil {
+			return err
+		}
 
 		// IAM and Buckets
 		sa, err := iam.CreateFunctionServiceAccount(ctx, cfg)
@@ -171,7 +178,7 @@ func main() {
 			Description: "Python ADK Agent Service for Interview AI",
 
 			// Function-specific configuration
-			SourcePath:      "../../backends/catalyst-py",
+			SourcePath:      "../../backends/interview-agents-python",
 			EntryPoint:      "function_main.start_server",
 			Runtime:         "python311",
 			Bucket:          sourceBucket,
@@ -312,14 +319,14 @@ func main() {
 		}
 
 		apiConfig, err := gateway.CreateApiConfig(ctx, "catalyst-api-config"+nameSuffix, api.ApiId, cfg.OpenapiSpecPath, []pulumi.StringInput{
-			setFn.Function.HttpsTriggerUrl,                      // 1st - SetAPIKeyGCF OPTIONS
-			setFn.Function.HttpsTriggerUrl,                      // 2nd - SetAPIKeyGCF POST
-			removeFn.Function.HttpsTriggerUrl,                   // 3rd - RemoveAPIKeyGCF OPTIONS
-			removeFn.Function.HttpsTriggerUrl,                   // 4th - RemoveAPIKeyGCF POST
-			getApiKeyStatusFn.Function.HttpsTriggerUrl,          // 5th - GetAPIKeyStatusGCF GET
-			getApiKeyStatusFn.Function.HttpsTriggerUrl,          // 6th - GetAPIKeyStatusGCF OPTIONS
-			proxyFn.Function.HttpsTriggerUrl,                    // 7th - ProxyToGenkitGCF POST
-			proxyFn.Function.HttpsTriggerUrl,                    // 8th - ProxyToGenkitGCF OPTIONS
+			setFn.Function.HttpsTriggerUrl,             // 1st - SetAPIKeyGCF OPTIONS
+			setFn.Function.HttpsTriggerUrl,             // 2nd - SetAPIKeyGCF POST
+			removeFn.Function.HttpsTriggerUrl,          // 3rd - RemoveAPIKeyGCF OPTIONS
+			removeFn.Function.HttpsTriggerUrl,          // 4th - RemoveAPIKeyGCF POST
+			getApiKeyStatusFn.Function.HttpsTriggerUrl, // 5th - GetAPIKeyStatusGCF GET
+			getApiKeyStatusFn.Function.HttpsTriggerUrl, // 6th - GetAPIKeyStatusGCF OPTIONS
+			proxyFn.Function.HttpsTriggerUrl,           // 7th - ProxyToGenkitGCF POST
+			proxyFn.Function.HttpsTriggerUrl,           // 8th - ProxyToGenkitGCF OPTIONS
 			parseResumeFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
 				if sc != nil && sc.Uri != nil {
 					return *sc.Uri
@@ -430,29 +437,29 @@ func main() {
 		// 1. Set a valid SSH private key using: pulumi config set --secret catalyst-gcp-infra:sshPrivateKey "-----BEGIN RSA PRIVATE KEY-----..."
 		// 2. Uncomment the code below
 		/*
-		if cfg.Environment == "dev" {
-			tunnelDomain := cfg.TunnelDomain
-			sshPrivateKey := cfg.SshPrivateKey
+			if cfg.Environment == "dev" {
+				tunnelDomain := cfg.TunnelDomain
+				sshPrivateKey := cfg.SshPrivateKey
 
-			// Only deploy tunnel if SSH key is provided
-			if sshPrivateKey != nil {
-				ip, url, err := tunnel.DeployTunnelStack(ctx, tunnel.TunnelConfig{
-					Zone:      "us-central1-a",
-					Username:  "tunneladmin",
-					SSHKey:    sshPrivateKey,
-					Machine:   "e2-micro",
-					Image:     "ubuntu-os-cloud/ubuntu-2204-lts",
-					PortRange: "9000-9100",
-					Domain:    tunnelDomain,
-				})
-				if err != nil {
-					return err
+				// Only deploy tunnel if SSH key is provided
+				if sshPrivateKey != nil {
+					ip, url, err := tunnel.DeployTunnelStack(ctx, tunnel.TunnelConfig{
+						Zone:      "us-central1-a",
+						Username:  "tunneladmin",
+						SSHKey:    sshPrivateKey,
+						Machine:   "e2-micro",
+						Image:     "ubuntu-os-cloud/ubuntu-2204-lts",
+						PortRange: "9000-9100",
+						Domain:    tunnelDomain,
+					})
+					if err != nil {
+						return err
+					}
+
+					ctx.Export("tunnelVpsIp", ip)
+					ctx.Export("tunnelUrl", url)
 				}
-
-				ctx.Export("tunnelVpsIp", ip)
-				ctx.Export("tunnelUrl", url)
 			}
-		}
 		*/
 
 		// Export useful URLs

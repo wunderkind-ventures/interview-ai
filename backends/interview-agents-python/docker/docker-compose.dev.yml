@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  python-agents-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+      - ENABLE_TELEMETRY=true
+      # Local development settings
+      - PYTHON_ENV=development
+      - RELOAD=true
+    volumes:
+      # Mount source code for hot reloading
+      - ../api:/app/api:ro
+      - ../agents:/app/agents:ro
+      - ../common:/app/common:ro
+      - ../prompts:/app/prompts:ro
+      - ../start_server.py:/app/start_server.py:ro
+      - ../requirements.txt:/app/requirements.txt:ro
+      # Mount logs for easy access
+      - ../logs:/app/logs
+      # Optional: mount credentials if using local service account
+      - ../credentials:/app/credentials:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - dev-network
+    command: ["python", "-m", "uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8080", "--reload", "--log-level", "debug"]
+
+  # Optional: Redis for session storage during development
+  redis-dev:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - dev-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Optional: Local Firebase emulator for completely offline development
+  firebase-emulator:
+    image: andreysenov/firebase-tools:latest
+    ports:
+      - "4000:4000"   # Emulator UI
+      - "9099:9099"   # Auth emulator
+      - "8088:8088"   # Firestore emulator
+    volumes:
+      - ../firebase:/app/firebase:ro
+      - firebase_data:/app/data
+    networks:
+      - dev-network
+    command: 
+      - /bin/sh
+      - -c
+      - |
+        firebase emulators:start \
+          --project=demo-project \
+          --only=auth,firestore \
+          --host=0.0.0.0 \
+          --export-on-exit=/app/data \
+          --import=/app/data
+    restart: unless-stopped
+    profiles:
+      - "with-emulators"
+
+networks:
+  dev-network:
+    driver: bridge
+
+volumes:
+  redis_dev_data:
+  firebase_data:

@@ -129,7 +129,7 @@ func NewPythonADKAgentService(ctx *pulumi.Context, name string, project, region 
 		Name:           name,
 		Project:        project,
 		Region:         region,
-		SourcePath:     "../../backends/catalyst-py",
+		SourcePath:     "../../backends/interview-agents-python",
 		Bucket:         bucket,
 		ServiceAccount: serviceAccount,
 		EnvVars:        envVars,

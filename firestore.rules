@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow users to read/write their own user document
+    match /users/{userId} {
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+    }
+    
+    // Allow authenticated users to read/write their own achievements
+    match /users/{userId}/achievements/{achievementId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow authenticated users to read/write their own interviews
+    match /users/{userId}/interviews/{interviewDocId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow authenticated users to read/write their own job descriptions
+    match /users/{userId}/jobDescriptions/{jdId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow authenticated users to read/write their own resumes
+    match /users/{userId}/resumes/{resumeId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow authenticated users to read/write their own saved setups
+    match /users/{userId}/savedSetups/{setupId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Rules for shared assessment documents
+    match /sharedAssessments/{assessmentId} {
+      // Allow any authenticated user to create
+      allow create: if request.auth != null;
+      
+      // Allow owner to update/delete their own assessment
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Allow reading in these cases:
+      // 1. User owns the assessment
+      // 2. Assessment is public
+      // 3. User is querying (list operation)
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.isPublic == true
+      );
+      
+      // Allow authenticated users to query/list assessments
+      allow list: if request.auth != null;
+    }
+  }
+}

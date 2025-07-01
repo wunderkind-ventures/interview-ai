@@ -4,6 +4,7 @@ google-cloud-aiplatform>=1.70.0
 google-cloud-secret-manager>=2.20.0
 google-cloud-firestore>=2.19.0
 google-cloud-logging>=3.11.0
+google-cloud-bigquery>=3.25.0
 
 # Agent Development Kit (when available)
 # google-agent-development-kit>=0.1.0  # Placeholder for ADK package

@@ -13,6 +13,7 @@ from common.config import AgentName, get_agent_config, settings
 from common.telemetry import SessionTracker, trace_agent_operation, trace_ai_operation
 from common.auth import FirestoreClient
 from common.circuit_breaker import CircuitBreakerManager, CircuitBreakerConfig, with_circuit_breaker
+from common.analytics import get_analytics_client
 
 logger = logging.getLogger(__name__)
 
@@ -151,8 +152,30 @@ class BaseAgent(ABC):
         )
         
         try:
+            start_time = datetime.now()
+            
             # Store message in Firestore for inter-agent communication
             await self._store_message(message)
+            
+            # Calculate processing time
+            processing_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            
+            # Log to BigQuery analytics
+            analytics = get_analytics_client()
+            if analytics:
+                analytics.log_agent_interaction(
+                    session_id=self.state.session_id,
+                    source_agent=self.agent_name.value,
+                    target_agent=to_agent.value,
+                    interaction_type=message_type.value,
+                    content=str(payload),
+                    processing_time_ms=processing_time_ms,
+                    success=True,
+                    metadata={
+                        "priority": priority.value,
+                        "correlation_id": correlation_id
+                    }
+                )
             
             logger.debug(
                 f"Message sent from {self.agent_name.value} to {to_agent.value}: {message_type.value}"
@@ -161,6 +184,19 @@ class BaseAgent(ABC):
             
         except Exception as e:
             logger.error(f"Failed to send message: {e}")
+            
+            # Log failure to BigQuery
+            analytics = get_analytics_client()
+            if analytics:
+                analytics.log_agent_interaction(
+                    session_id=self.state.session_id,
+                    source_agent=self.agent_name.value,
+                    target_agent=to_agent.value,
+                    interaction_type=message_type.value,
+                    success=False,
+                    error_message=str(e)
+                )
+            
             return False
     
     async def receive_messages(self) -> List[AgentMessage]:

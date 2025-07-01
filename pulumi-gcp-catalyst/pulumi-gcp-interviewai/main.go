@@ -7,8 +7,10 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"catalyst-backend/apis"
+	"catalyst-backend/bigquery"
 	"catalyst-backend/config"
 	"catalyst-backend/envconfig"
+	"catalyst-backend/firestore"
 	"catalyst-backend/functions"
 	"catalyst-backend/functions/component"
 	"catalyst-backend/gateway"
@@ -31,6 +33,17 @@ func main() {
 
 		// Enable required APIs
 		if err := apis.EnableRequiredAPIs(ctx, cfg.GcpProject, cfg.Environment); err != nil {
+			return err
+		}
+
+		// Create Firestore database
+		firestoreDb, err := firestore.CreateFirestoreDatabase(ctx, cfg.GcpProject, cfg.GcpRegion)
+		if err != nil {
+			return err
+		}
+
+		// Create Firestore indexes for better query performance
+		if err := firestore.CreateFirestoreIndexes(ctx, cfg.GcpProject, firestoreDb); err != nil {
 			return err
 		}
 
@@ -301,6 +314,7 @@ func main() {
 			Region:         cfg.GcpRegion,
 			Project:        cfg.GcpProject,
 			ServiceAccount: sa.Email,
+			MemoryMb:       512, // Increased from default 256MB to reduce cold start time
 			EnvVars: pulumi.StringMap{
 				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
@@ -431,6 +445,16 @@ func main() {
 			return err
 		}
 
+		// BigQuery Analytics
+		analyticsDataset, err := bigquery.NewBigQueryAnalytics(ctx, "interview-analytics", &bigquery.BigQueryAnalyticsArgs{
+			Project:     cfg.GcpProject,
+			Environment: cfg.Environment,
+			Region:      cfg.GcpRegion,
+		})
+		if err != nil {
+			return err
+		}
+
 		// TUNNEL DEPLOYMENT DISABLED: SSH key configuration needs to be fixed
 		// The current configuration has a public SSH key instead of a private key
 		// To re-enable:
@@ -541,6 +565,19 @@ func main() {
 		ctx.Export("firebaseStorageBucket", firebaseConfig.StorageBucket)
 		ctx.Export("firebaseMessagingSenderId", firebaseConfig.MessagingSenderID)
 		ctx.Export("firebaseAppId", firebaseConfig.AppID)
+
+		// Export BigQuery Analytics resources
+		ctx.Export("bigqueryDatasetId", analyticsDataset.Dataset.DatasetId)
+		ctx.Export("bigqueryProjectId", analyticsDataset.Dataset.Project)
+		ctx.Export("bigqueryLocation", analyticsDataset.Dataset.Location)
+		ctx.Export("bigqueryAnalyticsTables", pulumi.Map{
+			"interview_sessions":   analyticsDataset.InterviewSessionsTable.TableId,
+			"user_responses":       analyticsDataset.UserResponsesTable.TableId,
+			"evaluation_scores":    analyticsDataset.EvaluationScoresTable.TableId,
+			"prompt_performance":   analyticsDataset.PromptPerformanceTable.TableId,
+			"agent_interactions":   analyticsDataset.AgentInteractionsTable.TableId,
+			"session_summaries":    analyticsDataset.SessionSummariesTable.TableId,
+		})
 
 		return nil
 	})

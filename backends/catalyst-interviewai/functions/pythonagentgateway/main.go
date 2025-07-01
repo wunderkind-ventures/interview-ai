@@ -15,16 +15,19 @@ import (
 	"interviewai.wkv.local/pythonagentgateway/internal/auth"
 	"interviewai.wkv.local/pythonagentgateway/internal/config"
 	"interviewai.wkv.local/pythonagentgateway/internal/httputils"
+	"interviewai.wkv.local/pkg/analytics"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	firebase "firebase.google.com/go/v4"
 	"google.golang.org/api/option"
+	"github.com/google/uuid"
 )
 
 var (
 	firebaseAppSingleton  *firebase.App
 	secretClientSingleton *secretmanager.Client
 	serviceConfig         *config.ServiceConfig
+	analyticsClient       *analytics.Client
 )
 
 func init() {
@@ -57,6 +60,19 @@ func init() {
 	secretClientSingleton, err = secretmanager.NewClient(ctx)
 	if err != nil {
 		log.Fatalf("secretmanager.NewClient in init: %v", err)
+	}
+	
+	// Initialize BigQuery Analytics Client
+	if serviceConfig.GCPProjectID != "" && !serviceConfig.UseLocalService {
+		environment := os.Getenv("ENVIRONMENT")
+		if environment == "" {
+			environment = "dev"
+		}
+		analyticsClient, err = analytics.NewClient(ctx, serviceConfig.GCPProjectID, environment)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize BigQuery analytics client: %v", err)
+			// Don't fail the function, just log the error
+		}
 	}
 	
 	log.Println("PythonAgentGateway: Firebase App and Secret Manager Client initialized.")
@@ -107,6 +123,37 @@ func StartInterviewGCF(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httputils.ErrorJSON(w, fmt.Sprintf("Failed to start interview: %v", err), http.StatusInternalServerError)
 		return
+	}
+
+	// Log to BigQuery if analytics client is available
+	if analyticsClient != nil && response != nil {
+		go func() {
+			ctx := context.Background()
+			
+			// Extract session ID from response
+			sessionID := ""
+			if sid, ok := response["session_id"].(string); ok {
+				sessionID = sid
+			}
+			
+			if sessionID != "" {
+				// Create interview session record
+				session := &analytics.InterviewSession{
+					SessionID:     sessionID,
+					UserID:        userID,
+					StartedAt:     time.Now(),
+					Status:        "active",
+					InterviewType: getStringFromMap(requestBody, "interview_type", "behavioral"),
+					TargetRole:    getStringPtrFromMap(requestBody, "target_role"),
+					Company:       getStringPtrFromMap(requestBody, "company"),
+					Metadata:      requestBody,
+				}
+				
+				if err := analyticsClient.InsertInterviewSession(ctx, session); err != nil {
+					log.Printf("Failed to log interview session to BigQuery: %v", err)
+				}
+			}
+		}()
 	}
 
 	httputils.ResponseJSON(w, response, http.StatusOK)
@@ -166,6 +213,35 @@ func InterviewResponseGCF(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httputils.ErrorJSON(w, fmt.Sprintf("Failed to process response: %v", err), http.StatusInternalServerError)
 		return
+	}
+
+	// Log user response to BigQuery
+	if analyticsClient != nil && response != nil {
+		go func() {
+			ctx := context.Background()
+			
+			// Create user response record
+			userResponse := &analytics.UserResponse{
+				ResponseID:        uuid.New().String(),
+				SessionID:         sessionID,
+				UserID:            userID,
+				QuestionID:        getStringFromMap(requestBody, "question_id", ""),
+				QuestionText:      getStringFromMap(requestBody, "question_text", ""),
+				ResponseText:      getStringFromMap(requestBody, "response", ""),
+				ResponseTimestamp: time.Now(),
+				IsFinalAnswer:     true,
+			}
+			
+			// Calculate word count
+			if userResponse.ResponseText != "" {
+				wordCount := len(strings.Fields(userResponse.ResponseText))
+				userResponse.WordCount = &wordCount
+			}
+			
+			if err := analyticsClient.InsertUserResponse(ctx, userResponse); err != nil {
+				log.Printf("Failed to log user response to BigQuery: %v", err)
+			}
+		}()
 	}
 
 	httputils.ResponseJSON(w, response, http.StatusOK)
@@ -410,5 +486,20 @@ func forwardToPythonAgents(method, endpoint string, body interface{}, userID str
 
 	log.Printf("Successfully forwarded %s %s for user %s", method, endpoint, userID)
 	return responseJSON, nil
+}
+
+// Helper functions for extracting values from maps
+func getStringFromMap(m map[string]interface{}, key string, defaultValue string) string {
+	if val, ok := m[key].(string); ok {
+		return val
+	}
+	return defaultValue
+}
+
+func getStringPtrFromMap(m map[string]interface{}, key string) *string {
+	if val, ok := m[key].(string); ok {
+		return &val
+	}
+	return nil
 }
 

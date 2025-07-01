@@ -16,6 +16,7 @@ from google.cloud import aiplatform
 from .base import BaseAgent, AgentMessage, MessageType, MessagePriority
 from common.config import AgentName, ComplexityLevel, settings
 from common.telemetry import SessionTracker, trace_agent_operation, trace_ai_operation
+from common.analytics import get_analytics_client
 
 logger = logging.getLogger(__name__)
 
@@ -438,6 +439,26 @@ class EvaluatorAgent(BaseAgent):
         
         # Generate immediate feedback
         feedback = await self._generate_immediate_feedback(evaluation)
+        
+        # Log evaluation to BigQuery
+        analytics = get_analytics_client()
+        if analytics:
+            # Extract dimension scores
+            dim_scores = {dim.value: score.value for dim, score in evaluation.dimension_scores.items()}
+            
+            analytics.log_evaluation_score(
+                response_id=f"{session_id}_{len(session_eval.evaluations)}",
+                session_id=session_id,
+                overall_score=evaluation.overall_score * 100,  # Convert to 0-100 scale
+                evaluator_agent=self.agent_name.value,
+                clarity_score=dim_scores.get("communication_clarity", 0) * 100 if "communication_clarity" in dim_scores else None,
+                relevance_score=dim_scores.get("problem_understanding", 0) * 100 if "problem_understanding" in dim_scores else None,
+                depth_score=dim_scores.get("technical_depth", 0) * 100 if "technical_depth" in dim_scores else None,
+                structure_score=dim_scores.get("solution_approach", 0) * 100 if "solution_approach" in dim_scores else None,
+                strengths=evaluation.strengths[:5],  # Limit to 5 strengths
+                improvements=evaluation.growth_areas[:5],  # Limit to 5 improvements
+                feedback_text=feedback.get("message") if isinstance(feedback, dict) else str(feedback)
+            )
         
         return {
             "success": True,

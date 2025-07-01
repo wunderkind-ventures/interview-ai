@@ -11,6 +11,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` - Build the Next.js application
 - `npm run lint` - Run ESLint
 - `npm run typecheck` - Run TypeScript type checking
+- `npm run env:generate` - Generate complete .env.local from Pulumi outputs
+- `npm run env:update-backend` - Update only backend URL from latest infrastructure
+- `npm run env:validate` - Validate current environment
+- `npm run deploy:prepare` - Prepare deployment configuration
+
+### Gemini API Setup
+- `./scripts/setup-gemini-api.sh [dev|stage|prod]` - Set up Gemini API for an environment
+  - Enables the Generative Language API
+  - Guides through API key creation
+  - Stores API key in Secret Manager
+  - Updates local configuration
 
 ### Infrastructure (via justfile)
 - `just pulumi-up` - Deploy infrastructure with Pulumi
@@ -66,7 +77,7 @@ gcloud config configurations activate interviewai-prod  # Production
   - `byok`: Bring Your Own Key functionality
   - `rag`: RAG system orchestration
   - `scuttle-go`: Web crawling functionality
-- **Python Services**: In `backends/catalyst-py/`
+- **Python Services**: In `backends/interview-agents-python/`
   - FastAPI-based multi-agent system
   - Agents: orchestrator, evaluator, context, interviewer
   - Achievement reframing and story deconstruction
@@ -77,13 +88,20 @@ gcloud config configurations activate interviewai-prod  # Production
   - Whisper model for speech processing
   - Quantized model support (Qwen3)
 - **API Gateway**: Proxies all backend services at `https://catalyst-gateway-dev-an3b0bg1.uc.gateway.dev`
+- **BigQuery Analytics**: Comprehensive analytics tracking in `interview_analytics_dev` dataset
+  - `interview_sessions`: Track all interview sessions
+  - `user_responses`: Store user answers to questions
+  - `evaluation_scores`: AI evaluation results  
+  - `agent_interactions`: Inter-agent message logs
+  - `prompt_performance`: Prompt effectiveness metrics
+  - `session_summaries`: Final interview reports
 
 ### Infrastructure (Pulumi + GCP)
-- **IaC**: Pulumi configuration in `pulumi-gcp-catalyst/pulumi-gcp-interviewai/`
+- **IaC**: Pulumi configuration in `pulumi-gcp-catalyst/pulumi-gcp-interviewai/` (NOT pulumi-gcp-infrastructure)
 - **Resources**: 
   - Cloud Functions (Gen1 for most services, Gen2 for ParseResume)
   - Cloud Run (ContentIndexer, VectorSearch, Python agents)
-  - API Gateway with OpenAPI spec
+  - API Gateway with OpenAPI spec at `https://catalyst-gateway-dev-an3b0bg1.uc.gateway.dev`
   - Secret Manager for API keys
   - Pub/Sub for content indexing pipeline
   - Cloud Storage for function deployments
@@ -91,11 +109,19 @@ gcloud config configurations activate interviewai-prod  # Production
 - **Environments**: dev, stage, prod with separate GCP projects
 - **Configuration**: Environment-specific config in `Pulumi.interviewai-{env}.yaml`
 - **Stack outputs**: Clean names without environment suffixes (e.g., `apigatewayHostname` not `apigatewayHostname-dev`)
+- **Active Stack**: `wkv/interviewai-dev` (use `pulumi stack select wkv/interviewai-dev`)
+- **Cloud Run Services**: 
+  - `python-adk-agents-dev`: https://python-adk-agents-dev-s5blxcobka-uc.a.run.app (healthy)
+  - `contentindexer-dev`: https://contentindexer-dev-s5blxcobka-uc.a.run.app
+  - `vectorsearch-dev-33bb8dd`: https://vectorsearch-dev-33bb8dd-s5blxcobka-uc.a.run.app
 
 ## Key Patterns
 
 ### Authentication Flow
 1. Frontend uses Firebase Auth for user authentication
+   - Email/password authentication enabled by default
+   - Google Sign-In requires manual Firebase Console configuration (see `docs/deployment/google-auth-setup.md`)
+   - OAuth client ID configured via `NEXT_PUBLIC_FIREBASE_OAUTH_CLIENT_ID`
 2. ID tokens sent in Authorization header
 3. Backend validates tokens using Firebase Admin SDK
 4. API keys stored in Secret Manager with user-specific paths
@@ -147,6 +173,20 @@ gcloud config configurations activate interviewai-prod  # Production
 4. Check function status: `gcloud functions list --regions=us-central1`
 5. Check Cloud Run services: `gcloud run services list --region=us-central1`
 
+### BigQuery Analytics Integration
+- **Go Functions**: Use `pkg/analytics` package to log events
+  - StartInterviewGCF logs new sessions
+  - InterviewResponseGCF logs user responses
+  - All functions log via analytics client
+- **Python Agents**: Use `common.analytics` module
+  - Base agent auto-logs all inter-agent messages
+  - Evaluator agent logs evaluation scores
+  - Orchestrator tracks session state changes
+- **Query Analytics**:
+  ```bash
+  bq query --use_legacy_sql=false 'SELECT * FROM `wkv-interviewai-dev.interview_analytics_dev.interview_sessions` LIMIT 5'
+  ```
+
 ## Important Notes
 
 - Test infrastructure exists in CI/CD (`ai-agent-testing.yml`) but no local test runner configured
@@ -160,17 +200,73 @@ gcloud config configurations activate interviewai-prod  # Production
 - Some functions deployed as Cloud Run services for better scalability
 - Vector search requires manual Vertex AI setup (see stack outputs for instructions)
 
+## Environment Configuration
+
+### Setting Up .env.local
+The `.env.local` file contains environment-specific configuration including Firebase settings and the API Gateway URL. There are two ways to manage this:
+
+1. **Generate complete environment file from Pulumi** (recommended after infrastructure changes):
+   ```bash
+   npm run env:generate
+   # Or specify environment: npm run env:generate -- stage
+   ```
+
+2. **Update only the backend URL** (useful after API Gateway updates):
+   ```bash
+   npm run env:update-backend
+   # Or specify environment: npm run env:update-backend -- stage
+   ```
+
+The backend URL should match the API Gateway hostname from Pulumi:
+- Development: `catalyst-gateway-dev-an3b0bg1.uc.gateway.dev`
+- Staging/Production: Check Pulumi outputs
+
+Note: Firebase API keys must be obtained from Firebase Console and added manually.
+
+### Deployment to Staging/Production
+
+When staging and production environments are set up, use these scripts to manage deployments:
+
+1. **Prepare deployment configuration**:
+   ```bash
+   ./scripts/prepare-deployment.sh [stage|prod]
+   ```
+   This script:
+   - Fetches configuration from Pulumi infrastructure
+   - Creates/updates apphosting.yaml files
+   - Provides a deployment checklist
+
+2. **Validate environment before deployment**:
+   ```bash
+   ./scripts/validate-env.sh [dev|stage|prod]
+   ```
+   This script:
+   - Validates all required environment variables
+   - Tests API Gateway connectivity
+   - Checks Pulumi infrastructure status
+
+3. **Update only backend URL** (after infrastructure changes):
+   ```bash
+   npm run env:update-backend -- [stage|prod]
+   ```
+
+### Environment Variable Management
+
+- **Development**: Uses `.env.local` (gitignored)
+- **Staging/Production**: Uses `apphosting.[env].yaml` files
+- **Secrets**: Stored in Google Secret Manager, never in code
+- **Example files**: `.env.example.staging` and `.env.example.prod` document required variables
+
 ## Common Issues & Solutions
 
-### API Gateway 504 Timeouts
-- Usually caused by Python agent service issues
-- Check logs: `gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="python-adk-agents-dev"' --limit=10`
-- Rebuild and redeploy Python service if needed:
-  ```bash
-  cd backends/catalyst-py
-  gcloud builds submit --tag gcr.io/wkv-interviewai-dev/python-adk-agents:latest
-  gcloud run deploy python-adk-agents-dev --image=gcr.io/wkv-interviewai-dev/python-adk-agents:latest --region=us-central1
-  ```
+### API Gateway 504 Timeouts (RESOLVED)
+- **Issue**: AgentHealthGCF was taking 18+ seconds on cold start
+- **Solution**: Increased function memory from 256MB to 512MB in Pulumi configuration
+- **Result**: Response time reduced from 18s to ~160ms (99%+ improvement)
+- To apply memory changes to other functions experiencing cold start issues:
+  1. Update `functions/component/gen1.go` to accept `MemoryMb` parameter
+  2. Set `MemoryMb: 512` in function configuration in `main.go`
+  3. Deploy with `pulumi up`
 
 ### Missing Functions in Pulumi State
 - Run `pulumi refresh --yes` to detect missing resources
@@ -179,3 +275,9 @@ gcloud config configurations activate interviewai-prod  # Production
 ### Authentication Errors
 - Refresh credentials: `gcloud auth application-default login`
 - Ensure correct project: `gcloud config set project wkv-interviewai-dev`
+- Set quota project: `gcloud auth application-default set-quota-project wkv-interviewai-dev`
+
+### Google Sign-In Not Working
+- Manually enable Google provider in Firebase Console
+- Add OAuth client ID to safelist in Firebase Authentication settings
+- See `docs/deployment/google-auth-setup.md` for detailed steps

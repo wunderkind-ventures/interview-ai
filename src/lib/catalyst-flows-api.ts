@@ -10,6 +10,7 @@ import { getApp } from 'firebase/app';
 
 // Import the specific types needed
 import type { CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput } from "@/ai/flows/customize-interview-questions";
+import type { GenerateInterviewFeedbackInput, GenerateInterviewFeedbackOutput } from "@/ai/flows/generate-interview-feedback";
 
 // Get the backend URL from environment variable
 const GO_BACKEND_URL = process.env.NEXT_PUBLIC_GO_BACKEND_URL || '';
@@ -175,4 +176,11 @@ export async function customizeInterviewQuestionsBYOK(input: CustomizeInterviewQ
   };
 
   return executeBYOKFlow<CustomizeInterviewQuestionsInput, CustomizeInterviewQuestionsOutput>('customizeInterviewQuestions', sanitizedInput);
+}
+
+/**
+ * Wrapper for generateInterviewFeedback that handles BYOK
+ */
+export async function generateInterviewFeedbackBYOK(input: GenerateInterviewFeedbackInput): Promise<GenerateInterviewFeedbackOutput> {
+  return executeBYOKFlow<GenerateInterviewFeedbackInput, GenerateInterviewFeedbackOutput>('generateInterviewFeedback', input);
 } 

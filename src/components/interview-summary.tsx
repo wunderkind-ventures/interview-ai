@@ -19,7 +19,7 @@ import { Loader2, CheckCircle, Home, MessageSquare, Edit, Sparkles, FileText, Ti
 import { LOCAL_STORAGE_KEYS, INTERVIEW_STYLES, INTERVIEW_TYPES, FAANG_LEVELS, INTERVIEWER_PERSONAS } from "@/lib/constants";
 import type { InterviewSessionData, FeedbackItem, DeepDiveFeedback, InterviewQuestion, AdminFeedbackItem, AdminFeedbackTargetType as AdminFeedbackTargetTypeType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
-import { generateInterviewFeedback } from "@/ai/flows/generate-interview-feedback";
+import { generateInterviewFeedbackBYOK } from "@/lib/catalyst-flows-api";
 import type { GenerateInterviewFeedbackInput } from "@/ai/flows/generate-interview-feedback";
 import { generateDeepDiveFeedback } from "@/ai/flows/generate-deep-dive-feedback";
 import type { GenerateDeepDiveFeedbackInput, GenerateDeepDiveFeedbackOutput } from "@/ai/flows/generate-deep-dive-feedback";
@@ -269,7 +269,7 @@ function InterviewSummaryContent() {
         interviewFocus: currentSession.interviewFocus === null || currentSession.interviewFocus === undefined ? undefined : currentSession.interviewFocus,
       };
 
-      const feedbackResult = await generateInterviewFeedback(feedbackInput, { apiKey: undefined });
+      const feedbackResult = await generateInterviewFeedbackBYOK(feedbackInput);
 
       setSessionData(prev => {
         if (!prev) return null;

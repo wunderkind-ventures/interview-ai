@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from enum import Enum
 from dataclasses import dataclass, field
+import time
 
 import google.generativeai as genai
 from google.cloud import aiplatform
@@ -19,6 +20,7 @@ from common.telemetry import (
     SessionTracker, trace_agent_operation, record_state_transition,
     record_complexity_assessment, trace_ai_operation, calculate_ai_cost
 )
+from common.analytics import get_analytics_client
 from .prompt_portfolio import prompt_portfolio, PromptType
 
 logger = logging.getLogger(__name__)

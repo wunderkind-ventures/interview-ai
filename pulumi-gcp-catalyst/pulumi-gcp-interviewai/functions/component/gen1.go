@@ -18,6 +18,7 @@ type Gen1FunctionArgs struct {
 	ServiceAccount pulumi.StringInput
 	EnvVars        pulumi.StringMap
 	Runtime        string // Optional: defaults to "go121" if not specified
+	MemoryMb       int    // Optional: defaults to 256 if not specified
 }
 
 type Gen1Function struct {
@@ -49,11 +50,17 @@ func NewGen1Function(ctx *pulumi.Context, name string, args *Gen1FunctionArgs, o
 		runtime = "go121"
 	}
 
+	// Use provided memory or default to 256MB
+	memoryMb := args.MemoryMb
+	if memoryMb == 0 {
+		memoryMb = 256
+	}
+
 	fn, err := cloudfunctions.NewFunction(ctx, args.Name, &cloudfunctions.FunctionArgs{
 		Name:                 pulumi.String(args.Name),
 		EntryPoint:           pulumi.String(args.EntryPoint),
 		Runtime:              pulumi.String(runtime),
-		AvailableMemoryMb:    pulumi.Int(256),
+		AvailableMemoryMb:    pulumi.Int(memoryMb),
 		SourceArchiveBucket:  args.BucketName,
 		SourceArchiveObject:  sourceObject.Name,
 		TriggerHttp:          pulumi.Bool(true),

@@ -50,6 +50,10 @@ export async function executeBYOKFlow<TInput, TOutput>(
     console.log('[BYOK] Request URL:', `${GO_BACKEND_URL}/api/ai/genkit/${flowName}`);
     console.log('[BYOK] Request body:', JSON.stringify(input, null, 2));
     
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+    
     const response = await fetch(`${GO_BACKEND_URL}/api/ai/genkit/${flowName}`, {
       method: 'POST',
       headers: {
@@ -57,6 +61,9 @@ export async function executeBYOKFlow<TInput, TOutput>(
         'Authorization': `Bearer ${idToken}`,
       },
       body: JSON.stringify(input),
+      signal: controller.signal,
+    }).finally(() => {
+      clearTimeout(timeoutId);
     });
 
     if (!response.ok) {
@@ -102,11 +109,41 @@ export async function executeBYOKFlow<TInput, TOutput>(
       throw new Error(errorResponseMessage);
     }
 
-    const result = await response.json();
+    // Check if response has content
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error(`[BYOK] Response is not JSON. Content-Type: ${contentType}, Body: ${text}`);
+      throw new Error(`Invalid response format from server. Expected JSON but received ${contentType}`);
+    }
+    
+    let result;
+    try {
+      result = await response.json();
+    } catch (jsonError) {
+      console.error(`[BYOK] Failed to parse JSON response:`, jsonError);
+      const text = await response.text();
+      console.error(`[BYOK] Response body:`, text);
+      throw new Error(`Failed to parse server response. The server may have returned an invalid response.`);
+    }
+    
     console.log(`[BYOK] Flow ${flowName} executed successfully`);
+    console.log(`[BYOK] Response size: ${JSON.stringify(result).length} characters`);
     return result as TOutput;
   } catch (error) {
     console.error(`[BYOK] Error executing flow ${flowName}:`, error);
+    
+    // Handle timeout errors
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('[BYOK] Request timed out after 2 minutes');
+      throw new Error(`Request timed out. The ${flowName} operation is taking longer than expected. Please try again.`);
+    }
+    
+    // Handle network errors
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      console.error('[BYOK] Network error - possible CORS issue or backend is unreachable');
+      throw new Error(`Network error: Unable to reach the backend service. Please check your connection and try again.`);
+    }
     
     // If it's a schema validation error, provide more context
     if (error instanceof Error && error.message.includes('Schema validation failed')) {

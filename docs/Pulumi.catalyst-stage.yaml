@@ -1,5 +1,0 @@
-config:
-  gcp:project: wkv-interviewai-stage
-  wkv-catalyst-gcp:environment: stage
-  wkv-catalyst-gcp:projectId: wkv-interviewai-stage
-  wkv-catalyst-gcp:projectName: InterviewAI Staging

@@ -689,6 +689,9 @@ export default function InterviewSession() {
 
   const handleFetchSampleAnswer = async () => {
     if (!sessionData || sessionData.questions.length === 0) return;
+    
+    // Open the dialog first
+    setIsSampleAnswerDialogOpen(true);
     setIsFetchingSampleAnswer(true);
     setSampleAnswerError(null);
     setSampleAnswerText(null);

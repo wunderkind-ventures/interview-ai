@@ -1,5 +1,0 @@
-config:
-  gcp:project: wkv-interviewai-dev
-  wkv-catalyst-gcp:environment: dev
-  wkv-catalyst-gcp:projectId: wkv-interviewai-dev
-  wkv-catalyst-gcp:projectName: InterviewAI Development

@@ -8,17 +8,17 @@
         "type": "tabs",
         "children": [
           {
-            "id": "c384b9c5e087c04d",
+            "id": "758fd75987022f8a",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "research/key_features.md",
+                "file": "architecture/Drawing 2025-06-30 14.35.25.excalidraw.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "key_features"
+              "title": "Drawing 2025-06-30 14.35.25.excalidraw"
             }
           },
           {
@@ -27,16 +27,70 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Untitled.md",
+                "file": "development/notes.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Untitled"
+              "title": "notes"
+            }
+          },
+          {
+            "id": "d54c9939068369d6",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "presentation/Drawing 2025-06-29 11.22.45.excalidraw.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Drawing 2025-06-29 11.22.45.excalidraw"
+            }
+          },
+          {
+            "id": "97a1049cb7a92c5a",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "architecture/hybrid-architecture-evolution.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "hybrid-architecture-evolution"
+            }
+          },
+          {
+            "id": "4b2f93b5c1aa00c2",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "presentation/interviewai-exec-arch.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "interviewai-exec-arch.excalidraw"
+            }
+          },
+          {
+            "id": "e5440e6868978c76",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "presentation/InterviewAI-Summary-2025-07-01.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "InterviewAI-Summary-2025-07-01"
             }
           }
         ],
-        "currentTab": 1
+        "currentTab": 5
       }
     ],
     "direction": "vertical"
@@ -109,7 +163,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "research/key_features.md",
+                "file": "presentation/InterviewAI-Summary-2025-07-01.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -119,7 +173,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for key_features"
+              "title": "Backlinks for InterviewAI-Summary-2025-07-01"
             }
           },
           {
@@ -180,46 +234,49 @@
       "canvas:Create new canvas": false,
       "daily-notes:Open today's daily note": false,
       "templates:Insert template": false,
-      "command-palette:Open command palette": false
+      "command-palette:Open command palette": false,
+      "obsidian-excalidraw-plugin:New drawing": false
     }
   },
-  "active": "a71f8b653bdf74d0",
+  "active": "e5440e6868978c76",
   "lastOpenFiles": [
-    "research/# PM Interview Prep - no videos.md",
-    "Pulumi.catalyst-dev.yaml",
-    "Pulumi.catalyst-prod.yaml",
-    "Pulumi.catalyst-stage.yaml",
-    "deployment/ENVIRONMENT_SETUP.md",
-    "development/byot-prototype/byot.md",
-    "development/byot-prototype/BYOT_TECHNICAL_ADDENDUM.md",
-    "development/byot-prototype/BYOT_NEXT_STEPS_ROADMAP.md",
-    "development/byot-prototype/BYOT_BACKEND_DESIGN_DOCUMENT.md",
-    "development/byot-prototype",
-    "development/untitled folder",
-    "development/agentic-evolution/archive_repository_detail.md",
-    "development/agentic-evolution/technical_design_dgm_po.md",
-    "development/agentic-evolution/mutation_engine_detail.md",
-    "development/agentic-evolution/evaluator_engine_detail.md",
-    "development/agentic-evolution/dspy_framework_detail.md",
-    "development/agentic-evolution/diagnostic_self_improve.md",
-    "development/agentic-evolution/dgm_prompt_opt_prd.md",
-    "development/agentic-evolution/agents_codex_dgm_po.txt",
-    "development/agentic-evolution",
-    "development/Agentic Evolution/technical_design_dgm_po.md",
-    "development/Agentic Evolution/mutation_engine_detail.md",
-    "development/Agentic Evolution/evaluator_engine_detail.md",
-    "development/Agentic Evolution/dspy_framework_detail.md",
-    "development/Agentic Evolution/diagnostic_self_improve.md",
-    "development/Agentic Evolution/dgm_prompt_opt_prd.md",
-    "development/Agentic Evolution/archive_repository_detail.md",
-    "development/Agentic Evolution/agents_codex_dgm_po.txt",
-    "development/notes.md",
-    "development/Agentic Evolution/notes.md",
-    "development/prompt-engineering/Phase 5/Phase 5.3.1 - Manual Test Execution Log.md",
-    "development/prompt-engineering/Phase 5/Phase 5.3 Red Teaming Scaffolding.md",
-    "development/prompt-engineering/Phase 5/Phase 5.2.2 Golden Set Development Plan.md",
-    "development/prompt-engineering/Phase 5/Phase 5.2 Testing & Evaluation Framework.md",
-    "development/prompt-engineering/Phase 5",
-    "development/prompt-engineering"
+    "presentation/InterviewAI _ Product Review.pdf",
+    "presentation/interview-options.png",
+    "presentation/InterviewAI - Your Mock Interview Partner - L7 Antagonistic.pdf",
+    "presentation/InterviewAI - Your Mock Interview Partner - L3 Friendly.pdf",
+    "presentation/InterviewAI - Your Mock Interview Partner.pdf",
+    "presentation/interviewai-exec-arch.excalidraw",
+    "presentation/Unconfirmed 473553.crdownload",
+    "presentation/spas/aipm-capstone.html",
+    "presentation/spas",
+    "presentation/Untitled.md",
+    "presentation/dgm-po-system.excalidraw.md",
+    "executive-prompt-optimization-value.md",
+    "presentation/InterviewAI-Summary-2025-07-01.md",
+    "presentation/interviewai-exec-arch.excalidraw.md",
+    "architecture/hybrid-architecture-evolution.md",
+    "presentation/chatprd-guide.md",
+    "presentation/Unconfirmed 116904.crdownload",
+    "presentation/InterviewAI-Summary-2025-07-01 (1).md",
+    "presentation/Unconfirmed 541620.crdownload",
+    "architecture/prompt-optimization-architecture.excalidraw.md",
+    "presentation/Unconfirmed 841997.crdownload",
+    "presentation/Script.md",
+    "technical-prompt-optimization-detailed.md",
+    "research/technical_design_dgm_po.md",
+    "research/mutation_engine_detail.md",
+    "research/diagnostic_self_improve.md",
+    "research/dgm_prompt_opt_prd.md",
+    "reference/key_features.md",
+    "reference/Evaluating PM Case Study Interviews.md",
+    "reference/# PM Interview Prep - no videos.md",
+    "architecture/monitoring-infrastructure.md",
+    "presentation/evolution-timeline.excalidraw.md",
+    "presentation/Drawing 2025-06-29 11.22.45.excalidraw.md",
+    "architecture/ai-components-architecture.excalidraw.md",
+    "presentation/Drawing 2025-06-30 17.18.28.excalidraw.md",
+    "presentation/01 Solution.md",
+    "architecture/Drawing 2025-06-30 14.35.25.excalidraw.md",
+    "Pasted image 20250630170254.png"
   ]
 }

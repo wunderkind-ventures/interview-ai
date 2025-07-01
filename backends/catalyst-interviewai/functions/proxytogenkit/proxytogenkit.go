@@ -175,12 +175,20 @@ func ProxyToGenkitGCF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Forward headers from the downstream response
+	// Forward headers from the downstream response, but preserve CORS headers
 	for key, values := range resp.Header {
+		// Skip CORS headers to avoid overwriting our own CORS settings
+		if strings.HasPrefix(strings.ToLower(key), "access-control-") {
+			continue
+		}
 		for _, value := range values {
 			w.Header().Add(key, value)
 		}
 	}
+	
+	// Ensure CORS headers are set again before writing status
+	httputils.SetCORSHeaders(w, r)
+	
 	w.WriteHeader(resp.StatusCode) // Forward the status code
 	_, err = w.Write(responseBody) // Forward the raw body
 	if err != nil {

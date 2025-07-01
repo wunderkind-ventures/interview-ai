@@ -24,6 +24,12 @@ ngrok-config:
     curl ifconfig.me >> ngrok-config.txt
     ssh -R 9002:localhost:9002 ubuntu@138.201.134.10
 
+# === GCP ===
+gcp-auth ENV:
+    gcloud auth application-default login
+    gcloud auth application-default set-quota-project wkv-interviewai-{{ENV}} 
+# gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+
 
 # === Test Browser ===
 # Open Chrome in incognito mode with the local server URL
@@ -88,11 +94,15 @@ generate-ssh-key:
 	@echo "Public key:" && cat ~/.ssh/tunnel_rsa.pub
 
 configure-ssh-key:
-	pulumi config set --secret --path sshKey "$(shell cat ~/.ssh/tunnel_rsa.pub)"
+	pulumi config set --secret --path sshKey "$(cat ~/.ssh/tunnel_rsa.pub)"
 
+set-gemini-api-key:
+	pulumi config set --secret --path catalyst-gcp-infra:defaultGeminiApiKey "$GEMINI_API_KEY"
 
-# Default environment if not overridden
-# ENV ?= dev
+pulumi-dev-configure:
+    pulumi stack output dev_service_account_key > dev-service-account-key.json
+    ENCRYPTION_KEY=$(openssl rand -base64 32) && pulumi config set --secret ENCRYPTION_KEY "$ENCRYPTION_KEY"
+    pulumi config set --secret --path catalyst-gcp-infra:sshPrivateKey < ~/.ssh/pulumi-tunnel
 
 # === Pulumi lifecycle ===
 init:
@@ -103,6 +113,10 @@ init:
 	pulumi config set catalyst:environment $(ENV) && \
 	pulumi config set tunnelDomain $(DEV_TUNNEL_DOMAIN) && \
 	pulumi config set --secret sshPrivateKey "$(cat ~/.ssh/id_rsa)"
+
+ngrok-dev:
+    ngrok http --url=settled-merry-jaguar.ngrok-free.app 9002
+
 
 # === CI/CD style automation ===
 preview ENV:

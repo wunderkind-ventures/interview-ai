@@ -1,5 +1,0 @@
-config:
-  gcp:project: interviewai-mzf86
-  wkv-catalyst-gcp:environment: prod
-  wkv-catalyst-gcp:projectId: interviewai-mzf86
-  wkv-catalyst-gcp:projectName: InterviewAI Production

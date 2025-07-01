@@ -9,10 +9,41 @@ import (
 
 // SetCORSHeaders sets permissive CORS headers. Adjust origins for production.
 func SetCORSHeaders(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*") // Or specific origins
+	// Get the origin from the request
+	origin := r.Header.Get("Origin")
+	
+	// In development, allow localhost origins
+	// In production, you should restrict this to your actual domain
+	allowedOrigins := []string{
+		"http://localhost:3000",
+		"http://localhost:9002", 
+		"https://interview-ai.ngrok.app",
+		// Add your production domain here
+	}
+	
+	// Check if the origin is allowed
+	allowed := false
+	for _, allowedOrigin := range allowedOrigins {
+		if origin == allowedOrigin {
+			allowed = true
+			break
+		}
+	}
+	
+	// If no origin or not in allowed list, allow all for now (adjust for production)
+	if origin == "" || !allowed {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	} else {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
+	
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
 	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	
+	// Only set credentials to true if not using wildcard origin
+	if origin != "" && allowed {
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+	}
 }
 
 // ErrorJSON writes a JSON error response.

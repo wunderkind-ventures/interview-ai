@@ -11,7 +11,7 @@
 
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
-import { ai as globalAi, getTechnologyBriefTool } from '@/ai/genkit';
+import { ai as globalAi } from '@/ai/genkit';
 import {z} from 'genkit';
 import { refineInterviewFeedback } from './refine-interview-feedback';
 import type { RefineInterviewFeedbackInput } from './refine-interview-feedback';
@@ -21,6 +21,7 @@ import { analyzeTakeHomeSubmission } from './analyze-take-home-submission';
 import type { AnalyzeTakeHomeSubmissionInput, AnalyzeTakeHomeSubmissionOutput, AnalyzeTakeHomeSubmissionContext } from '@/lib/types'; 
 import { INTERVIEW_TYPES, FAANG_LEVELS, INTERVIEW_STYLES, SKILLS_BY_ROLE, RoleType as RoleTypeFromConstants } from '@/lib/constants';
 import { loadPromptFile, renderPromptTemplate } from '../utils/promptUtils';
+import { defineGetTechnologyBriefTool } from '../tools/technology-tools';
 
 // Input schema for the data needed by the initial prompt template
 const DraftPromptInputSchema = z.object({
@@ -135,19 +136,28 @@ export async function generateInterviewFeedback(
 ): Promise<GenerateInterviewFeedbackOutput> {
   const flowNameForLogging = 'generateInterviewFeedback';
   let activeAI = globalAi;
+  let getTechnologyBriefTool: any;
 
   if (options?.apiKey) {
     try {
       activeAI = genkit({
         plugins: [googleAI({ apiKey: options.apiKey })],
       });
+      // Define the tool on the BYOK instance
+      getTechnologyBriefTool = await defineGetTechnologyBriefTool(activeAI);
       console.log(`[BYOK] ${flowNameForLogging}: Using user-provided API key.`);
     } catch (e) {
       console.warn(`[BYOK] ${flowNameForLogging}: Failed to initialize Genkit with API key: ${(e as Error).message}. Falling back to global AI.`);
       activeAI = globalAi;
+      // Import the global tool when falling back
+      const { getTechnologyBriefTool: globalTool } = await import('@/ai/genkit');
+      getTechnologyBriefTool = globalTool;
     }
   } else {
     console.log(`[BYOK] ${flowNameForLogging}: No specific API key provided; using default global AI instance.`);
+    // Import the global tool
+    const { getTechnologyBriefTool: globalTool } = await import('@/ai/genkit');
+    getTechnologyBriefTool = globalTool;
   }
 
   console.log(`[BYOK] ${flowNameForLogging}: Input received:`, JSON.stringify(input, null, 2));
@@ -219,14 +229,14 @@ export async function generateInterviewFeedback(
   const renderedDraftPrompt = renderPromptTemplate(RAW_DRAFT_FEEDBACK_PROMPT_TEMPLATE, draftPromptInputData);
   console.log(`[BYOK] ${flowNameForLogging}: Rendered Draft Prompt:\n`, renderedDraftPrompt);
 
-  const toolsToUse = [getTechnologyBriefTool];
+  const toolsToUse = getTechnologyBriefTool ? [getTechnologyBriefTool] : [];
 
   console.log(`[BYOK] ${flowNameForLogging}: Calling AI.generate for draft feedback with model and tools...`);
   const draftFeedbackResult = await activeAI.generate<typeof AIDraftOutputSchema>({
     prompt: renderedDraftPrompt,
     model: googleAI.model('gemini-1.5-pro-latest'),
     output: { schema: AIDraftOutputSchema },
-    tools: toolsToUse,
+    tools: toolsToUse.length > 0 ? toolsToUse : undefined,
     config: { responseMimeType: "application/json" },
   });
 

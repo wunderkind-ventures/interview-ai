@@ -2,9 +2,14 @@
 
 # secrets
 */serviceAccountKey.json
+**/serviceAccountKey*.json
+**/*-byot.json
+**/interviewai-byot.json
+**/*-service-account.json
+**/*-sa-key.json
 .env
 .env.local
-
+/docs/
 
 # dependencies
 /node_modules

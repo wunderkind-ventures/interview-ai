@@ -1,20 +1,47 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Form } from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
 
-// Import the original form component to reuse its logic
-import InterviewSetupForm from "./interview-setup-form";
+// Import step components
+import StepBasics from "./interview-setup/step-basics";
+import StepContext from "./interview-setup/step-context";
+import StepDocuments from "./interview-setup/step-documents";
+
+// Import types and constants
+import type { InterviewSetupData } from "@/lib/types";
+import { INTERVIEW_TYPES, FAANG_LEVELS } from "@/lib/constants";
 
 interface Step {
   id: number;
   title: string;
   description: string;
 }
+
+// Form validation schema
+const formSchema = z.object({
+  interviewType: z.string().min(1, "Please select an interview type"),
+  interviewStyle: z.string().min(1, "Please select an interview style"),
+  faangLevel: z.string().min(1, "Please select a level"),
+  interviewerPersona: z.string().optional(),
+  targetCompany: z.string().optional(),
+  jobTitle: z.string().optional(),
+  roleType: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  yearsOfExperience: z.number().optional(),
+  resumeText: z.string().optional(),
+  jobDescription: z.string().optional(),
+});
 
 const steps: Step[] = [
   {
@@ -35,11 +62,34 @@ const steps: Step[] = [
 ];
 
 export default function InterviewSetupWizard() {
+  const router = useRouter();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleNextStep = () => {
-    if (currentStep < steps.length) {
+  const form = useForm<InterviewSetupData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      interviewType: "",
+      interviewStyle: "",
+      faangLevel: "",
+      skills: [],
+    },
+  });
+
+  const handleNextStep = async () => {
+    // Validate current step fields
+    let fieldsToValidate: (keyof InterviewSetupData)[] = [];
+    
+    if (currentStep === 1) {
+      fieldsToValidate = ["interviewType", "interviewStyle", "faangLevel"];
+    }
+    
+    const isValid = fieldsToValidate.length === 0 || 
+      await form.trigger(fieldsToValidate);
+    
+    if (isValid && currentStep < steps.length) {
       setCompletedSteps([...completedSteps, currentStep]);
       setCurrentStep(currentStep + 1);
     }
@@ -54,6 +104,23 @@ export default function InterviewSetupWizard() {
   const goToStep = (stepId: number) => {
     if (stepId <= Math.max(...completedSteps, 1)) {
       setCurrentStep(stepId);
+    }
+  };
+
+  const onSubmit = async (data: InterviewSetupData) => {
+    setIsSubmitting(true);
+    try {
+      // Store setup data and navigate to interview
+      sessionStorage.setItem("interviewSetup", JSON.stringify(data));
+      router.push("/interview/session");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to start interview. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -125,48 +192,64 @@ export default function InterviewSetupWizard() {
           <CardDescription>{steps[currentStep - 1].description}</CardDescription>
         </CardHeader>
         <CardContent>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              {/* For now, we'll show the original form, but in a real implementation,
-                  we would break this down into separate step components */}
-              <div className="space-y-6">
-                <p className="text-muted-foreground">
-                  Step {currentStep} content would go here. This would include the relevant
-                  form fields for this step.
-                </p>
-                
-                {/* Navigation buttons */}
-                <div className="flex justify-between pt-6">
-                  <Button
-                    variant="outline"
-                    onClick={handlePrevStep}
-                    disabled={currentStep === 1}
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Previous
-                  </Button>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)}>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentStep}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {/* Step Content */}
+                  <div className="min-h-[400px]">
+                    {currentStep === 1 && <StepBasics form={form} />}
+                    {currentStep === 2 && <StepContext form={form} />}
+                    {currentStep === 3 && <StepDocuments form={form} />}
+                  </div>
                   
-                  {currentStep < steps.length ? (
-                    <Button onClick={handleNextStep}>
-                      Next
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                  {/* Navigation buttons */}
+                  <div className="flex justify-between pt-6 border-t">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handlePrevStep}
+                      disabled={currentStep === 1}
+                    >
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Previous
                     </Button>
-                  ) : (
-                    <Button className="bg-gradient-to-r from-primary to-accent">
-                      Start Interview
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
+                    
+                    {currentStep < steps.length ? (
+                      <Button type="button" onClick={handleNextStep}>
+                        Next
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button 
+                        type="submit" 
+                        disabled={isSubmitting}
+                        className="bg-gradient-to-r from-primary to-accent"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Starting...
+                          </>
+                        ) : (
+                          <>
+                            Start Interview
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </form>
+          </Form>
         </CardContent>
       </Card>
 

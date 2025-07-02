@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview AI Architecture - Interactive Diagram</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        #architecture-diagram {
+            width: 100%;
+            height: 800px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+        }
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: inline-block;
+            margin-right: 30px;
+            margin-bottom: 10px;
+        }
+        .color-box {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            vertical-align: middle;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Interview AI - System Architecture</h1>
+        <p class="description">
+            Comprehensive architecture showing Frontend, Backend Services, Multi-Agent System, and Analytics Pipeline
+        </p>
+        
+        <div id="architecture-diagram">
+            <svg viewBox="0 0 1400 800" xmlns="http://www.w3.org/2000/svg">
+                <!-- Background sections -->
+                <rect x="10" y="10" width="380" height="200" fill="#E8F4F8" stroke="#4A90E2" stroke-width="2" rx="10"/>
+                <text x="200" y="35" text-anchor="middle" font-size="18" font-weight="bold" fill="#2C5282">Frontend (Next.js)</text>
+                
+                <rect x="410" y="10" width="580" height="380" fill="#FFF4E6" stroke="#F6AD55" stroke-width="2" rx="10"/>
+                <text x="700" y="35" text-anchor="middle" font-size="18" font-weight="bold" fill="#744210">Backend Services</text>
+                
+                <rect x="1010" y="10" width="380" height="380" fill="#F0FDF4" stroke="#48BB78" stroke-width="2" rx="10"/>
+                <text x="1200" y="35" text-anchor="middle" font-size="18" font-weight="bold" fill="#22543D">Multi-Agent System</text>
+                
+                <rect x="10" y="410" width="980" height="180" fill="#FDF2F8" stroke="#ED64A6" stroke-width="2" rx="10"/>
+                <text x="500" y="435" text-anchor="middle" font-size="18" font-weight="bold" fill="#702459">Analytics Pipeline (BigQuery)</text>
+                
+                <rect x="1010" y="410" width="380" height="180" fill="#EDE9FE" stroke="#805AD5" stroke-width="2" rx="10"/>
+                <text x="1200" y="435" text-anchor="middle" font-size="18" font-weight="bold" fill="#44337A">Infrastructure</text>
+                
+                <!-- Frontend Components -->
+                <rect x="30" y="60" width="150" height="60" fill="#4299E1" stroke="#2B6CB0" stroke-width="2" rx="5"/>
+                <text x="105" y="85" text-anchor="middle" font-size="14" fill="white">React UI</text>
+                <text x="105" y="105" text-anchor="middle" font-size="12" fill="white">shadcn/ui</text>
+                
+                <rect x="200" y="60" width="170" height="60" fill="#4299E1" stroke="#2B6CB0" stroke-width="2" rx="5"/>
+                <text x="285" y="85" text-anchor="middle" font-size="14" fill="white">Authentication</text>
+                <text x="285" y="105" text-anchor="middle" font-size="12" fill="white">Firebase Auth</text>
+                
+                <rect x="30" y="140" width="340" height="50" fill="#63B3ED" stroke="#2B6CB0" stroke-width="2" rx="5"/>
+                <text x="200" y="160" text-anchor="middle" font-size="14" fill="white">API Gateway Client</text>
+                <text x="200" y="175" text-anchor="middle" font-size="12" fill="white">catalyst-gateway-dev-an3b0bg1.uc.gateway.dev</text>
+                
+                <!-- Backend Go Functions -->
+                <g transform="translate(430, 60)">
+                    <rect x="0" y="0" width="130" height="50" fill="#F6AD55" stroke="#DD6B20" stroke-width="2" rx="5"/>
+                    <text x="65" y="20" text-anchor="middle" font-size="12" fill="white">SetAPIKeyGCF</text>
+                    <text x="65" y="35" text-anchor="middle" font-size="10" fill="white">512MB Memory</text>
+                    
+                    <rect x="140" y="0" width="130" height="50" fill="#F6AD55" stroke="#DD6B20" stroke-width="2" rx="5"/>
+                    <text x="205" y="20" text-anchor="middle" font-size="12" fill="white">ProxyToGenkitGCF</text>
+                    <text x="205" y="35" text-anchor="middle" font-size="10" fill="white">256MB Memory</text>
+                    
+                    <rect x="280" y="0" width="130" height="50" fill="#F6AD55" stroke="#DD6B20" stroke-width="2" rx="5"/>
+                    <text x="345" y="20" text-anchor="middle" font-size="12" fill="white">ParseResumeGCF</text>
+                    <text x="345" y="35" text-anchor="middle" font-size="10" fill="white">Gen2 Function</text>
+                    
+                    <rect x="420" y="0" width="130" height="50" fill="#F6AD55" stroke="#DD6B20" stroke-width="2" rx="5"/>
+                    <text x="485" y="20" text-anchor="middle" font-size="12" fill="white">ContentScraperGCF</text>
+                    <text x="485" y="35" text-anchor="middle" font-size="10" fill="white">256MB Memory</text>
+                </g>
+                
+                <!-- Python Agent Gateway Functions -->
+                <g transform="translate(430, 120)">
+                    <rect x="0" y="0" width="160" height="50" fill="#ED8936" stroke="#C05621" stroke-width="2" rx="5"/>
+                    <text x="80" y="20" text-anchor="middle" font-size="12" fill="white">StartInterviewGCF</text>
+                    <text x="80" y="35" text-anchor="middle" font-size="10" fill="white">Logs to BigQuery</text>
+                    
+                    <rect x="170" y="0" width="180" height="50" fill="#ED8936" stroke="#C05621" stroke-width="2" rx="5"/>
+                    <text x="260" y="20" text-anchor="middle" font-size="12" fill="white">InterviewResponseGCF</text>
+                    <text x="260" y="35" text-anchor="middle" font-size="10" fill="white">Logs user responses</text>
+                    
+                    <rect x="360" y="0" width="160" height="50" fill="#ED8936" stroke="#C05621" stroke-width="2" rx="5"/>
+                    <text x="440" y="20" text-anchor="middle" font-size="12" fill="white">AgentHealthGCF</text>
+                    <text x="440" y="35" text-anchor="middle" font-size="10" fill="white">512MB (Optimized)</text>
+                </g>
+                
+                <!-- Cloud Run Services -->
+                <g transform="translate(430, 240)">
+                    <rect x="0" y="0" width="260" height="60" fill="#DD6B20" stroke="#9C4221" stroke-width="2" rx="5"/>
+                    <text x="130" y="20" text-anchor="middle" font-size="14" fill="white">Python ADK Agents</text>
+                    <text x="130" y="35" text-anchor="middle" font-size="12" fill="white">Cloud Run Service</text>
+                    <text x="130" y="50" text-anchor="middle" font-size="10" fill="white">python-adk-agents-dev</text>
+                    
+                    <rect x="270" y="0" width="130" height="60" fill="#DD6B20" stroke="#9C4221" stroke-width="2" rx="5"/>
+                    <text x="335" y="25" text-anchor="middle" font-size="12" fill="white">ContentIndexer</text>
+                    <text x="335" y="45" text-anchor="middle" font-size="10" fill="white">Cloud Run</text>
+                    
+                    <rect x="410" y="0" width="130" height="60" fill="#DD6B20" stroke="#9C4221" stroke-width="2" rx="5"/>
+                    <text x="475" y="25" text-anchor="middle" font-size="12" fill="white">VectorSearch</text>
+                    <text x="475" y="45" text-anchor="middle" font-size="10" fill="white">Cloud Run</text>
+                </g>
+                
+                <!-- Multi-Agent System -->
+                <g transform="translate(1030, 60)">
+                    <rect x="0" y="0" width="150" height="60" fill="#48BB78" stroke="#2F855A" stroke-width="2" rx="5"/>
+                    <text x="75" y="25" text-anchor="middle" font-size="14" fill="white">Orchestrator</text>
+                    <text x="75" y="45" text-anchor="middle" font-size="11" fill="white">Logs interactions</text>
+                    
+                    <rect x="190" y="0" width="150" height="60" fill="#48BB78" stroke="#2F855A" stroke-width="2" rx="5"/>
+                    <text x="265" y="25" text-anchor="middle" font-size="14" fill="white">Evaluator</text>
+                    <text x="265" y="45" text-anchor="middle" font-size="11" fill="white">Logs scores</text>
+                    
+                    <rect x="0" y="80" width="150" height="60" fill="#68D391" stroke="#2F855A" stroke-width="2" rx="5"/>
+                    <text x="75" y="105" text-anchor="middle" font-size="14" fill="white">Context Agent</text>
+                    <text x="75" y="125" text-anchor="middle" font-size="11" fill="white">State tracking</text>
+                    
+                    <rect x="190" y="80" width="150" height="60" fill="#68D391" stroke="#2F855A" stroke-width="2" rx="5"/>
+                    <text x="265" y="105" text-anchor="middle" font-size="14" fill="white">Interviewer</text>
+                    <text x="265" y="125" text-anchor="middle" font-size="11" fill="white">Questions</text>
+                    
+                    <rect x="0" y="160" width="340" height="50" fill="#9AE6B4" stroke="#2F855A" stroke-width="2" rx="5"/>
+                    <text x="170" y="180" text-anchor="middle" font-size="14" fill="#22543D">Supporting Agents</text>
+                    <text x="170" y="195" text-anchor="middle" font-size="11" fill="#22543D">Achievement, Impact, Story</text>
+                    
+                    <rect x="0" y="230" width="340" height="50" fill="#C6F6D5" stroke="#2F855A" stroke-width="2" rx="5"/>
+                    <text x="170" y="250" text-anchor="middle" font-size="14" fill="#22543D">Synthesis Agent (Planned)</text>
+                    <text x="170" y="265" text-anchor="middle" font-size="11" fill="#22543D">Report generation</text>
+                </g>
+                
+                <!-- BigQuery Tables -->
+                <g transform="translate(30, 460)">
+                    <rect x="0" y="0" width="140" height="50" fill="#ED64A6" stroke="#B83280" stroke-width="2" rx="5"/>
+                    <text x="70" y="25" text-anchor="middle" font-size="12" fill="white">interview_sessions</text>
+                    <text x="70" y="40" text-anchor="middle" font-size="10" fill="white">Partitioned by date</text>
+                    
+                    <rect x="150" y="0" width="140" height="50" fill="#ED64A6" stroke="#B83280" stroke-width="2" rx="5"/>
+                    <text x="220" y="25" text-anchor="middle" font-size="12" fill="white">user_responses</text>
+                    <text x="220" y="40" text-anchor="middle" font-size="10" fill="white">Word count tracked</text>
+                    
+                    <rect x="300" y="0" width="140" height="50" fill="#ED64A6" stroke="#B83280" stroke-width="2" rx="5"/>
+                    <text x="370" y="25" text-anchor="middle" font-size="12" fill="white">evaluation_scores</text>
+                    <text x="370" y="40" text-anchor="middle" font-size="10" fill="white">Multi-dimension</text>
+                    
+                    <rect x="450" y="0" width="140" height="50" fill="#ED64A6" stroke="#B83280" stroke-width="2" rx="5"/>
+                    <text x="520" y="25" text-anchor="middle" font-size="12" fill="white">agent_interactions</text>
+                    <text x="520" y="40" text-anchor="middle" font-size="10" fill="white">Message logs</text>
+                    
+                    <rect x="600" y="0" width="140" height="50" fill="#F687B3" stroke="#B83280" stroke-width="2" rx="5"/>
+                    <text x="670" y="25" text-anchor="middle" font-size="12" fill="white">prompt_performance</text>
+                    <text x="670" y="40" text-anchor="middle" font-size="10" fill="white">DGM-PO ready</text>
+                    
+                    <rect x="750" y="0" width="140" height="50" fill="#F687B3" stroke="#B83280" stroke-width="2" rx="5"/>
+                    <text x="820" y="25" text-anchor="middle" font-size="12" fill="white">session_summaries</text>
+                    <text x="820" y="40" text-anchor="middle" font-size="10" fill="white">Final reports</text>
+                </g>
+                
+                <!-- Analytics Tools -->
+                <rect x="30" y="530" width="430" height="40" fill="#FBB6CE" stroke="#B83280" stroke-width="2" rx="5"/>
+                <text x="245" y="555" text-anchor="middle" font-size="14" fill="#702459">Looker Studio Dashboards (Planned)</text>
+                
+                <rect x="480" y="530" width="250" height="40" fill="#FBB6CE" stroke="#B83280" stroke-width="2" rx="5"/>
+                <text x="605" y="555" text-anchor="middle" font-size="14" fill="#702459">Scheduled Queries</text>
+                
+                <rect x="750" y="530" width="220" height="40" fill="#FBB6CE" stroke="#B83280" stroke-width="2" rx="5"/>
+                <text x="860" y="555" text-anchor="middle" font-size="14" fill="#702459">Real-time Monitoring</text>
+                
+                <!-- Infrastructure Components -->
+                <g transform="translate(1030, 460)">
+                    <rect x="0" y="0" width="150" height="50" fill="#805AD5" stroke="#553C9A" stroke-width="2" rx="5"/>
+                    <text x="75" y="25" text-anchor="middle" font-size="12" fill="white">Pulumi IaC</text>
+                    <text x="75" y="40" text-anchor="middle" font-size="10" fill="white">wkv/interviewai-dev</text>
+                    
+                    <rect x="170" y="0" width="170" height="50" fill="#805AD5" stroke="#553C9A" stroke-width="2" rx="5"/>
+                    <text x="255" y="25" text-anchor="middle" font-size="12" fill="white">Secret Manager</text>
+                    <text x="255" y="40" text-anchor="middle" font-size="10" fill="white">API Keys</text>
+                    
+                    <rect x="0" y="60" width="340" height="50" fill="#9F7AEA" stroke="#553C9A" stroke-width="2" rx="5"/>
+                    <text x="170" y="80" text-anchor="middle" font-size="12" fill="white">Firebase / Firestore</text>
+                    <text x="170" y="95" text-anchor="middle" font-size="10" fill="white">Auth & Message Queue</text>
+                </g>
+                
+                <!-- Connection Lines -->
+                <!-- Frontend to API Gateway -->
+                <line x1="200" y1="190" x2="200" y2="320" stroke="#4A90E2" stroke-width="3" marker-end="url(#arrowblue)"/>
+                <text x="205" y="255" font-size="10" fill="#4A90E2">HTTPS</text>
+                
+                <!-- API Gateway to Functions -->
+                <line x1="390" y1="165" x2="430" y2="165" stroke="#F6AD55" stroke-width="3" marker-end="url(#arroworange)"/>
+                
+                <!-- Functions to Python Service -->
+                <line x1="560" y1="170" x2="560" y2="240" stroke="#ED8936" stroke-width="3" marker-end="url(#arroworange)"/>
+                
+                <!-- Python Service to Agents -->
+                <line x1="690" y1="270" x2="1030" y2="270" stroke="#48BB78" stroke-width="3" marker-end="url(#arrowgreen)"/>
+                <text x="860" y="265" font-size="10" fill="#48BB78">Inter-agent messages</text>
+                
+                <!-- To BigQuery -->
+                <line x1="560" y1="300" x2="560" y2="460" stroke="#ED64A6" stroke-width="3" marker-end="url(#arrowpink)"/>
+                <text x="565" y="380" font-size="10" fill="#ED64A6">Analytics data</text>
+                
+                <line x1="1105" y1="300" x2="820" y2="460" stroke="#ED64A6" stroke-width="3" marker-end="url(#arrowpink)"/>
+                
+                <!-- Arrow Definitions -->
+                <defs>
+                    <marker id="arrowblue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#4A90E2"/>
+                    </marker>
+                    <marker id="arroworange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#F6AD55"/>
+                    </marker>
+                    <marker id="arrowgreen" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#48BB78"/>
+                    </marker>
+                    <marker id="arrowpink" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#ED64A6"/>
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+        
+        <div class="legend">
+            <h3>Legend</h3>
+            <div class="legend-item">
+                <span class="color-box" style="background: #4299E1;"></span>
+                <span>Frontend (Next.js)</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background: #F6AD55;"></span>
+                <span>Go Functions (Gen1)</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background: #ED8936;"></span>
+                <span>Python Gateway Functions</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background: #DD6B20;"></span>
+                <span>Cloud Run Services</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background: #48BB78;"></span>
+                <span>Multi-Agent System</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background: #ED64A6;"></span>
+                <span>BigQuery Analytics</span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background: #805AD5;"></span>
+                <span>Infrastructure (Pulumi)</span>
+            </div>
+        </div>
+        
+        <div style="margin-top: 20px; padding: 15px; background: #E8F4F8; border-radius: 8px;">
+            <h3>Key Highlights</h3>
+            <ul>
+                <li><strong>Optimized Performance:</strong> AgentHealthGCF upgraded to 512MB memory, reducing cold start from 18s to ~160ms</li>
+                <li><strong>Comprehensive Analytics:</strong> All interview sessions, responses, and evaluations tracked in BigQuery</li>
+                <li><strong>Real-time Data Flow:</strong> Go functions and Python agents automatically log events</li>
+                <li><strong>Scalable Architecture:</strong> Cloud Run services for compute-intensive tasks</li>
+                <li><strong>Future-ready:</strong> DGM-PO prompt optimization table ready, Synthesis agent planned</li>
+            </ul>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: center; color: #666;">
+            <p>Generated: June 30, 2025 | <a href="#" onclick="window.print()">Print Diagram</a></p>
+        </div>
+    </div>
+</body>
+</html>

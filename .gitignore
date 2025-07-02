@@ -8,12 +8,6 @@
 **/*-service-account.json
 **/*-sa-key.json
 
-# docs
-/docs/reference/
-/docs/presentation/
-/scripts/
-/docs/architecture/
-
 # environment files
 .env
 .env.local
@@ -48,6 +42,13 @@
 # misc
 .DS_Store
 *.pem
+
+# Archives and backups
+/archive/
+/context_backup/
+CLAUDE_old.md
+*_old.*
+*.backup
 
 # IDE/Editor files
 .idea/

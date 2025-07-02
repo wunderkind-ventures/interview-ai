@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History, FileEdit, MailPlus, Library, SettingsIcon, Wrench } from 'lucide-react'; // Added Library, SettingsIcon & Wrench
+import { BotMessageSquare, LogIn, LogOut, UserCircle, Trophy, History, FileEdit, MailPlus, Library, SettingsIcon, Wrench, BookOpen } from 'lucide-react'; // Added Library, SettingsIcon, Wrench & BookOpen
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -95,6 +95,12 @@ export default function Header() {
                     <Wrench className="mr-2 h-4 w-4" />
                     <span>Testing Utilities</span>
                   </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href="https://wunderkind-ventures.github.io/interview-ai/" target="_blank" rel="noopener noreferrer" className="flex items-center w-full">
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    <span>Documentation</span>
+                  </a>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout}>

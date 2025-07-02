@@ -18,6 +18,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
     
+    <!-- Mermaid.js for diagram rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    
+    <!-- Excalidraw viewer -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@excalidraw/excalidraw@0.17.0/dist/excalidraw.production.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@excalidraw/excalidraw@0.17.0/dist/styles.css">
+    
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -199,6 +208,43 @@
             color: #64748b;
         }
         
+        /* Mermaid diagram styles */
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            background-color: #f8fafc;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+        }
+        
+        .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Excalidraw styles */
+        .excalidraw-container {
+            width: 100%;
+            height: 600px;
+            margin: 1.5rem 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+        
+        .excalidraw-notice {
+            background-color: #fef3c7;
+            border: 1px solid #fbbf24;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+            color: #92400e;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -211,14 +257,23 @@
             .header {
                 padding: 1rem;
             }
+            
+            .mermaid {
+                padding: 1rem;
+            }
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>InterviewAI Documentation</h1>
-        <div class="breadcrumb" id="breadcrumb">
-            <a href="index.html">Home</a> / <span id="currentDoc">Loading...</span>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <h1>InterviewAI Documentation</h1>
+                <div class="breadcrumb" id="breadcrumb">
+                    <a href="index.html">Home</a> / <span id="currentDoc">Loading...</span>
+                </div>
+            </div>
+            <a href="https://interview-ai.ngrok.app" style="color: #4f46e5; text-decoration: none; font-weight: 500;">← Back to App</a>
         </div>
     </div>
     
@@ -256,10 +311,30 @@
                     return response.text();
                 })
                 .then(markdown => {
+                    // Check if this is an Excalidraw file
+                    if (mdFile.includes('.excalidraw.md') || markdown.includes('excalidraw-plugin: parsed')) {
+                        // Handle Excalidraw files
+                        document.getElementById('content').innerHTML = `
+                            <div class="excalidraw-notice">
+                                <h2>Excalidraw Drawing</h2>
+                                <p>This file contains an Excalidraw drawing. To view and edit this drawing:</p>
+                                <ol>
+                                    <li>Download the <a href="${mdFile}" download>Excalidraw file</a></li>
+                                    <li>Visit <a href="https://excalidraw.com" target="_blank">excalidraw.com</a></li>
+                                    <li>Click "Open" and select the downloaded file</li>
+                                </ol>
+                                <p>Alternatively, if you have Excalidraw installed in your IDE (Obsidian, VS Code), you can open this file directly there.</p>
+                            </div>
+                            <h3>Raw Content</h3>
+                            <pre style="max-height: 400px; overflow-y: auto;"><code>${markdown.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+                        `;
+                        return;
+                    }
+                    
                     // Configure marked options
                     marked.setOptions({
                         highlight: function(code, lang) {
-                            if (lang && Prism.languages[lang]) {
+                            if (lang && lang !== 'mermaid' && Prism.languages[lang]) {
                                 return Prism.highlight(code, Prism.languages[lang], lang);
                             }
                             return code;
@@ -269,8 +344,35 @@
                     });
                     
                     // Render markdown
-                    const html = marked.parse(markdown);
+                    let html = marked.parse(markdown);
+                    
+                    // Replace Mermaid code blocks with div elements
+                    html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, (match, code) => {
+                        // Decode HTML entities
+                        const decodedCode = code
+                            .replace(/&lt;/g, '<')
+                            .replace(/&gt;/g, '>')
+                            .replace(/&amp;/g, '&')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&#39;/g, "'");
+                        return `<div class="mermaid">${decodedCode}</div>`;
+                    });
+                    
                     document.getElementById('content').innerHTML = html;
+                    
+                    // Initialize Mermaid
+                    mermaid.initialize({ 
+                        startOnLoad: true,
+                        theme: 'default',
+                        flowchart: {
+                            useMaxWidth: true,
+                            htmlLabels: true,
+                            curve: 'linear'
+                        }
+                    });
+                    
+                    // Render Mermaid diagrams
+                    mermaid.init(undefined, document.querySelectorAll('.mermaid'));
                     
                     // Re-highlight code blocks (for dynamically added content)
                     Prism.highlightAll();

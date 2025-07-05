@@ -1,0 +1,296 @@
+swagger: "2.0"
+info:
+  title: "Interview AI API Gateway"
+  version: "1.0.0"
+  description: "API Gateway for Interview AI Platform - Fixed Configuration"
+
+host: "catalyst-gateway-dev-an3b0bg1.uc.gateway.dev"
+schemes:
+  - "https"
+
+securityDefinitions:
+  firebase:
+    authorizationUrl: ""
+    flow: "implicit"
+    type: "oauth2"
+    x-google-issuer: "https://securetoken.google.com/wkv-interviewai-dev"
+    x-google-jwks_uri: "https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+    x-google-audiences: "wkv-interviewai-dev"
+
+paths:
+  # Health check endpoint - no auth required
+  /api/agents/health:
+    get:
+      summary: "Health check for agent system"
+      operationId: "getAgentHealth"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/AgentHealthGCF-dev"
+      responses:
+        200:
+          description: "Health status retrieved"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsAgentHealth"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/AgentHealthGCF-dev"
+      responses:
+        200:
+          description: "CORS headers"
+
+  # User API Key Management
+  /api/user/set-api-key:
+    post:
+      summary: "Store user's Gemini API key"
+      operationId: "setApiKey"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/SetAPIKeyGCF-dev"
+      security:
+        - firebase: []
+      responses:
+        200:
+          description: "API key stored successfully"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsSetApiKey"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/SetAPIKeyGCF-dev"
+      responses:
+        200:
+          description: "CORS headers"
+
+  /api/user/remove-api-key:
+    delete:
+      summary: "Remove user's Gemini API key"
+      operationId: "removeApiKey"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/RemoveAPIKeyGCF-dev"
+      security:
+        - firebase: []
+      responses:
+        200:
+          description: "API key removed successfully"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsRemoveApiKey"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/RemoveAPIKeyGCF-dev"
+      responses:
+        200:
+          description: "CORS headers"
+
+  /api/user/api-key-status:
+    get:
+      summary: "Check if user has API key"
+      operationId: "getApiKeyStatus"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/GetAPIKeyStatusGCF-dev"
+      security:
+        - firebase: []
+      responses:
+        200:
+          description: "API key status"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsGetApiKeyStatus"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/GetAPIKeyStatusGCF-dev"
+      responses:
+        200:
+          description: "CORS headers"
+
+  # Interview Session Management
+  /api/agents/interview/start:
+    post:
+      summary: "Start a new interview session"
+      operationId: "startInterview"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/StartInterviewGCF-dev"
+      security:
+        - firebase: []
+      responses:
+        200:
+          description: "Interview started"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsStartInterview"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/StartInterviewGCF-dev"
+      responses:
+        200:
+          description: "CORS headers"
+
+  /api/agents/interview/{sessionId}/respond:
+    post:
+      summary: "Submit interview response"
+      operationId: "interviewResponse"
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/InterviewResponseGCF-dev"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      security:
+        - firebase: []
+      responses:
+        200:
+          description: "Response processed"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsInterviewResponse"
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/InterviewResponseGCF-dev"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        200:
+          description: "CORS headers"
+
+  /api/agents/interview/{sessionId}/status:
+    get:
+      summary: "Get interview session status"
+      operationId: "interviewStatus"
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/InterviewStatusGCF-dev"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      security:
+        - firebase: []
+      responses:
+        200:
+          description: "Status retrieved"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsInterviewStatus"
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/InterviewStatusGCF-dev"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        200:
+          description: "CORS headers"
+
+  /api/agents/interview/{sessionId}/end:
+    post:
+      summary: "End interview session"
+      operationId: "endInterview"
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/EndInterviewGCF-dev"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      security:
+        - firebase: []
+      responses:
+        200:
+          description: "Interview ended"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsEndInterview"
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/EndInterviewGCF-dev"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        200:
+          description: "CORS headers"
+
+  /api/agents/report/{sessionId}:
+    get:
+      summary: "Get interview report"
+      operationId: "getReport"
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/GetReportGCF-dev"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      security:
+        - firebase: []
+      responses:
+        200:
+          description: "Report retrieved"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsGetReport"
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          type: string
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/GetReportGCF-dev"
+        path_translation: APPEND_PATH_TO_ADDRESS
+      responses:
+        200:
+          description: "CORS headers"
+
+  # Genkit Proxy
+  /api/genkit/proxy:
+    post:
+      summary: "Proxy to Genkit flows"
+      operationId: "genkitProxy"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/ProxyToGenkitGCF-dev"
+      security:
+        - firebase: []
+      responses:
+        200:
+          description: "Flow executed"
+    options:
+      summary: "CORS preflight"
+      operationId: "corsGenkitProxy"
+      x-google-backend:
+        address: "https://us-central1-wkv-interviewai-dev.cloudfunctions.net/ProxyToGenkitGCF-dev"
+      responses:
+        200:
+          description: "CORS headers"
+
+# Global CORS configuration
+x-google-endpoints:
+  - name: "catalyst-gateway-dev-an3b0bg1.uc.gateway.dev"
+    cors:
+      allowedOrigins:
+        - "https://interview-ai.web.app"
+        - "http://localhost:3000"
+        - "http://localhost:9002"
+        - "https://settled-merry-jaguar.ngrok-free.app"
+        - "*"
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowedHeaders:
+        - Authorization
+        - Content-Type
+        - Accept
+        - Origin
+        - X-Requested-With
+      exposeHeaders:
+        - Content-Length
+        - Content-Type
+      maxAge: 3600

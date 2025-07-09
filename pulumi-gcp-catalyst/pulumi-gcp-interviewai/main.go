@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/cloudfunctionsv2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"catalyst-backend/apis"
@@ -52,6 +51,14 @@ func main() {
 		if err != nil {
 			return err
 		}
+		
+		// Create GitHub Actions service account for CI/CD
+		githubSA, err := iam.CreateGitHubActionsServiceAccount(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		_ = githubSA // Mark as used (outputs are exported within the function)
+		
 		deploymentBucket, err := storage.CreateDeploymentBucket(ctx, cfg)
 		if err != nil {
 			return err
@@ -133,16 +140,16 @@ func main() {
 			return err
 		}
 
-		// Deploy ParseResume Gen2 Function via ComponentResource
-		parseResumeFn, err := component.NewGen2Function(ctx, "ParseResume"+nameSuffix, &component.Gen2FunctionArgs{
-			Name:           "ParseResume" + nameSuffix,
+		// Deploy ParseResume as Gen1 Function (Gen2 has issues with Go module structure)
+		parseResumeFn, err := component.NewGen1Function(ctx, "ParseResumeGCF"+nameSuffix, &component.Gen1FunctionArgs{
+			Name:           "ParseResumeGCF" + nameSuffix,
 			EntryPoint:     "ParseResume",
+			BucketName:     deploymentBucket.Name,
 			SourcePath:     "../../backends/catalyst-interviewai/functions/docsupport/parseresume",
-			Bucket:         sourceBucket,
 			Region:         cfg.GcpRegion,
 			Project:        cfg.GcpProject,
-			Description:    "Parses uploaded resume/document files (docx, md) and returns text.",
 			ServiceAccount: sa.Email,
+			Runtime:        "go121",
 			EnvVars: pulumi.StringMap{
 				"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
 				"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
@@ -199,7 +206,7 @@ func main() {
 			FunctionTimeout: 540, // 9 minutes
 
 			// Cloud Run configuration (for future use)
-			ContainerImage: fmt.Sprintf("gcr.io/%s/python-adk-agents:latest", cfg.GcpProject),
+			ContainerImage: cfg.PythonAgentsImage,
 			Port:           8080,
 			Memory:         "1Gi",
 			CPU:            "1",
@@ -341,70 +348,20 @@ func main() {
 			getApiKeyStatusFn.Function.HttpsTriggerUrl, // 6th - GetAPIKeyStatusGCF OPTIONS
 			proxyFn.Function.HttpsTriggerUrl,           // 7th - ProxyToGenkitGCF POST
 			proxyFn.Function.HttpsTriggerUrl,           // 8th - ProxyToGenkitGCF OPTIONS
-			parseResumeFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 9th - ParseResume POST
-			parseResumeFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 10th - ParseResume OPTIONS
+			parseResumeFn.Function.HttpsTriggerUrl, // 9th - ParseResume POST
+			parseResumeFn.Function.HttpsTriggerUrl, // 10th - ParseResume OPTIONS
 			// ContentScraper URLs (11-14)
-			ragInfra.ContentScraperFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 11th
-			ragInfra.ContentScraperFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 12th
+			ragInfra.ContentScraperFunction.Function.HttpsTriggerUrl, // 11th - ContentScraper POST
+			ragInfra.ContentScraperFunction.Function.HttpsTriggerUrl, // 12th - ContentScraper OPTIONS
 			ragInfra.ContentIndexerFunction.URL, // 13th - ContentIndexer POST
 			ragInfra.ContentIndexerFunction.URL, // 14th - ContentIndexer OPTIONS
 			// VectorSearch URLs (15-20)
-			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 15th
-			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 16th
-			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 17th
-			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 18th
-			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 19th
-			ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput), // 20th
+			ragInfra.VectorSearchFunction.Function.HttpsTriggerUrl, // 15th - VectorSearch POST /search
+			ragInfra.VectorSearchFunction.Function.HttpsTriggerUrl, // 16th - VectorSearch OPTIONS /search
+			ragInfra.VectorSearchFunction.Function.HttpsTriggerUrl, // 17th - VectorSearch POST /index
+			ragInfra.VectorSearchFunction.Function.HttpsTriggerUrl, // 18th - VectorSearch OPTIONS /index
+			ragInfra.VectorSearchFunction.Function.HttpsTriggerUrl, // 19th - VectorSearch DELETE
+			ragInfra.VectorSearchFunction.Function.HttpsTriggerUrl, // 20th - VectorSearch OPTIONS /delete
 			// Python Agent Gateway Function URLs (21-32)
 			startInterviewFn.Function.HttpsTriggerUrl,    // 21st - Start Interview POST
 			startInterviewFn.Function.HttpsTriggerUrl,    // 22nd - Start Interview OPTIONS
@@ -419,7 +376,7 @@ func main() {
 			agentHealthFn.Function.HttpsTriggerUrl,       // 31st - Agent Health GET
 			agentHealthFn.Function.HttpsTriggerUrl,       // 32nd - Agent Health OPTIONS
 		}, []pulumi.Resource{
-			setFn.Function, removeFn.Function, getApiKeyStatusFn.Function, proxyFn.Function, ragInfra.ContentScraperFunction.Function, ragInfra.VectorSearchFunction.Function,
+			setFn.Function, removeFn.Function, getApiKeyStatusFn.Function, proxyFn.Function, parseResumeFn.Function, ragInfra.ContentScraperFunction.Function, ragInfra.VectorSearchFunction.Function,
 			startInterviewFn.Function, responseInterviewFn.Function, statusInterviewFn.Function, endInterviewFn.Function, getReportFn.Function, agentHealthFn.Function,
 		}, cfg.GcpProject)
 		if err != nil {
@@ -498,12 +455,7 @@ func main() {
 		utils.ExportURL(ctx, "getApiKeyStatusFunctionUrl", getApiKeyStatusFn.Function.HttpsTriggerUrl)
 
 		utils.ExportURL(ctx, "proxyToGenkitFunctionUrl", proxyFn.Function.HttpsTriggerUrl)
-		utils.ExportURL(ctx, "parseResumeFunctionUrl", parseResumeFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-			if sc != nil && sc.Uri != nil {
-				return *sc.Uri
-			}
-			return ""
-		}).(pulumi.StringOutput))
+		utils.ExportURL(ctx, "parseResumeFunctionUrl", parseResumeFn.Function.HttpsTriggerUrl)
 		utils.ExportURL(ctx, "pythonADKAgentServiceUrl", pythonAgentService.GetURL())
 
 		// Export Python Agent Gateway Function URLs
@@ -522,18 +474,8 @@ func main() {
 		utils.ExportURL(ctx, "criticalErrorLogMetricName", logMetric.Name)
 
 		// Export RAG Infrastructure URLs and IDs
-		utils.ExportURL(ctx, "contentScraperFunctionUrl", ragInfra.ContentScraperFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-			if sc != nil && sc.Uri != nil {
-				return *sc.Uri
-			}
-			return ""
-		}).(pulumi.StringOutput))
-		utils.ExportURL(ctx, "vectorSearchFunctionUrl", ragInfra.VectorSearchFunction.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-			if sc != nil && sc.Uri != nil {
-				return *sc.Uri
-			}
-			return ""
-		}).(pulumi.StringOutput))
+		utils.ExportURL(ctx, "contentScraperFunctionUrl", ragInfra.ContentScraperFunction.Function.HttpsTriggerUrl)
+		utils.ExportURL(ctx, "vectorSearchFunctionUrl", ragInfra.VectorSearchFunction.Function.HttpsTriggerUrl)
 		utils.ExportURL(ctx, "contentIndexerFunctionUrl", ragInfra.ContentIndexerFunction.URL)
 		utils.ExportURL(ctx, "indexingTopicName", ragInfra.IndexingTopic.Name)
 		utils.ExportURL(ctx, "indexingSubscriptionName", ragInfra.IndexingSubscription.Name)

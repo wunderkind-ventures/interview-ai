@@ -254,7 +254,14 @@ func deployAsCloudRun(ctx *pulumi.Context, component *HybridService, name string
 
 	component.CloudRun = service
 	// Extract URL from Cloud Run service
-	component.URL = service.Statuses.Index(pulumi.Int(0)).Url().Elem()
+	// Use the standard Cloud Run URL format if status is not available
+	component.URL = service.Statuses.ApplyT(func(statuses []cloudrun.ServiceStatus) pulumi.StringOutput {
+		if len(statuses) > 0 && statuses[0].Url != nil {
+			return pulumi.String(*statuses[0].Url).ToStringOutput()
+		}
+		// Fallback to constructed URL
+		return pulumi.Sprintf("https://%s-%s.a.run.app", args.Name, args.Project)
+	}).(pulumi.StringOutput)
 
 	return component, nil
 }

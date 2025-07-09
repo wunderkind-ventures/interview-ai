@@ -3,7 +3,6 @@ package functions
 import (
 	"fmt"
 
-	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/cloudfunctionsv2"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/pubsub"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/secretmanager"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/serviceaccount"
@@ -16,8 +15,8 @@ import (
 
 // RAGInfrastructure represents all RAG-related infrastructure
 type RAGInfrastructure struct {
-	ContentScraperFunction *component.Gen2Function
-	VectorSearchFunction   *component.Gen2Function
+	ContentScraperFunction *component.Gen1Function
+	VectorSearchFunction   *component.Gen1Function
 	ContentIndexerFunction *component.HybridService
 	IndexingTopic          *pubsub.Topic
 	IndexingSubscription   *pubsub.Subscription
@@ -70,16 +69,16 @@ func DeployRAGInfrastructure(ctx *pulumi.Context, cfg *config.CatalystConfig, so
 		return nil, fmt.Errorf("failed to create embedding API secret: %w", err)
 	}
 
-	// Deploy Content Scraper Function as Gen2 Cloud Function
-	contentScraperFn, err := component.NewGen2Function(ctx, "ContentScraper"+nameSuffix, &component.Gen2FunctionArgs{
-		Name:           "ContentScraper" + nameSuffix,
+	// Deploy Content Scraper Function as Gen1 (using wrapper to avoid package main issues)
+	contentScraperFn, err := component.NewGen1Function(ctx, "ContentScraperGCF"+nameSuffix, &component.Gen1FunctionArgs{
+		Name:           "ContentScraperGCF" + nameSuffix,
 		EntryPoint:     "ScrapeContentGCF",
-		SourcePath:     "../../backends/catalyst-interviewai/functions/contentscraper",
-		Bucket:         sourceBucket,
+		BucketName:     sourceBucket.Name,
+		SourcePath:     "../../backends/catalyst-interviewai/functions/contentscraper-wrapper",
 		Region:         cfg.GcpRegion,
 		Project:        cfg.GcpProject,
-		Description:    "Scrapes content from YouTube videos and blog posts, generates embeddings",
 		ServiceAccount: sa.Email,
+		Runtime:        "go121",
 		EnvVars: pulumi.StringMap{
 			"NEXTJS_BASE_URL":        pulumi.String(cfg.NextjsBaseUrl),
 			"DEFAULT_GEMINI_API_KEY": cfg.DefaultGeminiKey,
@@ -91,16 +90,16 @@ func DeployRAGInfrastructure(ctx *pulumi.Context, cfg *config.CatalystConfig, so
 		return nil, fmt.Errorf("failed to create content scraper function: %w", err)
 	}
 
-	// Deploy Vector Search Function as Gen2 Cloud Function
-	vectorSearchFn, err := component.NewGen2Function(ctx, "VectorSearch"+nameSuffix, &component.Gen2FunctionArgs{
-		Name:           "VectorSearch" + nameSuffix,
+	// Deploy Vector Search Function as Gen1 (using wrapper to avoid package main issues)
+	vectorSearchFn, err := component.NewGen1Function(ctx, "VectorSearchGCF"+nameSuffix, &component.Gen1FunctionArgs{
+		Name:           "VectorSearchGCF" + nameSuffix,
 		EntryPoint:     "VectorSearchGCF",
-		SourcePath:     "../../backends/catalyst-interviewai/functions/vectorsearch",
-		Bucket:         sourceBucket,
+		BucketName:     sourceBucket.Name,
+		SourcePath:     "../../backends/catalyst-interviewai/functions/vectorsearch-wrapper",
 		Region:         cfg.GcpRegion,
 		Project:        cfg.GcpProject,
-		Description:    "Provides semantic search and vector similarity for RAG",
 		ServiceAccount: sa.Email,
+		Runtime:        "go121",
 		EnvVars: pulumi.StringMap{
 			"VERTEX_AI_LOCATION":          pulumi.String(cfg.GcpRegion),
 			"VERTEX_AI_INDEX_ENDPOINT_ID": pulumi.String(""), // To be configured later
@@ -127,12 +126,7 @@ func DeployRAGInfrastructure(ctx *pulumi.Context, cfg *config.CatalystConfig, so
 		Bucket:     sourceBucket,
 		EnvVars: pulumi.StringMap{
 			"INDEXING_TOPIC_NAME": indexingTopic.Name,
-			"VECTOR_SEARCH_URL":   vectorSearchFn.Function.ServiceConfig.ApplyT(func(sc *cloudfunctionsv2.FunctionServiceConfig) string {
-				if sc != nil && sc.Uri != nil {
-					return *sc.Uri
-				}
-				return ""
-			}).(pulumi.StringOutput),
+			"VECTOR_SEARCH_URL":   vectorSearchFn.Function.HttpsTriggerUrl,
 			"GCP_PROJECT_ID":      pulumi.String(cfg.GcpProject),
 		},
 	})

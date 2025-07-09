@@ -82,9 +82,10 @@ YOUTUBE_API_KEY=%s`,
 }
 
 // ImportFirebaseConfig imports Firebase configuration from infrastructure stack
-func ImportFirebaseConfig(ctx *pulumi.Context) (*FirebaseConfig, error) {
+func ImportFirebaseConfig(ctx *pulumi.Context, env string) (*FirebaseConfig, error) {
 	// Create a stack reference to the infrastructure stack
-	infraStack, err := pulumi.NewStackReference(ctx, "wkv/wkv-catalyst-gcp/catalyst-dev", nil)
+	stackName := fmt.Sprintf("wkv/wkv-catalyst-gcp/catalyst-%s", env)
+	infraStack, err := pulumi.NewStackReference(ctx, stackName, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,7 @@ config:
   catalyst-gcp-infra:catalystGcpProject: wkv-interviewai-dev
   catalyst-gcp-infra:catalystGcpRegion: us-central1
   catalyst-gcp-infra:defaultGeminiApiKey:
-    secure: AAABANEWlJ3y/RnCwPXR2DxFAN6wp6xe/2LzhqWiBC6AcFK7Lmns/O3axuB+/cJRkqGIsQaKtkVrmFsODTOHqFebD6Db1cE=
+    secure: AAABAOWklBRKtH7KE+Iw5dQZwYb7wPg6ZTBVHCMRICgW84au8wrF1B5r74iuWyf+nV5WJAilpiO8RUG32QBy/66OPtSMcopmUMzMkPaMfu8=
   catalyst-gcp-infra:nextjsBaseUrl: https://settled-merry-jaguar.ngrok-free.app
   catalyst-gcp-infra:gcpProject: wkv-interviewai-dev
   catalyst-gcp-infra:Project: wkv-interviewai-dev

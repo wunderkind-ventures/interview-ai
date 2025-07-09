@@ -1,0 +1,15 @@
+config:
+  gcp:project: interviewai-mzf86
+  gcp:region: us-central1
+  catalyst-gcp-infra:environment: prod
+  catalyst-gcp-infra:catalystGcpProject: interviewai-mzf86
+  catalyst-gcp-infra:catalystGcpRegion: us-central1
+  catalyst-gcp-infra:defaultGeminiApiKey:
+    secure: AAABADE3W+H20jW+oH9VOnpGBrUrM1TllA0/LS7/JcyV9D3dxJ0J0Bo3WiNICM1VVaK2CelDC6NgdVqgYOtrFlXK/PAiP+A=
+  catalyst-gcp-infra:nextjsBaseUrl: https://interview.wkv.ai
+  catalyst-gcp-infra:gcpProject: interviewai-mzf86
+  catalyst-gcp-infra:gcpRegion: us-central1
+  catalyst-gcp-infra:alertEmail: kenneth@wkv.ai
+  catalyst-gcp-infra:sshPrivateKey:
+    secure: AAABAF4SyZ4eAHwr0qq9SP5V4nAdK8zgghP8mHvnWekjVDidMJZ4/3luXN6R+Sb5oofVWAeACa3AmDkyZmDCc9jYXzFIQo7I2+j/sITNVG/V1bvqxAiI1rrgQ5Vh/SJMPPlbdUM9rIJcjNemC/i9QSgG+NrHy6p6IkEVMzXxArhknSS4M0KxM+l7NkT3kd0wGTsJ5xg+mAJHDCuM3ye2hoGoyebjB0ajV/Dmll736+tM8vthMiiJkvZ8sqj7imWqJ9GPQGHp5R0GHvHPzBxxrJSXj7wARI+ybO6HExZDIwK8SengAnTF8zYoDwoU9cCYL47mN5j61NxLpycoyO4GDmx8SeIq1cCD13CAKqEn6koZ+FWdwTtyhfRegsNNY72l9+KnI0V3rNzPyjp9t7ivXlulzvds9YwTKS4laVe2Va4YMbN93yQrpTAQDEieSe2XIPc+YHwQh1G5acnZjcNeK21oI12VCiGQ5L9VkEwjMNmdQrozvXiDLGk/caGehd0rSeHLABy1xNV0MRmHThxAHHvhWrGTMKYdkgot5mV2KUmHmojFoho0Ltk2ehyPYOfDPhk6JvPNrdWbqVq/NtgHmM2JpS3seOxVSp3akHrPvpwJxsuUIiK2khJD6w==
+  catalyst-gcp-infra:projectId: wkv-interviewai-prod

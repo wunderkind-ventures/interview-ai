@@ -46,6 +46,10 @@ func CreateFirestoreIndexes(ctx *pulumi.Context, project string, database *fires
 				FieldPath: pulumi.String("createdAt"),
 				Order:     pulumi.String("DESCENDING"),
 			},
+			&firestore.IndexFieldArgs{
+				FieldPath: pulumi.String("__name__"),
+				Order:     pulumi.String("DESCENDING"),
+			},
 		},
 	})
 	if err != nil {
@@ -64,6 +68,10 @@ func CreateFirestoreIndexes(ctx *pulumi.Context, project string, database *fires
 			},
 			&firestore.IndexFieldArgs{
 				FieldPath: pulumi.String("createdAt"),
+				Order:     pulumi.String("DESCENDING"),
+			},
+			&firestore.IndexFieldArgs{
+				FieldPath: pulumi.String("__name__"),
 				Order:     pulumi.String("DESCENDING"),
 			},
 		},
@@ -86,6 +94,10 @@ func CreateFirestoreIndexes(ctx *pulumi.Context, project string, database *fires
 				FieldPath: pulumi.String("createdAt"),
 				Order:     pulumi.String("DESCENDING"),
 			},
+			&firestore.IndexFieldArgs{
+				FieldPath: pulumi.String("__name__"),
+				Order:     pulumi.String("DESCENDING"),
+			},
 		},
 	})
 	if err != nil {
@@ -106,6 +118,10 @@ func CreateFirestoreIndexes(ctx *pulumi.Context, project string, database *fires
 				FieldPath: pulumi.String("updatedAt"),
 				Order:     pulumi.String("DESCENDING"),
 			},
+			&firestore.IndexFieldArgs{
+				FieldPath: pulumi.String("__name__"),
+				Order:     pulumi.String("DESCENDING"),
+			},
 		},
 	})
 	if err != nil {
@@ -124,6 +140,10 @@ func CreateFirestoreIndexes(ctx *pulumi.Context, project string, database *fires
 			},
 			&firestore.IndexFieldArgs{
 				FieldPath: pulumi.String("updatedAt"),
+				Order:     pulumi.String("DESCENDING"),
+			},
+			&firestore.IndexFieldArgs{
+				FieldPath: pulumi.String("__name__"),
 				Order:     pulumi.String("DESCENDING"),
 			},
 		},
